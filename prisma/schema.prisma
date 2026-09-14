@@ -1,28 +1,903 @@
-generator client {
-  provider = "prisma-client-js"
-}
+// ============================================================================
+// Sistema de Gestión de Trayectorias Educativas "Aura"
+// Educación Secundaria — Provincia de Buenos Aires (Res. 1650/24 DGCyE)
+//
+// Prisma schema generado a partir del Documento de Requerimientos Funcionales
+// Unificado v1.0 (Junio 2026). Cubre las entidades del punto 0.5 y las
+// extensiones necesarias para las Etapas 1 a 8 (EDTE/PATE, conflictos de
+// alta complejidad, pases, equivalencias, títulos, portal de familias, etc).
+//
+// Notas de diseño:
+// - Se usa PostgreSQL como motor recomendado (soporta UUID, JSONB, enums,
+//   índices parciales y extensiones de encriptación a nivel de columna).
+// - Todos los modelos incluyen createdAt/updatedAt para trazabilidad básica,
+//   además de LogAuditoria para la bitácora exigida en E6-RF-05/06/07.
+// - Los campos sensibles de ConflictoLegal deben cifrarse en la capa de
+//   aplicación (AES-256, E4-RNF-01) antes de persistir; Prisma no cifra
+//   automáticamente, por eso se guardan como String (payload cifrado) más
+//   metadatos de integridad (hash, uuid).
+// - bloqueo_edicion / registros firmados se modelan como inmutables a nivel
+//   de aplicación (no hay UPDATE permitido una vez firmado); el schema deja
+//   los campos necesarios para que la capa de negocio haga cumplir la regla.
+// ============================================================================
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ==========================================
-// EJEMPLO DE MODELOS (Adapta a tu proyecto)
-// ==========================================
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  role      Role     @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("users")
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Rol {
+  ADMINISTRADOR
+  GESTION_ESCOLAR // Preceptoría / Secretaría
+  EOE_DIRECTIVO // Equipo de Orientación Escolar / Directivos
+  DOCENTE
+  ESTUDIANTE
+  FAMILIA
 }
 
-enum Role {
-  USER
-  ADMIN
+enum EstadoUsuario {
+  ACTIVO
+  SUSPENDIDO
+  BAJA
+}
+
+enum EstadoEstudiante {
+  ACTIVO
+  INACTIVO
+  EGRESADO
+  PASE_SALIDA
+  CONDICIONAL
+}
+
+enum Turno {
+  MANANA
+  TARDE
+  VESPERTINO
+  CONTRATURNO
+}
+
+enum Orientacion {
+  ORIENTADA
+  TECNICA
+  AGRARIA
+  ARTE
+}
+
+enum TipoCursada {
+  CURSA
+  RECURSA
+}
+
+enum EstadoMateria {
+  EN_CURSO
+  APROBADA_ACREDITADA
+  PENDIENTE_1C
+  PENDIENTE_2C
+  EN_INTENSIFICACION
+  CONTINUA_INTENSIFICANDO
+  MPAA // Materia Pendiente de Aprobación y Acreditación
+}
+
+enum ValoracionPreliminar {
+  TEA
+  TEP
+  TED
+}
+
+enum Cuatrimestre {
+  PRIMERO
+  SEGUNDO
+}
+
+enum PeriodoIntensificacion {
+  DICIEMBRE
+  FEBRERO_MARZO
+  AGOSTO
+}
+
+enum ModeloIntensificacion {
+  MODELO_1 // materia del año siguiente
+  MODELO_2 // misma materia, mismo turno
+  MODELO_3 // misma materia, contraturno
+  MODELO_4 // espacio específico
+}
+
+enum CodigoResultadoIntensificacion {
+  AA // Aprobó y Acreditó
+  CCA // Continúa Con Avances
+  CSA // Continúa Sin Avances
+}
+
+enum EstadoRite {
+  BORRADOR
+  CERRADO
+  FIRMADO
+}
+
+enum TipoEventoIntervencion {
+  PEDAGOGICO
+  SALUD
+  CONDUCTA
+}
+
+enum EstadoPate {
+  ACTIVO
+  EN_SEGUIMIENTO
+  FINALIZADO
+}
+
+enum TipoPase {
+  SALIDA
+  ENTRADA
+}
+
+enum DictamenEquivalencia {
+  TOTAL
+  PARCIAL
+  NO_RECONOCIDA
+}
+
+enum ModeloOrganizativo {
+  OPCION_A
+  OPCION_B
+  OPCION_C
+  OPCION_D
+}
+
+enum TipoAccionAuditoria {
+  ALTA
+  MODIFICACION
+  BAJA
+  VISUALIZACION_SENSIBLE
+  FIRMA
+  CIERRE
+  REAPERTURA
+}
+
+enum TipoAlerta {
+  INASISTENCIAS
+  MATERIAS_PENDIENTES
+  VALORACION_TED
+  RIESGO_ABANDONO
+}
+
+// ============================================================================
+// USUARIOS Y AUTENTICACIÓN (Etapa 1 — Módulo 1.1)
+// ============================================================================
+
+model Usuario {
+  id            String        @id @default(uuid())
+  nombre        String
+  apellido      String
+  email         String        @unique
+  passwordHash  String
+  rol           Rol
+  estado        EstadoUsuario @default(ACTIVO)
+  mfaHabilitado Boolean       @default(false) // E8-RF-17
+  ultimoLogin   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relaciones por rol
+  docenteAsignaciones DocenteMateriaCurso[]
+  intervencionesAutor Intervencion[]        @relation("AutorIntervencion")
+  conflictosAutor     ConflictoLegal[]      @relation("AutorConflicto")
+  ritesFirmados       Rite[]                @relation("AutoridadFirmante")
+  logsAuditoria       LogAuditoria[]
+  mensajesEnviados    Mensaje[]             @relation("MensajeRemitente")
+  estudianteVinculado Estudiante?           @relation("UsuarioEstudiante")
+  adultoResponsable   AdultoResponsable?    @relation("UsuarioAdulto")
+  edteIntegrantes     EdteIntegrante[]
+
+  @@index([rol, estado])
+}
+
+// ============================================================================
+// ESTRUCTURA INSTITUCIONAL (Etapa 1 — Módulo 1.5 / Etapa 8 — Módulo 8.4)
+// ============================================================================
+
+model CicloLectivo {
+  id        String   @id @default(uuid())
+  anio      Int      @unique
+  activo    Boolean  @default(false)
+  fechaInicioCuatrimestre1 DateTime?
+  fechaFinCuatrimestre1    DateTime?
+  fechaInicioCuatrimestre2 DateTime?
+  fechaFinCuatrimestre2    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cursosSecciones   CursoSeccion[]
+  inscripciones     Inscripcion[]
+  rites             Rite[]
+  edteReuniones     EdteReunion[]
+  calendarioHitos   CalendarioHito[]
+}
+
+// E8-RF-11
+model CalendarioHito {
+  id             String       @id @default(uuid())
+  cicloLectivo   CicloLectivo @relation(fields: [cicloLectivoId], references: [id])
+  cicloLectivoId String
+  tipo           String // receso, feriado, valoracion_preliminar, entrega_rite, intensificacion, etc.
+  descripcion    String
+  fechaInicio    DateTime
+  fechaFin       DateTime?
+}
+
+model CursoSeccion {
+  id             String       @id @default(uuid())
+  anio           Int // año de la secundaria (1..7)
+  division       String
+  turno          Turno
+  orientacion    Orientacion?
+  cicloLectivo   CicloLectivo @relation(fields: [cicloLectivoId], references: [id])
+  cicloLectivoId String
+  createdAt      DateTime     @default(now())
+
+  inscripciones       Inscripcion[]
+  docenteAsignaciones DocenteMateriaCurso[]
+  historialMatricula  HistorialMatricula[]
+  planEstudioMaterias PlanEstudioMateria[]
+
+  @@unique([anio, division, turno, cicloLectivoId])
+}
+
+model PlanEstudio {
+  id            String       @id @default(uuid())
+  nombre        String
+  orientacion   Orientacion
+  anioVigencia  Int
+  createdAt     DateTime     @default(now())
+
+  materias PlanEstudioMateria[]
+}
+
+model PlanEstudioMateria {
+  id             String       @id @default(uuid())
+  planEstudio    PlanEstudio  @relation(fields: [planEstudioId], references: [id])
+  planEstudioId  String
+  materia        Materia      @relation(fields: [materiaId], references: [id])
+  materiaId      String
+  cursoSeccion   CursoSeccion? @relation(fields: [cursoSeccionId], references: [id])
+  cursoSeccionId String?
+  anioCorrespondiente Int
+
+  @@unique([planEstudioId, materiaId])
+}
+
+model Materia {
+  id                  String @id @default(uuid())
+  nombre              String
+  codigo              String @unique
+  cargaHoraria        Int
+  anioCorrespondiente Int
+  area                String
+
+  inscripciones       Inscripcion[]
+  asistenciasMateria  AsistenciaMateria[]
+  docenteAsignaciones DocenteMateriaCurso[]
+  planEstudioEntradas PlanEstudioMateria[]
+}
+
+// Vincula docentes con sus materias/cursos/turnos asignados (E1-RF-03)
+model DocenteMateriaCurso {
+  id             String       @id @default(uuid())
+  docente        Usuario      @relation(fields: [docenteId], references: [id])
+  docenteId      String
+  materia        Materia      @relation(fields: [materiaId], references: [id])
+  materiaId      String
+  cursoSeccion   CursoSeccion @relation(fields: [cursoSeccionId], references: [id])
+  cursoSeccionId String
+  createdAt      DateTime     @default(now())
+
+  @@unique([docenteId, materiaId, cursoSeccionId])
+}
+
+// ============================================================================
+// ESTUDIANTES Y FAMILIAS (Etapa 1 — Módulo 1.2 / Etapa 7)
+// ============================================================================
+
+model Estudiante {
+  id              String           @id @default(uuid())
+  dni             String           @unique
+  apellido        String
+  nombre          String
+  fechaNacimiento DateTime
+  lugarNacimiento String?
+  domicilio       String
+  localidad       String?
+  telefono        String?
+  legajo          String           @unique
+  estado          EstadoEstudiante @default(ACTIVO)
+  tienePPI        Boolean          @default(false) // E8-RF-14 Propuesta Pedagógica de Inclusión
+  fechaCondicionalHasta DateTime?  // E8-RF-18 matriculación condicional
+
+  // Portal de estudiantes (Etapa 7) — cuenta propia opcional
+  usuario   Usuario? @relation("UsuarioEstudiante", fields: [usuarioId], references: [id])
+  usuarioId String?  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  adultosResponsables EstudianteAdulto[]
+  historialMatricula  HistorialMatricula[]
+  inscripciones       Inscripcion[]
+  asistenciasDiarias  AsistenciaDiaria[]
+  asistenciasMateria  AsistenciaMateria[]
+  rites               Rite[]
+  intervenciones      Intervencion[]
+  conflictosLegales   ConflictoLegal[]
+  pates               Pate[]
+  documentos          DocumentoLegajo[]
+  pasesComoOrigen     PaseInterinstitucional[] @relation("PaseEstudiante")
+  equivalencias       Equivalencia[]
+  titulo              Titulo?
+  planForte           PlanForte?
+  acuerdosConvivencia AcuerdoConvivencia[]
+  comisionesEvaluadoras ComisionEvaluadora[]
+  mensajesRecibidos   Mensaje[]                @relation("MensajeEstudiante")
+  notificaciones      Notificacion[]
+
+  @@index([apellido, nombre])
+}
+
+model AdultoResponsable {
+  id        String   @id @default(uuid())
+  nombre    String
+  apellido  String
+  dni       String?
+  telefono  String?
+  email     String?
+  parentesco String?
+
+  usuario   Usuario? @relation("UsuarioAdulto", fields: [usuarioId], references: [id])
+  usuarioId String?  @unique
+
+  createdAt DateTime @default(now())
+
+  estudiantes        EstudianteAdulto[]
+  confirmaciones     ConfirmacionRecepcion[]
+}
+
+// Relación N a N: un estudiante puede tener más de un adulto responsable
+model EstudianteAdulto {
+  id                  String            @id @default(uuid())
+  estudiante          Estudiante        @relation(fields: [estudianteId], references: [id])
+  estudianteId        String
+  adultoResponsable   AdultoResponsable @relation(fields: [adultoResponsableId], references: [id])
+  adultoResponsableId String
+  esPrincipal         Boolean           @default(false)
+
+  @@unique([estudianteId, adultoResponsableId])
+}
+
+// Historial de en qué año/sección estuvo matriculado el alumno (E1-RF-08)
+model HistorialMatricula {
+  id             String       @id @default(uuid())
+  estudiante     Estudiante   @relation(fields: [estudianteId], references: [id])
+  estudianteId   String
+  cursoSeccion   CursoSeccion @relation(fields: [cursoSeccionId], references: [id])
+  cursoSeccionId String
+  fechaInicio    DateTime     @default(now())
+  fechaFin       DateTime?
+  motivoBaja     String?
+
+  @@index([estudianteId])
+}
+
+// ============================================================================
+// INSCRIPCIONES (núcleo del sistema)
+// ============================================================================
+
+model Inscripcion {
+  id             String       @id @default(uuid())
+  estudiante     Estudiante   @relation(fields: [estudianteId], references: [id])
+  estudianteId   String
+  cursoSeccion   CursoSeccion @relation(fields: [cursoSeccionId], references: [id])
+  cursoSeccionId String
+  materia        Materia      @relation(fields: [materiaId], references: [id])
+  materiaId      String
+  tipoCursada    TipoCursada  @default(CURSA)
+  cicloLectivo   CicloLectivo @relation(fields: [cicloLectivoId], references: [id])
+  cicloLectivoId String
+  estadoMateria  EstadoMateria @default(EN_CURSO)
+
+  // año de la materia respecto al plan (para historial de MPAA cross-año)
+  anioMateriaOriginal Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  calificacion      Calificacion?
+  intensificaciones Intensificacion[]
+  asistenciasMateria AsistenciaMateria[]
+  pateIntensificar  PateMateriaIntensificar[]
+  pateRecursar      PateMateriaRecursar[]
+  comisionEvaluadoraDetalle ComisionEvaluadoraMateria[]
+
+  @@unique([estudianteId, materiaId, cicloLectivoId, tipoCursada])
+  @@index([cicloLectivoId, estadoMateria])
+}
+
+// ============================================================================
+// ASISTENCIA (Etapa 1 — Módulo 1.3 / Etapa 2 — Módulo 2.3)
+// ============================================================================
+
+model AsistenciaDiaria {
+  id            String     @id @default(uuid())
+  estudiante    Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId  String
+  fecha         DateTime   @db.Date
+  valorFalta    Float // 1.0 ausente, 0.5 media falta, 0.25 cuarto de falta
+  turno         Turno
+  justificada   Boolean    @default(false)
+  motivo        String?
+  observacion   String?
+  createdAt     DateTime   @default(now())
+
+  @@unique([estudianteId, fecha, turno])
+  @@index([estudianteId, fecha])
+}
+
+model AsistenciaMateria {
+  id            String      @id @default(uuid())
+  estudiante    Estudiante  @relation(fields: [estudianteId], references: [id])
+  estudianteId  String
+  materia       Materia     @relation(fields: [materiaId], references: [id])
+  materiaId     String
+  inscripcion   Inscripcion? @relation(fields: [inscripcionId], references: [id])
+  inscripcionId String?
+  fechaClase    DateTime    @db.Date
+  presente      Boolean
+  justificada   Boolean     @default(false)
+  esIntensificacion Boolean @default(false) // E3-RF-10
+
+  @@index([estudianteId, materiaId, fechaClase])
+}
+
+// ============================================================================
+// CALIFICACIONES Y VALORACIONES (Etapa 1 — Módulo 1.4 / Etapa 2)
+// ============================================================================
+
+model Calificacion {
+  id            String       @id @default(uuid())
+  inscripcion   Inscripcion  @relation(fields: [inscripcionId], references: [id])
+  inscripcionId String       @unique
+
+  // Cuatrimestre 1
+  valoracionPreliminar1 ValoracionPreliminar?
+  fundamentacion1       String?
+  notaCuatrimestre1     Int? // 1 a 10
+
+  // Cuatrimestre 2
+  valoracionPreliminar2 ValoracionPreliminar?
+  fundamentacion2       String?
+  notaCuatrimestre2     Int? // 1 a 10
+  recuperoSaberes1erEn2do Boolean? // E2-RF-04
+
+  notaFinal     Int?
+  estadoMateria EstadoMateria @default(EN_CURSO)
+
+  cerrado1C     Boolean  @default(false) // E2-RF-07
+  cerrado2C     Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estadoMateria])
+}
+
+// ============================================================================
+// INTENSIFICACIÓN (Etapa 3 — Módulo 3.1/3.2)
+// ============================================================================
+
+model Intensificacion {
+  id                 String                          @id @default(uuid())
+  inscripcion        Inscripcion                     @relation(fields: [inscripcionId], references: [id])
+  inscripcionId      String
+  periodo            PeriodoIntensificacion
+  modelo             ModeloIntensificacion
+  cursoSeccionDestino String? // año/sección/turno para modelos 2 y 3
+  codigoResultado    CodigoResultadoIntensificacion?
+  notaIntensificacion Int? // escala 4 a 10
+  saberesPendientes  String
+  saberesAlCierre    String?
+  docenteResponsableId String?
+  urlEvidencia       String?
+  fechaEvaluacion    DateTime?
+  createdAt          DateTime                        @default(now())
+
+  @@index([inscripcionId, periodo])
+}
+
+// ============================================================================
+// RITE — Registro Institucional de Trayectoria Educativa (Etapa 2 — Módulo 2.4)
+// ============================================================================
+
+model Rite {
+  id                  String       @id @default(uuid())
+  estudiante          Estudiante   @relation(fields: [estudianteId], references: [id])
+  estudianteId        String
+  cicloLectivo        CicloLectivo @relation(fields: [cicloLectivoId], references: [id])
+  cicloLectivoId      String
+  cuatrimestre        Cuatrimestre
+  esPostIntensificacion Boolean    @default(false)
+  observacionesGenerales String?
+  estado              EstadoRite   @default(BORRADOR)
+  urlPdf              String?
+  fechaFirma          DateTime?
+  autoridadFirmante   Usuario?     @relation("AutoridadFirmante", fields: [autoridadFirmanteId], references: [id])
+  autoridadFirmanteId String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  confirmacionesRecepcion ConfirmacionRecepcion[]
+
+  @@unique([estudianteId, cicloLectivoId, cuatrimestre, esPostIntensificacion])
+}
+
+// ============================================================================
+// EDTE — Equipo de Definición de Trayectorias Educativas (Etapa 4 — Módulo 4.1)
+// ============================================================================
+
+model EdteReunion {
+  id             String                 @id @default(uuid())
+  fecha          DateTime
+  periodo        PeriodoIntensificacion
+  cicloLectivo   CicloLectivo           @relation(fields: [cicloLectivoId], references: [id])
+  cicloLectivoId String
+  consideraciones String?
+  actaUrl        String?
+  actaFirmada    Boolean                @default(false)
+  createdAt      DateTime               @default(now())
+
+  integrantes EdteIntegrante[]
+  pates       Pate[]
+}
+
+model EdteIntegrante {
+  id            String      @id @default(uuid())
+  edteReunion   EdteReunion @relation(fields: [edteReunionId], references: [id])
+  edteReunionId String
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id])
+  usuarioId     String
+  rolEnReunion  String? // docente, preceptor, orientador, directivo
+  presente      Boolean     @default(true)
+  firmaHash     String?
+
+  @@unique([edteReunionId, usuarioId])
+}
+
+// ============================================================================
+// PATE — Plan de Acompañamiento de Trayectorias Educativas (Etapa 4 — Módulo 4.2)
+// ============================================================================
+
+model Pate {
+  id              String       @id @default(uuid())
+  estudiante      Estudiante   @relation(fields: [estudianteId], references: [id])
+  estudianteId    String
+  edteReunion     EdteReunion  @relation(fields: [edteReunionId], references: [id])
+  edteReunionId   String
+  diagnostico     String
+  estrategiasAcompanamiento String
+  cronograma      String?
+  estado          EstadoPate   @default(ACTIVO)
+  notificacionUrl String? // E4-RF-08 documento imprimible con firma
+  fechaCreacion   DateTime     @default(now())
+
+  materiasIntensificar PateMateriaIntensificar[]
+  materiasRecursar     PateMateriaRecursar[]
+  seguimientos         PateSeguimiento[]
+
+  @@index([estudianteId])
+}
+
+// Hasta 4 materias a intensificar por PATE, con modelo y ubicación
+model PateMateriaIntensificar {
+  id             String      @id @default(uuid())
+  pate           Pate        @relation(fields: [pateId], references: [id])
+  pateId         String
+  inscripcion    Inscripcion @relation(fields: [inscripcionId], references: [id])
+  inscripcionId  String
+  modelo         ModeloIntensificacion
+  ubicacion      String? // año/sección/turno
+
+  @@unique([pateId, inscripcionId])
+}
+
+model PateMateriaRecursar {
+  id             String      @id @default(uuid())
+  pate           Pate        @relation(fields: [pateId], references: [id])
+  pateId         String
+  inscripcion    Inscripcion @relation(fields: [inscripcionId], references: [id])
+  inscripcionId  String
+  ubicacion      String? // año/sección/turno del recursado
+
+  @@unique([pateId, inscripcionId])
+}
+
+model PateSeguimiento {
+  id          String   @id @default(uuid())
+  pate        Pate     @relation(fields: [pateId], references: [id])
+  pateId      String
+  fecha       DateTime @default(now())
+  avances     String
+  evaluacion  String?
+
+  @@index([pateId])
+}
+
+// ============================================================================
+// BITÁCORA DE INTERVENCIONES (Etapa 4 — Módulo 4.4)
+// ============================================================================
+
+model Intervencion {
+  id            String                 @id @default(uuid())
+  estudiante    Estudiante             @relation(fields: [estudianteId], references: [id])
+  estudianteId  String
+  autor         Usuario                @relation("AutorIntervencion", fields: [autorId], references: [id])
+  autorId       String
+  tipoEvento    TipoEventoIntervencion
+  actoresInvolucrados String?
+  descripcion   String
+  propuestaIntervencion String?
+  fecha         DateTime               @default(now())
+  evidenciaUrl  String?
+  firmaDigital  String?
+  createdAt     DateTime               @default(now())
+
+  @@index([estudianteId, fecha])
+}
+
+// Plan Forte (E4-RF-14) — seguimiento aislado del boletín tradicional
+model PlanForte {
+  id                String     @id @default(uuid())
+  estudiante        Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId      String     @unique
+  objetivosPedagogicos String
+  fechaAsignacion   DateTime   @default(now())
+
+  reportes PlanForteReporte[]
+}
+
+model PlanForteReporte {
+  id          String    @id @default(uuid())
+  planForte   PlanForte @relation(fields: [planForteId], references: [id])
+  planForteId String
+  fecha       DateTime  @default(now())
+  evolucion   String
+}
+
+// ============================================================================
+// CONFLICTOS DE ALTA COMPLEJIDAD (Etapa 4 — Módulo 4.5)
+// Acceso hiperrestringido: solo EOE / Directivos. Inmutable una vez guardado.
+// ============================================================================
+
+model ConflictoLegal {
+  id                String   @id @default(uuid())
+  estudiante        Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId      String
+  autor             Usuario  @relation("AutorConflicto", fields: [autorId], references: [id])
+  autorId           String
+  codigoConflicto   String // codificación confidencial normalizada
+  informeDetallado  String // debe almacenarse cifrado (AES-256) por la app
+  bloqueoEdicion    Boolean  @default(true) // inmutable desde el guardado
+  hashFirmaDigital  String
+  uuidDocumento     String   @unique @default(uuid())
+  fechaRegistro     DateTime @default(now())
+  fechaSuceso       DateTime? // para validar E4-RF-18 (registro <24hs)
+
+  anexos ConflictoLegalAnexo[]
+
+  @@index([estudianteId])
+}
+
+// Solo se permiten anexos posteriores; nunca se borra el contenido original (RN-022)
+model ConflictoLegalAnexo {
+  id               String         @id @default(uuid())
+  conflicto        ConflictoLegal @relation(fields: [conflictoId], references: [id])
+  conflictoId      String
+  autorId          String
+  contenido        String
+  fecha            DateTime       @default(now())
+  hashFirmaDigital String
+}
+
+// ============================================================================
+// LOGS DE AUDITORÍA (Etapa 6 — Módulo 6.2) — inmutables, retención 10 años
+// ============================================================================
+
+model LogAuditoria {
+  id              String              @id @default(uuid())
+  usuario         Usuario             @relation(fields: [usuarioId], references: [id])
+  usuarioId       String
+  fechaHora       DateTime            @default(now())
+  accion          TipoAccionAuditoria
+  entidadAfectada String // nombre de la tabla/entidad
+  entidadId       String?
+  datoAnterior    Json?
+  datoNuevo       Json?
+  direccionIp     String
+
+  @@index([usuarioId, fechaHora])
+  @@index([entidadAfectada, entidadId])
+}
+
+// ============================================================================
+// NOTIFICACIONES Y ALERTAS (Etapa 6 — Módulo 6.1 / Etapa 7 — Módulo 7.3)
+// ============================================================================
+
+model Notificacion {
+  id           String     @id @default(uuid())
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId String
+  tipo         TipoAlerta
+  mensaje      String
+  leida        Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@index([estudianteId, leida])
+}
+
+model Mensaje {
+  id            String     @id @default(uuid())
+  remitente     Usuario    @relation("MensajeRemitente", fields: [remitenteId], references: [id])
+  remitenteId   String
+  estudiante    Estudiante @relation("MensajeEstudiante", fields: [estudianteId], references: [id])
+  estudianteId  String
+  cuerpo        String
+  createdAt     DateTime   @default(now())
+  leidoPorFamilia Boolean  @default(false)
+
+  @@index([estudianteId, createdAt])
+}
+
+// Acuse de recibo de comunicaciones oficiales (E7-RF-09)
+model ConfirmacionRecepcion {
+  id                  String            @id @default(uuid())
+  adultoResponsable   AdultoResponsable @relation(fields: [adultoResponsableId], references: [id])
+  adultoResponsableId String
+  rite                Rite?             @relation(fields: [riteId], references: [id])
+  riteId              String?
+  tipoComunicacion    String // valoracion_preliminar, calificacion_cuatrimestre, rite_final
+  fechaConfirmacion   DateTime          @default(now())
+
+  @@index([adultoResponsableId])
+}
+
+// ============================================================================
+// DOCUMENTACIÓN DEL LEGAJO (Etapa 8 — Módulo 8.5 / E8-RF-23)
+// ============================================================================
+
+model DocumentoLegajo {
+  id           String     @id @default(uuid())
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId String
+  tipo         String // dni, partida_nacimiento, certificado_salud, aptitud_fisica, etc.
+  urlArchivo   String
+  fechaCarga   DateTime   @default(now())
+
+  @@index([estudianteId, tipo])
+}
+
+// ============================================================================
+// PASES INTERINSTITUCIONALES (Etapa 8 — Módulo 8.1)
+// ============================================================================
+
+model PaseInterinstitucional {
+  id               String     @id @default(uuid())
+  estudiante       Estudiante @relation("PaseEstudiante", fields: [estudianteId], references: [id])
+  estudianteId     String
+  tipo             TipoPase
+  causa            String
+  documentacionUrl String?
+  firmaFamiliaUrl  String?
+  institucionOrigenDestino String?
+  fecha            DateTime   @default(now())
+
+  @@index([estudianteId])
+}
+
+// ============================================================================
+// EQUIVALENCIAS (Etapa 8 — Módulo 8.2)
+// ============================================================================
+
+model Equivalencia {
+  id                    String               @id @default(uuid())
+  estudiante            Estudiante           @relation(fields: [estudianteId], references: [id])
+  estudianteId          String
+  materiaOrigen         String
+  institucionOrigen     String
+  jurisdiccionOrigen    String? // otra provincia o exterior
+  programaOrigenUrl     String?
+  certificacionUrl      String?
+  dictamen              DictamenEquivalencia?
+  resolucionInternaUrl  String?
+  fecha                 DateTime             @default(now())
+
+  @@index([estudianteId])
+}
+
+// ============================================================================
+// EGRESO Y TÍTULOS (Etapa 8 — Módulo 8.3)
+// ============================================================================
+
+model Titulo {
+  id                  String     @id @default(uuid())
+  estudiante          Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId        String     @unique
+  numeroRegistro      String     @unique
+  fechaEmision        DateTime   @default(now())
+  urlAnaliticoFinal   String?
+  urlTitulo           String?
+  firmaDigitalHash    String?
+
+  @@index([estudianteId])
+}
+
+// ============================================================================
+// COMISIONES EVALUADORAS (Etapa 8 — Módulo 8.5 / E8-RF-21)
+// Para estudiantes de 6°/7° año con MPAA
+// ============================================================================
+
+model ComisionEvaluadora {
+  id            String     @id @default(uuid())
+  estudiante    Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId  String
+  fecha         DateTime
+  integrantes   String // ids/nombres de docentes evaluadores
+  actaUrl       String?
+  createdAt     DateTime   @default(now())
+
+  materias ComisionEvaluadoraMateria[]
+
+  @@index([estudianteId])
+}
+
+model ComisionEvaluadoraMateria {
+  id                   String             @id @default(uuid())
+  comisionEvaluadora   ComisionEvaluadora @relation(fields: [comisionEvaluadoraId], references: [id])
+  comisionEvaluadoraId String
+  inscripcion          Inscripcion        @relation(fields: [inscripcionId], references: [id])
+  inscripcionId        String
+  temasEvaluados       String?
+  calificacion         Int? // 4 a 10
+
+  @@unique([comisionEvaluadoraId, inscripcionId])
+}
+
+// ============================================================================
+// ACUERDOS INSTITUCIONALES DE CONVIVENCIA (Etapa 8 — Módulo 8.5 / E8-RF-22)
+// ============================================================================
+
+model AcuerdoConvivencia {
+  id           String     @id @default(uuid())
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id])
+  estudianteId String
+  descripcion  String
+  fecha        DateTime   @default(now())
+  seguimiento  String?
+
+  @@index([estudianteId])
+}
+
+// ============================================================================
+// CONFIGURACIÓN INSTITUCIONAL (Etapa 3 — Módulo 3.4 / Etapa 8 — Módulo 8.4)
+// ============================================================================
+
+model ConfiguracionInstitucional {
+  id                      String             @id @default(uuid())
+  modeloOrganizativo      ModeloOrganizativo
+  fechaAdopcion           DateTime           @default(now())
+  fechaVencimientoMinimo  DateTime // fechaAdopcion + 3 ciclos lectivos (RN-018)
+  topeInasistenciasInstitucional Int         @default(28)
+  porcentajeAsistenciaMateria    Float       @default(0.75)
+  createdAt               DateTime           @default(now())
 }
