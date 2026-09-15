@@ -1,28 +1,878 @@
-generator client {
-  provider = "prisma-client-js"
-}
+// ============================================================================
+// Sistema de Gestión de Trayectorias Educativas "Aura"
+// Educación Secundaria — Provincia de Buenos Aires (Res. 1650/24 DGCyE)
+// ============================================================================
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "postgresql" // Proveedor de base de datos: PostgreSQL
+  url      = env("DATABASE_URL") // URL de conexión a la BD desde variable de entorno
 }
 
-// ==========================================
-// EJEMPLO DE MODELOS (Adapta a tu proyecto)
-// ==========================================
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  role      Role     @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("users")
-}
+// ============================================================================
+// ENUMS (Enumeraciones de Valores Fijos)
+// ============================================================================
 
 enum Role {
-  USER
-  ADMIN
+  ADMINISTRATOR     // Administrador del sistema
+  SCHOOL_MANAGEMENT // Equipo de Conducción / Directivo de la escuela
+  EOE_DIRECTIVE     // Integrante del Equipo de Orientación Escolar (EOE)
+  TEACHER           // Docente / Profesor
+  STUDENT           // Estudiante / Alumno
+  FAMILY            // Adulto responsable / Familia / Tutor
+}
+
+enum UserStatus {
+  ACTIVE    // Usuario Activo
+  SUSPENDED // Usuario Suspendido
+  INACTIVE  // Usuario Inactivo
+}
+
+enum StudentStatus {
+  ACTIVE       // Regular / Activo
+  INACTIVE     // Inactivo
+  GRADUATED    // Egresado
+  TRANSFER_OUT // Pase Saliente (Transferido a otra institución)
+  CONDITIONAL  // Inscripción Condicional
+}
+
+enum Shift {
+  MORNING    // Turno Mañana
+  AFTERNOON  // Turno Tarde
+  EVENING    // Turno Vespertino / Noche
+  EXTRA_TIME // Contraturno
+}
+
+enum Orientation {
+  ORIENTED     // Educación Secundaria Orientada
+  TECHNICAL    // Educación Técnico Profesional
+  AGRICULTURAL // Educación Agraria
+  ARTS         // Educación Artística
+}
+
+enum CourseType {
+  FIRST_TIME // Cursado Regular (Por primera vez)
+  REPEAT     // Recursado
+}
+
+enum SubjectStatus {
+  IN_PROGRESS           // En Cursada
+  APPROVED_ACCREDITED   // Aprobada / Acreditada
+  PENDING_1ST_TERM      // Pendiente de Acreditación 1° Cuatrimestre
+  PENDING_2ND_TERM      // Pendiente de Acreditación 2° Cuatrimestre
+  IN_INTENSIFICATION    // En Proceso de Intensificación
+  CONTINUES_INTENSIFYING // Continúa Intensificando
+  MPAA                  // Materia Pendiente de Acreditación y Aprobación
+}
+
+enum PreliminaryAssessment {
+  TEA // Trayectoria Educativa Avanzada
+  TEP // Trayectoria Educativa en Proceso
+  TED // Trayectoria Educativa Discontinua
+}
+
+enum Term {
+  FIRST  // Primer Cuatrimestre
+  SECOND // Segundo Cuatrimestre
+}
+
+enum IntensificationPeriod {
+  DECEMBER       // Período de Intensificación de Diciembre
+  FEBRUARY_MARCH // Período de Intensificación de Febrero / Marzo
+  AUGUST         // Período de Intensificación de Agosto
+}
+
+enum IntensificationModel {
+  MODEL_1 // Modelo 1 (Formato de intensificación según normativa)
+  MODEL_2 // Modelo 2
+  MODEL_3 // Modelo 3
+  MODEL_4 // Modelo 4
+}
+
+enum IntensificationResultCode {
+  AA  // Acreditó y Aprobó
+  CCA // Continúa Con Actividades de Intensificación
+  CSA // Sin Actividades / No Intensificó
+}
+
+enum RiteStatus {
+  DRAFT  // RITE en Borrador
+  CLOSED // RITE Cerrado
+  SIGNED // RITE Firmado y Notificado
+}
+
+enum InterventionEventType {
+  PEDAGOGICAL // Intervención Pedagógica
+  HEALTH      // Intervención de Salud
+  CONDUCT     // Intervención de Convivencia / Conducta
+}
+
+enum PateStatus {
+  ACTIVE          // PATE Activo
+  UNDER_FOLLOW_UP // PATE en Seguimiento
+  FINISHED        // PATE Finalizado / Concluido
+}
+
+enum TransferType {
+  OUTGOING // Pase Saliente (Se va del establecimiento)
+  INCOMING // Pase Entrante (Proviene de otro establecimiento)
+}
+
+enum EquivalencyVerdict {
+  FULL           // Equivalencia Total
+  PARTIAL        // Equivalencia Parcial
+  NOT_RECOGNIZED // No Se Reconoce Equivalencia
+}
+
+enum OrganizationalModel {
+  OPTION_A // Opción Institucional A (Modelo organizacional Res. 1650/24)
+  OPTION_B // Opción Institucional B
+  OPTION_C // Opción Institucional C
+  OPTION_D // Opción Institucional D
+}
+
+enum AuditActionType {
+  CREATE         // Creación de registro
+  UPDATE         // Modificación de registro
+  DELETE         // Eliminación de registro
+  SENSITIVE_VIEW // Visualización de datos sensibles
+  SIGN           // Firma digital / Electrónica
+  CLOSE          // Cierre de acta / RITE
+  REOPEN         // Reapertura de registro
+}
+
+enum AlertType {
+  ABSENCES         // Alerta por Inasistencias
+  PENDING_SUBJECTS // Alerta por Materias Pendientes
+  TED_ASSESSMENT   // Alerta por Valoración TED
+  DROPOUT_RISK     // Alerta por Riesgo de Desgranamiento / Abandono
+}
+
+// ============================================================================
+// USERS & AUTHENTICATION (Usuarios y Autenticación)
+// ============================================================================
+
+model User {
+  id           String     @id @default(uuid()) // Identificador único (UUID)
+  firstName    String     // Nombre
+  lastName     String     // Apellido
+  email        String     @unique // Correo electrónico (único)
+  passwordHash String     // Contraseña encriptada
+  role         Role       // Rol del usuario en el sistema
+  status       UserStatus @default(ACTIVE) // Estado de la cuenta de usuario
+  mfaEnabled   Boolean    @default(false) // Autenticación de doble factor activada
+  lastLogin    DateTime?  // Fecha y hora del último acceso
+  createdAt    DateTime   @default(now()) // Fecha de creación
+  updatedAt    DateTime   @updatedAt // Fecha de última actualización
+
+  // Relaciones:
+  teacherAssignments    TeacherSubjectCourse[] // Materias y cursos asignados al docente
+  authoredInterventions Intervention[]         @relation("InterventionAuthor") // Intervenciones registradas por el usuario
+  authoredConflicts     LegalConflict[]        @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
+  signedRites          Rite[]                 @relation("SigningAuthority") // RITEs firmados por esta autoridad
+  auditLogs            AuditLog[]             // Registros de auditoría generados por el usuario
+  sentMessages         Message[]              @relation("MessageSender") // Mensajes enviados
+  linkedStudent        Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
+  guardian             Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
+  edteMembers          EdteMember[]           // Participaciones en reuniones del EDTE
+
+  @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
+}
+
+// ============================================================================
+// INSTITUTIONAL STRUCTURE (Estructura Institucional y Académica)
+// ============================================================================
+
+model AcademicYear {
+  id             String    @id @default(uuid()) // Identificador único
+  year           Int       @unique // Año lectivo (ej: 2026)
+  active         Boolean   @default(false) // ¿Es el ciclo lectivo activo actual?
+  term1StartDate DateTime? // Fecha inicio 1° cuatrimestre
+  term1EndDate   DateTime? // Fecha fin 1° cuatrimestre
+  term2StartDate DateTime? // Fecha inicio 2° cuatrimestre
+  term2EndDate   DateTime? // Fecha fin 2° cuatrimestre
+  createdAt      DateTime  @default(now()) // Fecha de registro
+  updatedAt      DateTime  @updatedAt // Fecha de modificación
+
+  // Relaciones:
+  classSections      ClassSection[]      // Cursos/Divisiones del ciclo lectivo
+  enrollments        Enrollment[]        // Inscripciones del ciclo lectivo
+  rites              Rite[]              // Informes RITE del ciclo lectivo
+  edteMeetings       EdteMeeting[]       // Reuniones del EDTE del ciclo lectivo
+  calendarMilestones CalendarMilestone[] // Hitos del calendario escolar
+}
+
+model CalendarMilestone {
+  id             String       @id @default(uuid()) // Identificador único
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id]) // Relación con el ciclo lectivo
+  academicYearId String       // ID del ciclo lectivo
+  type           String       // Tipo de hito (Cierre de cuatrimestre, intensificación, receso, etc.)
+  description    String       // Descripción del hito
+  startDate      DateTime     // Fecha de inicio
+  endDate        DateTime?    // Fecha de fin (opcional)
+}
+
+model ClassSection {
+  id             String       @id @default(uuid()) // Identificador único
+  grade          Int          // Año / Criterio de año (1° a 6° año)
+  division       String       // División / Sección (Ej: "A", "1°", "3°")
+  shift          Shift        // Turno
+  orientation    Orientation? // Orientación académica
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo al que pertenece
+  academicYearId String       // ID del ciclo lectivo
+  createdAt      DateTime     @default(now()) // Fecha de creación
+
+  // Relaciones:
+  enrollments        Enrollment[]           // Estudiantes matriculados en esta división
+  teacherAssignments TeacherSubjectCourse[] // Docentes asignados a esta división
+  enrollmentHistory  EnrollmentHistory[]    // Historial de cambios de sección
+  curriculumSubjects CurriculumSubject[]    // Materias de la currícula asociadas al curso
+
+  @@unique([grade, division, shift, academicYearId]) // No pueden repetirse divisiones iguales en el mismo ciclo
+}
+
+model Curriculum {
+  id          String      @id @default(uuid()) // Identificador único
+  name        String      // Nombre del plan de estudios / diseño curricular
+  orientation Orientation // Orientación correspondiente
+  validFrom   Int         // Año a partir del cual entra en vigencia
+  createdAt   DateTime    @default(now()) // Fecha de creación
+
+  // Relaciones:
+  subjects CurriculumSubject[] // Materias comprendidas en la currícula
+}
+
+model CurriculumSubject {
+  id             String        @id @default(uuid()) // Identificador único
+  curriculum     Curriculum    @relation(fields: [curriculumId], references: [id]) // Plan de estudios
+  curriculumId   String        // ID del plan de estudios
+  subject        Subject       @relation(fields: [subjectId], references: [id]) // Materia / Espacio curricular
+  subjectId      String        // ID de la materia
+  classSection   ClassSection? @relation(fields: [classSectionId], references: [id]) // Sección específica (opcional)
+  classSectionId String?       // ID de la sección
+  gradeLevel     Int           // Año al que pertenece la materia en la currícula
+
+  @@unique([curriculumId, subjectId]) // Unicidad de materia dentro del mismo plan
+}
+
+model Subject {
+  id           String @id @default(uuid()) // Identificador único
+  name         String // Nombre de la materia (Ej: "Matemática", "NTICx")
+  code         String @unique // Código interno único de la materia
+  hoursPerWeek Int    // Carga horaria semanal
+  gradeLevel   Int    // Año escolar correspondiente
+  area         String // Área del conocimiento / Departamento
+
+  // Relaciones:
+  enrollments        Enrollment[]           // Inscripciones a esta materia
+  subjectAttendances SubjectAttendance[]    // Asistencias tomadas por materia
+  teacherAssignments TeacherSubjectCourse[] // Docentes que la dictan
+  curriculumEntries  CurriculumSubject[]    // Entradas en los planes de estudio
+}
+
+model TeacherSubjectCourse {
+  id             String       @id @default(uuid()) // Identificador único
+  teacher        User         @relation(fields: [teacherId], references: [id]) // Docente designado
+  teacherId      String       // ID del docente
+  subject        Subject      @relation(fields: [subjectId], references: [id]) // Materia designada
+  subjectId      String       // ID de la materia
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id]) // Curso/División
+  classSectionId String       // ID de la división
+  createdAt      DateTime     @default(now()) // Fecha de asignación
+
+  @@unique([teacherId, subjectId, classSectionId]) // Unicidad de asignación docente-materia-curso
+}
+
+// ============================================================================
+// STUDENTS & FAMILIES (Estudiantes y Adultos Responsables)
+// ============================================================================
+
+model Student {
+  id               String        @id @default(uuid()) // Identificador único
+  dni              String        @unique // DNI del estudiante (único)
+  lastName         String        // Apellido
+  firstName        String        // Nombre
+  dateOfBirth      DateTime      // Fecha de nacimiento
+  placeOfBirth     String?       // Lugar de nacimiento
+  address          String        // Domicilio particular
+  city             String?       // Localidad / Ciudad
+  phone            String?       // Teléfono de contacto
+  recordNumber     String        @unique // Número de legajo escolar único
+  status           StudentStatus @default(ACTIVE) // Estado de la matrícula
+  hasPPI           Boolean       @default(false) // ¿Cuenta con Proyecto Pedagógico Individual (PPI / Inclusión)?
+  conditionalUntil DateTime?     // Fecha límite en caso de inscripción condicional
+
+  user   User?   @relation("StudentUser", fields: [userId], references: [id]) // Usuario de acceso del alumno
+  userId String? @unique // ID de usuario vinculado
+
+  createdAt DateTime @default(now()) // Fecha de alta
+  updatedAt DateTime @updatedAt // Fecha de última actualización
+
+  // Relaciones:
+  guardians            StudentGuardian[]       // Tutores / Adultos responsables vinculados
+  enrollmentHistory    EnrollmentHistory[]     // Historial de cambios de curso/sección
+  enrollments          Enrollment[]            // Inscripciones a materias
+  dailyAttendances     DailyAttendance[]       // Inasistencias diarias generales
+  subjectAttendances   SubjectAttendance[]     // Asistencias por materia
+  rites                Rite[]                  // RITEs del alumno
+  interventions        Intervention[]          // Intervenciones pedagógicas/de orientación
+  legalConflicts       LegalConflict[]         // Actas de conflicto o situaciones complejas
+  pates                Pate[]                  // Planes PATE asignados
+  documents            RecordDocument[]        // Documentación física digitalizada del legajo
+  transfers            InstitutionalTransfer[] @relation("TransferStudent") // Historial de pases
+  equivalencies        Equivalency[]           // Trámites de equivalencias
+  diploma              Diploma?                // Título / Analítico de egreso
+  fortePlan            FortePlan?              // Plan de intensificación FORTE
+  conductAgreements    ConductAgreement[]      // Acuerdos Institucionales de Convivencia aplicados
+  evaluationCommittees EvaluationCommittee[]   // Comisiones evaluadoras de materias pendientes
+  receivedMessages     Message[]               @relation("MessageStudent") // Comunicaciones recibidas
+  notifications        Notification[]          // Alertas del estudiante
+
+  @@index([lastName, firstName]) // Índice para búsquedas alfabéticas
+}
+
+model Guardian {
+  id           String  @id @default(uuid()) // Identificador único
+  firstName    String  // Nombre del adulto responsable
+  lastName     String  // Apellido
+  dni          String? // DNI
+  phone        String? // Teléfono
+  email        String? // Correo electrónico
+  relationship String? // Parentesco / Vínculo (Ej: "Madre", "Padre", "Tutor legal")
+
+  user   User?   @relation("GuardianUser", fields: [userId], references: [id]) // Usuario asociado para portal de familias
+  userId String? @unique // ID de usuario vinculado
+
+  createdAt DateTime @default(now()) // Fecha de alta
+
+  // Relaciones:
+  students StudentGuardian[]  // Estudiantes a su cargo
+  receipts ReceptionReceipt[] // Acuses de recibo / Notificaciones firmadas
+}
+
+model StudentGuardian {
+  id         String   @id @default(uuid()) // Identificador único
+  student    Student  @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId  String   // ID del estudiante
+  guardian   Guardian @relation(fields: [guardianId], references: [id]) // Tutor
+  guardianId String   // ID del tutor
+  isPrimary  Boolean  @default(false) // ¿Es el adulto responsable principal / contacto prioritario?
+
+  @@unique([studentId, guardianId]) // Unicidad del vínculo estudiante-tutor
+}
+
+model EnrollmentHistory {
+  id             String       @id @default(uuid()) // Identificador único
+  student        Student      @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId      String       // ID del estudiante
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id]) // Curso/División asignado
+  classSectionId String       // ID de la división
+  startDate      DateTime     @default(now()) // Fecha de inicio de cursada en la sección
+  endDate        DateTime?    // Fecha de egreso/cambio de sección
+  leaveReason    String?      // Motivo del cambio o baja
+
+  @@index([studentId]) // Índice para historial del alumno
+}
+
+// ============================================================================
+// ENROLLMENTS (Inscripciones y Cursadas de Materias)
+// ============================================================================
+
+model Enrollment {
+  id                  String        @id @default(uuid()) // Identificador único
+  student             Student       @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId           String        // ID del estudiante
+  classSection        ClassSection  @relation(fields: [classSectionId], references: [id]) // División
+  classSectionId      String        // ID de la división
+  subject             Subject       @relation(fields: [subjectId], references: [id]) // Materia
+  subjectId           String        // ID de la materia
+  courseType          CourseType    @default(FIRST_TIME) // Condición: Cursada por 1° vez o recursado
+  academicYear        AcademicYear  @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  academicYearId      String        // ID del ciclo lectivo
+  subjectStatus       SubjectStatus @default(IN_PROGRESS) // Estado académico de la materia
+  originalGradeLevel Int?          // Año académico de origen de la materia (para pendienteros/MPAA)
+
+  createdAt DateTime @default(now()) // Fecha de inscripción
+  updatedAt DateTime @updatedAt // Fecha de modificación
+
+  // Relaciones:
+  grade                 Grade?                  // Calificaciones obtenidas
+  intensifications      Intensification[]       // Instancias de intensificación rendidas
+  subjectAttendances    SubjectAttendance[]     // Registro de asistencia en esta materia
+  pateIntensifySubjects PateSubjectIntensify[] // Si forma parte de un PATE para intensificar
+  pateRepeatSubjects    PateSubjectRepeat[]    // Si forma parte de un PATE para recursar
+  committeeSubjects     CommitteeSubject[]     // Evaluación en comisiones evaluadoras
+
+  @@unique([studentId, subjectId, academicYearId, courseType]) // Inscripción única por materia/año/condición
+  @@index([academicYearId, subjectStatus]) // Índice para reportes de estado académico
+}
+
+// ============================================================================
+// ATTENDANCE (Asistencia e Inasistencias)
+// ============================================================================
+
+model DailyAttendance {
+  id           String   @id @default(uuid()) // Identificador único
+  student      Student  @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId    String   // ID del estudiante
+  date         DateTime @db.Date // Fecha de la asistencia (sin hora)
+  absenceValue Float    // Valor de la falta (Ej: 1 = Falta entera, 0.5 = Media falta, 0.25 = Llegada tarde)
+  shift        Shift    // Turno correspondiente
+  excused      Boolean  @default(false) // ¿Falta justificada?
+  reason       String?  // Motivo de la inasistencia / justificación
+  notes        String?  // Observaciones adicionales
+  createdAt    DateTime @default(now()) // Fecha de carga en el sistema
+
+  @@unique([studentId, date, shift]) // Una sola carga por estudiante/día/turno
+  @@index([studentId, date]) // Índice para cómputo de inasistencias acumuladas
+}
+
+model SubjectAttendance {
+  id                String      @id @default(uuid()) // Identificador único
+  student           Student     @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId         String      // ID del estudiante
+  subject           Subject     @relation(fields: [subjectId], references: [id]) // Materia
+  subjectId         String      // ID de la materia
+  enrollment        Enrollment? @relation(fields: [enrollmentId], references: [id]) // Cursada asociada
+  enrollmentId      String?     // ID de la inscripción
+  classDate         DateTime    @db.Date // Fecha de la clase
+  present           Boolean     // ¿Presente? (true = Sí, false = No)
+  excused           Boolean     @default(false) // ¿Inasistencia justificada?
+  isIntensification Boolean     @default(false) // ¿Es asistencia a un bloque de intensificación?
+
+  @@index([studentId, subjectId, classDate]) // Índice para cómputo de asistencia por materia
+}
+
+// ============================================================================
+// GRADES & ASSESSMENTS (Calificaciones y Valoraciones Pedagógicas)
+// ============================================================================
+
+model Grade {
+  id           String     @id @default(uuid()) // Identificador único
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id]) // Cursada a la que corresponde
+  enrollmentId String     @unique // ID de inscripción (1 a 1)
+
+  // 1° Cuatrimestre:
+  preliminaryAssessment1 PreliminaryAssessment? // Valoración preliminar (TEA / TEP / TED)
+  rationale1             String?                // Fundamentación pedagógica del informe preliminar
+  term1Score             Int?                   // Nota final 1° Cuatrimestre (1 a 10)
+
+  // 2° Cuatrimestre:
+  preliminaryAssessment2 PreliminaryAssessment? // Valoración preliminar (TEA / TEP / TED)
+  rationale2             String?                // Fundamentación pedagógica del informe preliminar
+  term2Score             Int?                   // Nota final 2° Cuatrimestre (1 a 10)
+  recoveryIn2ndTerm      Boolean?               // ¿Recuperó saberes del 1° cuatrimestre durante el 2°?
+
+  // Calificación e informe final:
+  finalScore    Int?          // Calificación final cuantitativa
+  subjectStatus SubjectStatus @default(IN_PROGRESS) // Estado final de acreditación de la materia
+
+  term1Closed Boolean @default(false) // Cierre administrativo/notas 1° cuatrimestre
+  term2Closed Boolean @default(false) // Cierre administrativo/notas 2° cuatrimestre
+
+  createdAt DateTime @default(now()) // Fecha de creación
+  updatedAt DateTime @updatedAt // Fecha de modificación
+
+  @@index([subjectStatus]) // Índice para listado de materia aprobada/pendiente
+}
+
+// ============================================================================
+// INTENSIFICATION (Períodos de Intensificación de la Enseñanza)
+// ============================================================================
+
+model Intensification {
+  id                   String                    @id @default(uuid()) // Identificador único
+  enrollment           Enrollment                @relation(fields: [enrollmentId], references: [id]) // Materia/Cursada a intensificar
+  enrollmentId         String                    // ID de la inscripción
+  period               IntensificationPeriod     // Período (Diciembre, Febrero/Marzo, Agosto)
+  model                IntensificationModel      // Modelo organizacional aplicado
+  targetClassSection   String?                   // Sección/Aula asignada para la intensificación
+  resultCode           IntensificationResultCode? // Resultado de la intensificación (AA, CCA, CSA)
+  score                Int?                      // Nota numérica obtenida
+  pendingKnowledge     String                    // Saberes/Contenidos pendientes a intensificar
+  knowledgeAtClose     String?                   // Logros/Saberes alcanzados al cierre
+  responsibleTeacherId String?                   // ID del docente evaluador responsable
+  evidenceUrl          String?                   // Link a planillas o evidencias de evaluación digitalizadas
+  evaluationDate       DateTime?                 // Fecha de la evaluación/cierre
+  createdAt            DateTime                  @default(now()) // Fecha de registro
+
+  @@index([enrollmentId, period]) // Índice para consulta de historial de intensificaciones
+}
+
+// ============================================================================
+// RITE — Registro Institucional de Trayectoria Educativa (Res. 1650/24)
+// ============================================================================
+
+model Rite {
+  id                    String     @id @default(uuid()) // Identificador único
+  student               Student    @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId             String     // ID del estudiante
+  academicYear          AcademicYear @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  academicYearId        String     // ID del ciclo lectivo
+  term                  Term       // Cuatrimestre correspondiente (1° o 2°)
+  isPostIntensification Boolean    @default(false) // ¿Es informe posterior a período de intensificación?
+  generalNotes          String?    // Apreciación general del equipo docente
+  status                RiteStatus @default(DRAFT) // Estado de la planilla RITE (Borrador, Cerrado, Firmado)
+  pdfUrl                String?    // Enlace al archivo PDF generado del RITE
+  signedAt              DateTime?  // Fecha y hora de firma digital/electrónica
+  signingAuthority      User?      @relation("SigningAuthority", fields: [signingAuthorityId], references: [id]) // Directivo/Autoridad firmante
+  signingAuthorityId    String?    // ID de la autoridad que firma
+  createdAt             DateTime   @default(now()) // Fecha de creación
+  updatedAt             DateTime   @updatedAt // Fecha de modificación
+
+  receptionReceipts ReceptionReceipt[] // Notificaciones/Acuses de recibo de la familia
+
+  @@unique([studentId, academicYearId, term, isPostIntensification]) // Unicidad de RITE por alumno/período
+}
+
+// ============================================================================
+// EDTE — Equipo de Definición de Trayectorias Educativas
+// ============================================================================
+
+model EdteMeeting {
+  id             String                @id @default(uuid()) // Identificador único
+  date           DateTime              // Fecha de reunión del equipo EDTE
+  period         IntensificationPeriod // Período de análisis
+  academicYear   AcademicYear          @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  academicYearId String                // ID del ciclo lectivo
+  considerations String?               // Consideraciones pedagógicas y acuerdos colectivos
+  minutesUrl     String?               // Enlace al acta de reunión digitalizada
+  minutesSigned  Boolean               @default(false) // ¿Acta consolidada y firmada?
+  createdAt      DateTime              @default(now()) // Fecha de registro
+
+  members EdteMember[] // Integrantes participantes de la reunión
+  pates   Pate[]       // Planes PATE diseñados en esta reunión
+}
+
+model EdteMember {
+  id            String      @id @default(uuid()) // Identificador único
+  edteMeeting   EdteMeeting @relation(fields: [edteMeetingId], references: [id]) // Reunión EDTE
+  edteMeetingId String      // ID de la reunión
+  user          User        @relation(fields: [userId], references: [id]) // Usuario/Docente/Directivo participante
+  userId        String      // ID del usuario
+  roleInMeeting String?     // Rol cumplido en la reunión (Ej: "Preceptor", "Profesor Integrante", "Director")
+  present       Boolean     @default(true) // ¿Estuvo presente?
+  signatureHash String?     // Firma digital o hash del integrante en el acta
+
+  @@unique([edteMeetingId, userId]) // Unicidad de participación por reunión
+}
+
+// ============================================================================
+// PATE — Plan de Acompañamiento a la Trayectoria Educativa
+// ============================================================================
+
+model Pate {
+  id                String      @id @default(uuid()) // Identificador único
+  student           Student     @relation(fields: [studentId], references: [id]) // Estudiante asistido
+  studentId         String      // ID del estudiante
+  edteMeeting       EdteMeeting @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
+  edteMeetingId     String      // ID de la reunión EDTE
+  diagnosis         String      // Diagnóstico pedagógico de la trayectoria
+  supportStrategies String      // Estrategias de acompañamiento e intervención acordadas
+  schedule          String?     // Cronograma de actividades/propuestas
+  status            PateStatus  @default(ACTIVE) // Estado actual del plan PATE
+  notificationUrl   String?     // Documento de notificación a la familia cargado
+  createdAt         DateTime    @default(now()) // Fecha de elaboración
+
+  subjectsToIntensify PateSubjectIntensify[] // Materias a intensificar según el PATE
+  subjectsToRepeat    PateSubjectRepeat[]    // Materias que debe recursar según el PATE
+  followUps           PateFollowUp[]         // Seguimiento periódico de los avances del PATE
+
+  @@index([studentId]) // Índice para consulta de PATE por estudiante
+}
+
+model PateSubjectIntensify {
+  id           String               @id @default(uuid()) // Identificador único
+  pate         Pate                 @relation(fields: [pateId], references: [id]) // Plan PATE asignado
+  pateId       String               // ID del PATE
+  enrollment   Enrollment           @relation(fields: [enrollmentId], references: [id]) // Materia/Inscripción a intensificar
+  enrollmentId String               // ID de inscripción
+  model        IntensificationModel // Modelo de intensificación elegido
+  location     String?              // Espacio/Aula/Turno asignado para la intensificación
+
+  @@unique([pateId, enrollmentId]) // Unicidad de materia dentro del mismo PATE
+}
+
+model PateSubjectRepeat {
+  id           String     @id @default(uuid()) // Identificador único
+  pate         Pate       @relation(fields: [pateId], references: [id]) // Plan PATE asignado
+  pateId       String     // ID del PATE
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id]) // Materia/Inscripción a recursar
+  enrollmentId String     // ID de inscripción
+  location     String?    // Espacio/Aula/Turno donde recursará
+
+  @@unique([pateId, enrollmentId]) // Unicidad de materia a recursar por PATE
+}
+
+model PateFollowUp {
+  id         String   @id @default(uuid()) // Identificador único
+  pate       Pate     @relation(fields: [pateId], references: [id]) // Plan PATE
+  pateId     String   // ID del PATE
+  date       DateTime @default(now()) // Fecha del registro de seguimiento
+  progress   String   // Avances observados
+  evaluation String?  // Valoración cuantitativa o cualitativa parcial
+
+  @@index([pateId]) // Índice de historial de seguimiento del PATE
+}
+
+// ============================================================================
+// INTERVENTION LOG (Registro de Intervenciones Pedagógicas y de Orientación)
+// ============================================================================
+
+model Intervention {
+  id                   String                @id @default(uuid()) // Identificador único
+  student              Student               @relation(fields: [studentId], references: [id]) // Estudiante involucrado
+  studentId            String                // ID del estudiante
+  author               User                  @relation("InterventionAuthor", fields: [authorId], references: [id]) // Profesional/Docente actuante
+  authorId             String                // ID del autor de la intervención
+  eventType            InterventionEventType // Tipo de intervención (Pedagógica, Salud, Convivencia)
+  involvedActors       String?               // Actores intervinientes (Ej: "EOE, Equipo Directivo, Madre")
+  description          String                // Descripción detallada de la situación observada
+  interventionProposal String?               // Estrategias, acuerdos o propuesta de trabajo
+  date                 DateTime              @default(now()) // Fecha del suceso/intervención
+  evidenceUrl          String?               // Enlace a documentación respaldatoria
+  digitalSignature     String?               // Firma o hash de validación del profesional
+  createdAt            DateTime              @default(now()) // Fecha de alta en el sistema
+
+  @@index([studentId, date]) // Índice para cronología de intervenciones del estudiante
+}
+
+model FortePlan {
+  id               String   @id @default(uuid()) // Identificador único
+  student          Student  @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId        String   @unique // ID del estudiante (1 a 1)
+  pedagogicalGoals String   // Objetivos pedagógicos prioritarios del programa FORTE
+  assignedAt       DateTime @default(now()) // Fecha de asignación al programa
+
+  reports FortePlanReport[] // Informes periódicos de avance en el programa FORTE
+}
+
+model FortePlanReport {
+  id          String    @id @default(uuid()) // Identificador único
+  fortePlan   FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
+  fortePlanId String    // ID del plan FORTE
+  date        DateTime  @default(now()) // Fecha del informe de avance
+  progress    String    // Detalle de saberes alcanzados y nivel de avance
+}
+
+// ============================================================================
+// LEGAL CONFLICTS (Registro de Conflictos y Actas Complejas / Legales)
+// ============================================================================
+
+model LegalConflict {
+  id              String    @id @default(uuid()) // Identificador único
+  student         Student   @relation(fields: [studentId], references: [id]) // Estudiante involucrado
+  studentId       String    // ID del estudiante
+  author          User      @relation("ConflictAuthor", fields: [authorId], references: [id]) // Redactor del acta/informe
+  authorId        String    // ID del autor
+  conflictCode    String    // Código del tipo de conflicto/acta (Guía de orientación ante situaciones complejas)
+  detailedReport  String    // Relato minucioso de los hechos e intervenciones realizadas
+  editLocked      Boolean   @default(true) // ¿Bloqueado contra ediciones posteriores? (Inalterabilidad del acta)
+  digitalSignHash String    // Hash de la firma digital de resguardo legal
+  documentUuid    String    @unique @default(uuid()) // Identificador único legal del documento
+  registeredAt    DateTime  @default(now()) // Fecha y hora de registro oficial
+  occurrenceDate  DateTime? // Fecha y hora real en que ocurrieron los hechos
+
+  attachments LegalConflictAttachment[] // Anexos y agregados posteriores al acta
+
+  @@index([studentId]) // Índice de resguardo por alumno
+}
+
+model LegalConflictAttachment {
+  id              String        @id @default(uuid()) // Identificador único
+  conflict        LegalConflict @relation(fields: [conflictId], references: [id]) // Acta de conflicto principal
+  conflictId      String        // ID del acta principal
+  authorId        String        // ID del autor del anexo
+  content         String        // Texto del anexo / actualización de la intervención
+  date            DateTime      @default(now()) // Fecha de incorporación del anexo
+  digitalSignHash String        // Hash de firma digital del anexo
+}
+
+// ============================================================================
+// AUDIT LOGS (Auditoría de Sistema y Seguridad de Datos)
+// ============================================================================
+
+model AuditLog {
+  id             String          @id @default(uuid()) // Identificador único
+  user           User            @relation(fields: [userId], references: [id]) // Usuario que realiza la acción
+  userId         String          // ID del usuario
+  timestamp      DateTime        @default(now()) // Fecha, hora y milisegundo exacto
+  action         AuditActionType // Tipo de acción realizada (CREATE, UPDATE, SENSITIVE_VIEW, etc.)
+  affectedEntity String          // Tabla/Entidad afectada (Ej: "Grade", "LegalConflict")
+  entityId       String?         // ID del registro específico modificado/consultado
+  previousData   Json?           // Copia del valor anterior antes del cambio (formato JSON)
+  newData        Json?           // Copia del valor nuevo aplicado (formato JSON)
+  ipAddress      String          // Dirección IP desde la que se operó
+
+  @@index([userId, timestamp]) // Índice para trazabilidad por usuario
+  @@index([affectedEntity, entityId]) // Índice para auditoría sobre un registro en particular
+}
+
+// ============================================================================
+// NOTIFICATIONS & ALERTS (Alertas Early-Warning y Comunicaciones)
+// ============================================================================
+
+model Notification {
+  id        String    @id @default(uuid()) // Identificador único
+  student   Student   @relation(fields: [studentId], references: [id]) // Estudiante sujeto de la alerta
+  studentId String    // ID del estudiante
+  type      AlertType // Tipo de alerta (Inasistencias, riesgo de abandono, etc.)
+  message   String    // Texto o detalle del motivo de la alerta
+  read      Boolean   @default(false) // ¿Alerta leída por el destinatario?
+  createdAt DateTime  @default(now()) // Fecha de generación automática
+
+  @@index([studentId, read]) // Índice de alertas no leídas por estudiante
+}
+
+model Message {
+  id           String   @id @default(uuid()) // Identificador único
+  sender       User     @relation("MessageSender", fields: [senderId], references: [id]) // Remitente
+  senderId     String   // ID del remitente
+  student      Student  @relation("MessageStudent", fields: [studentId], references: [id]) // Estudiante sobre el cual se comunica
+  studentId    String   // ID del estudiante
+  body         String   // Contenido de la comunicación o cuaderno de comunicaciones digital
+  createdAt    DateTime @default(now()) // Fecha de envío
+  readByFamily Boolean  @default(false) // ¿Leído/Conformado por la familia?
+
+  @@index([studentId, createdAt]) // Índice del cuaderno de comunicaciones del estudiante
+}
+
+model ReceptionReceipt {
+  id                String    @id @default(uuid()) // Identificador único
+  guardian          Guardian  @relation(fields: [guardianId], references: [id]) // Adulto responsable que firma/recepciona
+  guardianId        String    // ID del adulto responsable
+  rite              Rite?     @relation(fields: [riteId], references: [id]) // RITE notificado (si corresponde)
+  riteId            String?   // ID del RITE
+  communicationType String    // Medio utilizado (Ej: "Portal Web", "Firma Presencial", "Email")
+  confirmedAt       DateTime  @default(now()) // Fecha y hora del acuse de recibo
+
+  @@index([guardianId]) // Índice para verificar firmas y notificaciones de un tutor
+}
+
+// ============================================================================
+// RECORD DOCUMENTS (Documentación Digitalizada del Legajo)
+// ============================================================================
+
+model RecordDocument {
+  id         String   @id @default(uuid()) // Identificador único
+  student    Student  @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId  String   // ID del estudiante
+  type       String   // Tipo de documento (Ej: "Partida de Nacimiento", "DNI Solicitud", "Certificado Vacunas")
+  fileUrl    String   // Enlace/Ruta al archivo almacenado en servidor o cloud
+  uploadedAt DateTime @default(now()) // Fecha de subida
+
+  @@index([studentId, type]) // Índice para consulta rápida de documentación por tipo
+}
+
+// ============================================================================
+// INSTITUTIONAL TRANSFERS (Gestión de Pases Institucionales)
+// ============================================================================
+
+model InstitutionalTransfer {
+  id                      String       @id @default(uuid()) // Identificador único
+  student                 Student      @relation("TransferStudent", fields: [studentId], references: [id]) // Estudiante en pase
+  studentId               String       // ID del estudiante
+  type                    TransferType // Dirección del pase (Entrante / Saliente)
+  reason                  String       // Motivo expresado de la solicitud de pase
+  documentationUrl        String?      // Archivo digitalizado con constancias de pase o vacante
+  familySignatureUrl      String?      // Firma de conformidad de los adultos responsables
+  originDestinationSchool String?      // Escuela de origen o escuela de destino
+  date                    DateTime     @default(now()) // Fecha de efectivización o trámite
+
+  @@index([studentId]) // Índice para seguimiento del legajo en pases
+}
+
+// ============================================================================
+// EQUIVALENCIES (Equivalencias de Asignaturas)
+// ============================================================================
+
+model Equivalency {
+  id                    String              @id @default(uuid()) // Identificador único
+  student               Student             @relation(fields: [studentId], references: [id]) // Estudiante solicitante
+  studentId             String              // ID del estudiante
+  originSubject         String              // Nombre de la materia cursada en la escuela de origen
+  originSchool          String              // Escuela de procedencia donde la cursó
+  originJurisdiction    String?             // Provincia o país de origen (si aplica)
+  originProgramUrl      String?             // Enlace al programa de la materia adjuntado
+  certificationUrl      String?             // Enlace a la analítico parcial o certificado cargado
+  verdict               EquivalencyVerdict? // Dictamen de equivalencia (Total, Parcial, No reconocida)
+  internalResolutionUrl String?             // Disposición / Resolución interna aprobada
+  date                  DateTime            @default(now()) // Fecha del dictamen
+
+  @@index([studentId]) // Índice por alumno
+}
+
+// ============================================================================
+// DIPLOMA & GRADUATION (Titulación, Registraciones y Egresados)
+// ============================================================================
+
+model Diploma {
+  id                 String   @id @default(uuid()) // Identificador único
+  student            Student  @relation(fields: [studentId], references: [id]) // Estudiante egresado
+  studentId          String   @unique // ID del estudiante (1 a 1)
+  registrationNumber String   @unique // Número de registro nacional/provincial del título
+  issuedAt           DateTime @default(now()) // Fecha de emisión del título
+  transcriptUrl      String?  // Enlace al certificado analítico final
+  diplomaUrl         String?  // Enlace a la imagen digitalizada del diploma
+  digitalSignHash    String?  // Hash de legalización y firma digital del título
+
+  @@index([studentId]) // Índice de egresados
+}
+
+// ============================================================================
+// EVALUATION COMMITTEES (Comisiones Evaluadoras / Mesas de Examen)
+// ============================================================================
+
+model EvaluationCommittee {
+  id         String   @id @default(uuid()) // Identificador único
+  student    Student  @relation(fields: [studentId], references: [id]) // Estudiante a evaluar
+  studentId  String   // ID del estudiante
+  date       DateTime // Fecha y hora de la mesa evaluadora
+  members    String   // Nombres y apellidos de los docentes que integran la mesa
+  minutesUrl String?  // Enlace al acta de examen digitalizada
+  createdAt  DateTime @default(now()) // Fecha de constitución/registro de la mesa
+
+  subjects CommitteeSubject[] // Materias evaluadas en esta comisión
+
+  @@index([studentId]) // Índice de comisiones rendidas por el alumno
+}
+
+model CommitteeSubject {
+  id              String              @id @default(uuid()) // Identificador único
+  committee       EvaluationCommittee @relation(fields: [committeeId], references: [id]) // Comisión evaluadora
+  committeeId     String              // ID de la comisión
+  enrollment      Enrollment          @relation(fields: [enrollmentId], references: [id]) // Materia rendida
+  enrollmentId    String              // ID de la inscripción a materia
+  topicsEvaluated String?             // Contenidos / Unidades evaluadas
+  score           Int?                // Nota definitiva obtenida en la mesa (1 a 10)
+
+  @@unique([committeeId, enrollmentId]) // Unicidad de materia dentro de la misma mesa
+}
+
+// ============================================================================
+// CONDUCT AGREEMENTS (Acuerdos Institucionales de Convivencia - AIC)
+// ============================================================================
+
+model ConductAgreement {
+  id          String   @id @default(uuid()) // Identificador único
+  student     Student  @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId   String   // ID del estudiante
+  description String   // Detalle del compromiso asumido según el AIC
+  date        DateTime @default(now()) // Fecha del acuerdo
+  followUp    String?  // Registro de seguimiento del cumplimiento de los acuerdos
+
+  @@index([studentId]) // Índice por estudiante
+}
+
+// ============================================================================
+// INSTITUTIONAL CONFIGURATION (Configuración Paramétrica de la Escuela)
+// ============================================================================
+
+model InstitutionalConfig {
+  id                          String              @id @default(uuid()) // Identificador único
+  organizationalModel         OrganizationalModel // Modelo organizacional adoptado por la escuela (Res. 1650/24)
+  adoptedAt                   DateTime            @default(now()) // Fecha de aprobación del modelo en la escuela
+  minimumExpiryDate           DateTime            // Fecha mínima de permanencia antes de poder cambiar de modelo
+  absenceLimitInstitutional   Int                 @default(28) // Límite institucional de faltas tope por año
+  subjectAttendancePercentage Float               @default(0.75) // Porcentaje de asistencia requerido por materia (0.75 = 75%)
+  createdAt                   DateTime            @default(now()) // Fecha de configuración
 }
