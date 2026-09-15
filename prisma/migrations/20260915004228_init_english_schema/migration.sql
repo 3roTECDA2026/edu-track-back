@@ -1,72 +1,3 @@
-/*
-  Warnings:
-
-  - You are about to drop the column `cronograma` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `diagnostico` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `edteReunionId` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `estado` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `estrategiasAcompanamiento` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `estudianteId` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `fechaCreacion` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `notificacionUrl` on the `Pate` table. All the data in the column will be lost.
-  - You are about to drop the column `autoridadFirmanteId` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `cicloLectivoId` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `cuatrimestre` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `esPostIntensificacion` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `estado` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `estudianteId` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `fechaFirma` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `observacionesGenerales` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the column `urlPdf` on the `Rite` table. All the data in the column will be lost.
-  - You are about to drop the `AcuerdoConvivencia` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `AdultoResponsable` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `AsistenciaDiaria` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `AsistenciaMateria` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `CalendarioHito` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Calificacion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `CicloLectivo` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ComisionEvaluadora` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ComisionEvaluadoraMateria` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ConfiguracionInstitucional` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ConfirmacionRecepcion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ConflictoLegal` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ConflictoLegalAnexo` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `CursoSeccion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `DocenteMateriaCurso` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `DocumentoLegajo` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `EdteIntegrante` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `EdteReunion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Equivalencia` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Estudiante` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `EstudianteAdulto` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `HistorialMatricula` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Inscripcion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Intensificacion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Intervencion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `LogAuditoria` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Materia` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Mensaje` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Notificacion` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PaseInterinstitucional` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PateMateriaIntensificar` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PateMateriaRecursar` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PateSeguimiento` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PlanEstudio` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PlanEstudioMateria` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PlanForte` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PlanForteReporte` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Titulo` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Usuario` table. If the table is not empty, all the data it contains will be lost.
-  - A unique constraint covering the columns `[studentId,academicYearId,term,isPostIntensification]` on the table `Rite` will be added. If there are existing duplicate values, this will fail.
-  - Added the required column `diagnosis` to the `Pate` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `edteMeetingId` to the `Pate` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `studentId` to the `Pate` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `supportStrategies` to the `Pate` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `academicYearId` to the `Rite` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `studentId` to the `Rite` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `term` to the `Rite` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('ADMINISTRATOR', 'SCHOOL_MANAGEMENT', 'EOE_DIRECTIVE', 'TEACHER', 'STUDENT', 'FAMILY');
 
@@ -126,401 +57,6 @@ CREATE TYPE "AuditActionType" AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'SENSITIVE_
 
 -- CreateEnum
 CREATE TYPE "AlertType" AS ENUM ('ABSENCES', 'PENDING_SUBJECTS', 'TED_ASSESSMENT', 'DROPOUT_RISK');
-
--- DropForeignKey
-ALTER TABLE "AcuerdoConvivencia" DROP CONSTRAINT "AcuerdoConvivencia_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "AdultoResponsable" DROP CONSTRAINT "AdultoResponsable_usuarioId_fkey";
-
--- DropForeignKey
-ALTER TABLE "AsistenciaDiaria" DROP CONSTRAINT "AsistenciaDiaria_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "AsistenciaMateria" DROP CONSTRAINT "AsistenciaMateria_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "AsistenciaMateria" DROP CONSTRAINT "AsistenciaMateria_inscripcionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "AsistenciaMateria" DROP CONSTRAINT "AsistenciaMateria_materiaId_fkey";
-
--- DropForeignKey
-ALTER TABLE "CalendarioHito" DROP CONSTRAINT "CalendarioHito_cicloLectivoId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Calificacion" DROP CONSTRAINT "Calificacion_inscripcionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ComisionEvaluadora" DROP CONSTRAINT "ComisionEvaluadora_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ComisionEvaluadoraMateria" DROP CONSTRAINT "ComisionEvaluadoraMateria_comisionEvaluadoraId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ComisionEvaluadoraMateria" DROP CONSTRAINT "ComisionEvaluadoraMateria_inscripcionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ConfirmacionRecepcion" DROP CONSTRAINT "ConfirmacionRecepcion_adultoResponsableId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ConfirmacionRecepcion" DROP CONSTRAINT "ConfirmacionRecepcion_riteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ConflictoLegal" DROP CONSTRAINT "ConflictoLegal_autorId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ConflictoLegal" DROP CONSTRAINT "ConflictoLegal_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ConflictoLegalAnexo" DROP CONSTRAINT "ConflictoLegalAnexo_conflictoId_fkey";
-
--- DropForeignKey
-ALTER TABLE "CursoSeccion" DROP CONSTRAINT "CursoSeccion_cicloLectivoId_fkey";
-
--- DropForeignKey
-ALTER TABLE "DocenteMateriaCurso" DROP CONSTRAINT "DocenteMateriaCurso_cursoSeccionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "DocenteMateriaCurso" DROP CONSTRAINT "DocenteMateriaCurso_docenteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "DocenteMateriaCurso" DROP CONSTRAINT "DocenteMateriaCurso_materiaId_fkey";
-
--- DropForeignKey
-ALTER TABLE "DocumentoLegajo" DROP CONSTRAINT "DocumentoLegajo_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "EdteIntegrante" DROP CONSTRAINT "EdteIntegrante_edteReunionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "EdteIntegrante" DROP CONSTRAINT "EdteIntegrante_usuarioId_fkey";
-
--- DropForeignKey
-ALTER TABLE "EdteReunion" DROP CONSTRAINT "EdteReunion_cicloLectivoId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Equivalencia" DROP CONSTRAINT "Equivalencia_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Estudiante" DROP CONSTRAINT "Estudiante_usuarioId_fkey";
-
--- DropForeignKey
-ALTER TABLE "EstudianteAdulto" DROP CONSTRAINT "EstudianteAdulto_adultoResponsableId_fkey";
-
--- DropForeignKey
-ALTER TABLE "EstudianteAdulto" DROP CONSTRAINT "EstudianteAdulto_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "HistorialMatricula" DROP CONSTRAINT "HistorialMatricula_cursoSeccionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "HistorialMatricula" DROP CONSTRAINT "HistorialMatricula_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Inscripcion" DROP CONSTRAINT "Inscripcion_cicloLectivoId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Inscripcion" DROP CONSTRAINT "Inscripcion_cursoSeccionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Inscripcion" DROP CONSTRAINT "Inscripcion_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Inscripcion" DROP CONSTRAINT "Inscripcion_materiaId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Intensificacion" DROP CONSTRAINT "Intensificacion_inscripcionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Intervencion" DROP CONSTRAINT "Intervencion_autorId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Intervencion" DROP CONSTRAINT "Intervencion_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "LogAuditoria" DROP CONSTRAINT "LogAuditoria_usuarioId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Mensaje" DROP CONSTRAINT "Mensaje_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Mensaje" DROP CONSTRAINT "Mensaje_remitenteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Notificacion" DROP CONSTRAINT "Notificacion_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PaseInterinstitucional" DROP CONSTRAINT "PaseInterinstitucional_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Pate" DROP CONSTRAINT "Pate_edteReunionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Pate" DROP CONSTRAINT "Pate_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PateMateriaIntensificar" DROP CONSTRAINT "PateMateriaIntensificar_inscripcionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PateMateriaIntensificar" DROP CONSTRAINT "PateMateriaIntensificar_pateId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PateMateriaRecursar" DROP CONSTRAINT "PateMateriaRecursar_inscripcionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PateMateriaRecursar" DROP CONSTRAINT "PateMateriaRecursar_pateId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PateSeguimiento" DROP CONSTRAINT "PateSeguimiento_pateId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PlanEstudioMateria" DROP CONSTRAINT "PlanEstudioMateria_cursoSeccionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PlanEstudioMateria" DROP CONSTRAINT "PlanEstudioMateria_materiaId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PlanEstudioMateria" DROP CONSTRAINT "PlanEstudioMateria_planEstudioId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PlanForte" DROP CONSTRAINT "PlanForte_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PlanForteReporte" DROP CONSTRAINT "PlanForteReporte_planForteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Rite" DROP CONSTRAINT "Rite_autoridadFirmanteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Rite" DROP CONSTRAINT "Rite_cicloLectivoId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Rite" DROP CONSTRAINT "Rite_estudianteId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Titulo" DROP CONSTRAINT "Titulo_estudianteId_fkey";
-
--- DropIndex
-DROP INDEX "Pate_estudianteId_idx";
-
--- DropIndex
-DROP INDEX "Rite_estudianteId_cicloLectivoId_cuatrimestre_esPostIntensi_key";
-
--- AlterTable
-ALTER TABLE "Pate" DROP COLUMN "cronograma",
-DROP COLUMN "diagnostico",
-DROP COLUMN "edteReunionId",
-DROP COLUMN "estado",
-DROP COLUMN "estrategiasAcompanamiento",
-DROP COLUMN "estudianteId",
-DROP COLUMN "fechaCreacion",
-DROP COLUMN "notificacionUrl",
-ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-ADD COLUMN     "diagnosis" TEXT NOT NULL,
-ADD COLUMN     "edteMeetingId" TEXT NOT NULL,
-ADD COLUMN     "notificationUrl" TEXT,
-ADD COLUMN     "schedule" TEXT,
-ADD COLUMN     "status" "PateStatus" NOT NULL DEFAULT 'ACTIVE',
-ADD COLUMN     "studentId" TEXT NOT NULL,
-ADD COLUMN     "supportStrategies" TEXT NOT NULL;
-
--- AlterTable
-ALTER TABLE "Rite" DROP COLUMN "autoridadFirmanteId",
-DROP COLUMN "cicloLectivoId",
-DROP COLUMN "cuatrimestre",
-DROP COLUMN "esPostIntensificacion",
-DROP COLUMN "estado",
-DROP COLUMN "estudianteId",
-DROP COLUMN "fechaFirma",
-DROP COLUMN "observacionesGenerales",
-DROP COLUMN "urlPdf",
-ADD COLUMN     "academicYearId" TEXT NOT NULL,
-ADD COLUMN     "generalNotes" TEXT,
-ADD COLUMN     "isPostIntensification" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "pdfUrl" TEXT,
-ADD COLUMN     "signedAt" TIMESTAMP(3),
-ADD COLUMN     "signingAuthorityId" TEXT,
-ADD COLUMN     "status" "RiteStatus" NOT NULL DEFAULT 'DRAFT',
-ADD COLUMN     "studentId" TEXT NOT NULL,
-ADD COLUMN     "term" "Term" NOT NULL;
-
--- DropTable
-DROP TABLE "AcuerdoConvivencia";
-
--- DropTable
-DROP TABLE "AdultoResponsable";
-
--- DropTable
-DROP TABLE "AsistenciaDiaria";
-
--- DropTable
-DROP TABLE "AsistenciaMateria";
-
--- DropTable
-DROP TABLE "CalendarioHito";
-
--- DropTable
-DROP TABLE "Calificacion";
-
--- DropTable
-DROP TABLE "CicloLectivo";
-
--- DropTable
-DROP TABLE "ComisionEvaluadora";
-
--- DropTable
-DROP TABLE "ComisionEvaluadoraMateria";
-
--- DropTable
-DROP TABLE "ConfiguracionInstitucional";
-
--- DropTable
-DROP TABLE "ConfirmacionRecepcion";
-
--- DropTable
-DROP TABLE "ConflictoLegal";
-
--- DropTable
-DROP TABLE "ConflictoLegalAnexo";
-
--- DropTable
-DROP TABLE "CursoSeccion";
-
--- DropTable
-DROP TABLE "DocenteMateriaCurso";
-
--- DropTable
-DROP TABLE "DocumentoLegajo";
-
--- DropTable
-DROP TABLE "EdteIntegrante";
-
--- DropTable
-DROP TABLE "EdteReunion";
-
--- DropTable
-DROP TABLE "Equivalencia";
-
--- DropTable
-DROP TABLE "Estudiante";
-
--- DropTable
-DROP TABLE "EstudianteAdulto";
-
--- DropTable
-DROP TABLE "HistorialMatricula";
-
--- DropTable
-DROP TABLE "Inscripcion";
-
--- DropTable
-DROP TABLE "Intensificacion";
-
--- DropTable
-DROP TABLE "Intervencion";
-
--- DropTable
-DROP TABLE "LogAuditoria";
-
--- DropTable
-DROP TABLE "Materia";
-
--- DropTable
-DROP TABLE "Mensaje";
-
--- DropTable
-DROP TABLE "Notificacion";
-
--- DropTable
-DROP TABLE "PaseInterinstitucional";
-
--- DropTable
-DROP TABLE "PateMateriaIntensificar";
-
--- DropTable
-DROP TABLE "PateMateriaRecursar";
-
--- DropTable
-DROP TABLE "PateSeguimiento";
-
--- DropTable
-DROP TABLE "PlanEstudio";
-
--- DropTable
-DROP TABLE "PlanEstudioMateria";
-
--- DropTable
-DROP TABLE "PlanForte";
-
--- DropTable
-DROP TABLE "PlanForteReporte";
-
--- DropTable
-DROP TABLE "Titulo";
-
--- DropTable
-DROP TABLE "Usuario";
-
--- DropEnum
-DROP TYPE "CodigoResultadoIntensificacion";
-
--- DropEnum
-DROP TYPE "Cuatrimestre";
-
--- DropEnum
-DROP TYPE "DictamenEquivalencia";
-
--- DropEnum
-DROP TYPE "EstadoEstudiante";
-
--- DropEnum
-DROP TYPE "EstadoMateria";
-
--- DropEnum
-DROP TYPE "EstadoPate";
-
--- DropEnum
-DROP TYPE "EstadoRite";
-
--- DropEnum
-DROP TYPE "EstadoUsuario";
-
--- DropEnum
-DROP TYPE "ModeloIntensificacion";
-
--- DropEnum
-DROP TYPE "ModeloOrganizativo";
-
--- DropEnum
-DROP TYPE "Orientacion";
-
--- DropEnum
-DROP TYPE "PeriodoIntensificacion";
-
--- DropEnum
-DROP TYPE "Rol";
-
--- DropEnum
-DROP TYPE "TipoAccionAuditoria";
-
--- DropEnum
-DROP TYPE "TipoAlerta";
-
--- DropEnum
-DROP TYPE "TipoCursada";
-
--- DropEnum
-DROP TYPE "TipoEventoIntervencion";
-
--- DropEnum
-DROP TYPE "TipoPase";
-
--- DropEnum
-DROP TYPE "Turno";
-
--- DropEnum
-DROP TYPE "ValoracionPreliminar";
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -769,6 +305,24 @@ CREATE TABLE "Intensification" (
 );
 
 -- CreateTable
+CREATE TABLE "Rite" (
+    "id" TEXT NOT NULL,
+    "studentId" TEXT NOT NULL,
+    "academicYearId" TEXT NOT NULL,
+    "term" "Term" NOT NULL,
+    "isPostIntensification" BOOLEAN NOT NULL DEFAULT false,
+    "generalNotes" TEXT,
+    "status" "RiteStatus" NOT NULL DEFAULT 'DRAFT',
+    "pdfUrl" TEXT,
+    "signedAt" TIMESTAMP(3),
+    "signingAuthorityId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Rite_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "EdteMeeting" (
     "id" TEXT NOT NULL,
     "date" TIMESTAMP(3) NOT NULL,
@@ -792,6 +346,21 @@ CREATE TABLE "EdteMember" (
     "signatureHash" TEXT,
 
     CONSTRAINT "EdteMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Pate" (
+    "id" TEXT NOT NULL,
+    "studentId" TEXT NOT NULL,
+    "edteMeetingId" TEXT NOT NULL,
+    "diagnosis" TEXT NOT NULL,
+    "supportStrategies" TEXT NOT NULL,
+    "schedule" TEXT,
+    "status" "PateStatus" NOT NULL DEFAULT 'ACTIVE',
+    "notificationUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Pate_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1109,7 +678,13 @@ CREATE INDEX "Grade_subjectStatus_idx" ON "Grade"("subjectStatus");
 CREATE INDEX "Intensification_enrollmentId_period_idx" ON "Intensification"("enrollmentId", "period");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Rite_studentId_academicYearId_term_isPostIntensification_key" ON "Rite"("studentId", "academicYearId", "term", "isPostIntensification");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "EdteMember_edteMeetingId_userId_key" ON "EdteMember"("edteMeetingId", "userId");
+
+-- CreateIndex
+CREATE INDEX "Pate_studentId_idx" ON "Pate"("studentId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PateSubjectIntensify_pateId_enrollmentId_key" ON "PateSubjectIntensify"("pateId", "enrollmentId");
@@ -1173,12 +748,6 @@ CREATE UNIQUE INDEX "CommitteeSubject_committeeId_enrollmentId_key" ON "Committe
 
 -- CreateIndex
 CREATE INDEX "ConductAgreement_studentId_idx" ON "ConductAgreement"("studentId");
-
--- CreateIndex
-CREATE INDEX "Pate_studentId_idx" ON "Pate"("studentId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Rite_studentId_academicYearId_term_isPostIntensification_key" ON "Rite"("studentId", "academicYearId", "term", "isPostIntensification");
 
 -- AddForeignKey
 ALTER TABLE "CalendarMilestone" ADD CONSTRAINT "CalendarMilestone_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "AcademicYear"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
