@@ -1,0 +1,101 @@
+📋 Guía de Sincronización para el Equipo — EduTrack
+1. Actualizar el código local de los repositorios
+Cada compañero debe pararse en sus carpetas locales y traer los últimos cambios desde GitHub:
+    • Backend (edu-track-back):
+      Bash
+      cd edu-track-back
+      git pull origin main
+      npm install
+    • Frontend (edu-track-front):
+      Bash
+      cd ../edu-track-front
+      git pull origin main
+      npm install --legacy-peer-deps
+2. Configurar las Variables de Entorno (.env)
+Cada integrante debe asegurarse de tener los archivos .env creados en las raíces de cada proyecto:
+    • En edu-track-back/.env:
+      Fragmento de código
+      PORT=3000
+      DATABASE_URL="postgresql://usuario:password@host:5432/dbname?schema=public"
+    • En edu-track-front/.env:
+      Fragmento de código
+      VITE_API_URL=http://localhost:3000
+3. Levantar los Entornos de Desarrollo
+Para trabajar y probar las funcionalidades, deben abrir dos terminales distintas:
+    • Terminal 1 — Backend:
+      Bash
+      cd edu-track-back
+      npm run dev
+      (Inicia en http://localhost:3000 leyendo src/server.ts)
+    • Terminal 2 — Frontend:
+      Bash
+      cd edu-track-front
+      npm run dev
+      (Inicia en http://localhost:5173 apuntando al nuevo src/main.tsx)
+4. Verificación en el Navegador
+    1. Abrir http://localhost:5173 en el navegador.
+    2. Comprobar que aparezca el título:
+       Bienvenidos a EduTrack — ISFDyT 166
+       Escuela Secundaria / Escuela Normal (Tandil) — Equipo TECDA 3º
+    3. Confirmar que el recuadro de estado marque: ✅ Servidor backend: OK (o el mensaje configurado en el endpoint /health).
+
+
+Paso 1: Instalar PostgreSQL y el servicio
+Abre la terminal en Ubuntu y ejecuta:
+Bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib -y
+Para asegurarte de que el servicio esté corriendo:
+Bash
+sudo systemctl status postgresql
+(Si no está activo, puedes iniciarlo con sudo systemctl start postgresql).
+Paso 2: Crear el usuario, la base de datos y la contraseña
+PostgreSQL crea por defecto un usuario del sistema llamado postgres. Vas a ingresar a la consola interactiva de Postgres (psql) con ese usuario:
+    1. Entrar a la consola de PostgreSQL:
+       Bash
+       sudo -u postgres psql
+    2. Dentro de la consola (postgres=#), ejecuta las siguientes sentencias SQL (reemplaza tu_contraseña_segura por la contraseña que quieras usar):
+       SQL
+       -- 1. Crear la base de datos
+       CREATE DATABASE edutrack_db;
+       
+       -- 2. Asignar/Cambiar la contraseña del usuario postgres
+       ALTER USER postgres WITH PASSWORD 'tu_contraseña_segura';
+       
+       -- 3. Otorgar todos los privilegios de la base de datos al usuario
+       GRANT ALL PRIVILEGES ON DATABASE edutrack_db TO postgres;
+    3. Salir de la consola de PostgreSQL:
+       SQL
+       \q
+Paso 3: Configurar el archivo .env en edu-track-back
+    1. Entra a la carpeta del backend:
+       Bash
+       cd ~/Escritorio/escuela_normal/edu-track-back
+    2. Si no tienes el archivo .env, créalo copiando el .env.example:
+       Bash
+       cp .env.example .env
+    3. Abre el archivo .env con un editor de texto (como Nano o desde VS Code):
+       Bash
+       nano .env
+    4. Define la variable DATABASE_URL con el formato estándar de PostgreSQL:
+       Fragmento de código
+       PORT=3000
+       DATABASE_URL="postgresql://postgres:tu_contraseña_segura@localhost:5432/edutrack_db?schema=public"
+       (Reemplaza tu_contraseña_segura con la contraseña que estableciste en el Paso 2).
+Paso 4: Aplicar las migraciones de Prisma en la Base de Datos
+Una vez guardado el .env, ejecuta el siguiente comando para que Prisma cree las tablas y la estructura del esquema en tu nueva base de datos local:
+Bash
+npx prisma db push
+O si utilizas migraciones:
+Bash
+npx prisma migrate dev --name init
+Para verificar que las tablas se crearon correctamente, puedes abrir el panel visual de Prisma ejecutando:
+Bash
+npx prisma studio
+Esto abrirá en tu navegador http://localhost:5555 donde podrás administrar los datos.
+Resumen del formato de la URL de PostgreSQL:
+Plaintext
+postgresql://USUARIO:CONTRASEÑA@HOST:PUERTO/NOMBRE_BASE_DATOS?schema=ESQUEMA
+   └─ postgres   └─ tu_clave └─ localhost:5432 └─ edutrack_db    └─ public
+
+
