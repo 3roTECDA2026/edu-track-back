@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import gradeRoutes from '@/routes/grade.routes';
 
 dotenv.config();
 
@@ -16,9 +17,8 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Servidor levantado correctamente' });
 });
 
-// Importar e integrar tus rutas (ejemplo):
-// import routes from './routes';
-// app.use('/api', routes);
+// Rutas de la API
+app.use('/api/grades', gradeRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
