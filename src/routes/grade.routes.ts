@@ -1,16 +1,10 @@
-import { Router } from 'express'
-import {
-  listGrades,
-  createGrade,
-  updateGrade,
-  deleteGrade,
-} from '@/controllers/grade.controller'
+import { Router } from "express";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import * as gradeController from "../controllers/grade.controller.js";
 
-const router = Router()
+export const gradeRouter = Router();
 
-router.get('/', listGrades) // GET    /api/grades
-router.post('/', createGrade) // POST   /api/grades
-router.put('/:id', updateGrade) // PUT    /api/grades/:id
-router.delete('/:id', deleteGrade) // DELETE /api/grades/:id
-
-export default router
+gradeRouter.get("/", asyncHandler(gradeController.listGrades));
+gradeRouter.post("/", asyncHandler(gradeController.createGrade));
+gradeRouter.put("/:id", asyncHandler(gradeController.updateGrade));
+gradeRouter.delete("/:id", asyncHandler(gradeController.deleteGrade));
