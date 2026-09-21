@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import routes from './routes/index.js';
+import { errorHandler } from './middlewares/errorHandler.js';
 
 dotenv.config();
 
@@ -16,9 +18,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Servidor levantado correctamente' });
 });
 
-// Importar e integrar tus rutas (ejemplo):
-// import routes from './routes';
-// app.use('/api', routes);
+// Rutas de la API
+app.use('/api', routes);
+
+// Manejo de errores: siempre después de las rutas
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
