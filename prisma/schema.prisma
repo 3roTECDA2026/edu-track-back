@@ -3,6 +3,10 @@
 // Educación Secundaria — Provincia de Buenos Aires (Res. 1650/24 DGCyE)
 // ============================================================================
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql" // Proveedor de base de datos: PostgreSQL
   url      = env("DATABASE_URL") // URL de conexión a la BD desde variable de entorno
