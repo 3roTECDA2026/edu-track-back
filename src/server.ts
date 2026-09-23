@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import attendanceRouter from './routes/attendance.routes.js';
+import routes from './routes/index.js';
+import { errorHandler } from './middlewares/errorHandler.js';
 
 dotenv.config();
 
@@ -16,7 +17,13 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Servidor levantado correctamente' });
 });
-app.use('/attendance', attendanceRouter);
+
+// Rutas de la API
+app.use('/api', routes);
+
+// Manejo de errores: siempre después de las rutas
+app.use(errorHandler);
+>>>>>>> develop
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
