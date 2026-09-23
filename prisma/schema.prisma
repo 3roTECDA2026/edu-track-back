@@ -2,17 +2,11 @@
 // Sistema de Gestión de Trayectorias Educativas "Aura"
 // Educación Secundaria — Provincia de Buenos Aires (Res. 1650/24 DGCyE)
 // ============================================================================
-<<<<<<< HEAD
-generator client {
-  provider = "prisma-client-js"
-}
-=======
 
 generator client {
   provider = "prisma-client-js"
 }
 
->>>>>>> develop
 datasource db {
   provider = "postgresql" // Proveedor de base de datos: PostgreSQL
   url      = env("DATABASE_URL") // URL de conexión a la BD desde variable de entorno
