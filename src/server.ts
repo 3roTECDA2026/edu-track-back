@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import routes from './routes/index.js';
+import { errorHandler } from './middlewares/errorHandler.js';
 
 dotenv.config();
 
@@ -19,12 +21,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Ruta de prueba de la API
-app.get('/api', (req, res) => {
-  res.json({
-    message: 'API de EduTrack funcionando correctamente',
-  });
-});
+// Rutas de la API
+app.use('/api', routes);
+
+// Manejo de errores: siempre después de las rutas
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
