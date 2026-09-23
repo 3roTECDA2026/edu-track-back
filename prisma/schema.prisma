@@ -2,7 +2,9 @@
 // Sistema de Gestión de Trayectorias Educativas "Aura"
 // Educación Secundaria — Provincia de Buenos Aires (Res. 1650/24 DGCyE)
 // ============================================================================
-
+generator client {
+  provider = "prisma-client-js"
+}
 datasource db {
   provider = "postgresql" // Proveedor de base de datos: PostgreSQL
   url      = env("DATABASE_URL") // URL de conexión a la BD desde variable de entorno
@@ -40,6 +42,13 @@ enum Shift {
   AFTERNOON  // Turno Tarde
   EVENING    // Turno Vespertino / Noche
   EXTRA_TIME // Contraturno
+}
+
+enum AttendanceValue {
+  PRESENT
+  ABSENT
+  HALF
+  QUARTER
 }
 
 enum Orientation {
@@ -166,6 +175,7 @@ model User {
 
   // Relaciones:
   teacherAssignments    TeacherSubjectCourse[] // Materias y cursos asignados al docente
+  registeredAttendances DailyAttendance[]      @relation("AttendanceRegistrar")
   authoredInterventions Intervention[]         @relation("InterventionAuthor") // Intervenciones registradas por el usuario
   authoredConflicts     LegalConflict[]        @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
   signedRites          Rite[]                 @relation("SigningAuthority") // RITEs firmados por esta autoridad
@@ -226,6 +236,7 @@ model ClassSection {
   teacherAssignments TeacherSubjectCourse[] // Docentes asignados a esta división
   enrollmentHistory  EnrollmentHistory[]    // Historial de cambios de sección
   curriculumSubjects CurriculumSubject[]    // Materias de la currícula asociadas al curso
+  dailyAttendances   DailyAttendance[]       // Asistencias diarias de la sección
 
   @@unique([grade, division, shift, academicYearId]) // No pueden repetirse divisiones iguales en el mismo ciclo
 }
@@ -411,18 +422,20 @@ model Enrollment {
 // ============================================================================
 
 model DailyAttendance {
-  id           String   @id @default(uuid()) // Identificador único
-  student      Student  @relation(fields: [studentId], references: [id]) // Estudiante
-  studentId    String   // ID del estudiante
-  date         DateTime @db.Date // Fecha de la asistencia (sin hora)
-  absenceValue Float    // Valor de la falta (Ej: 1 = Falta entera, 0.5 = Media falta, 0.25 = Llegada tarde)
-  shift        Shift    // Turno correspondiente
-  excused      Boolean  @default(false) // ¿Falta justificada?
-  reason       String?  // Motivo de la inasistencia / justificación
-  notes        String?  // Observaciones adicionales
-  createdAt    DateTime @default(now()) // Fecha de carga en el sistema
+  id             String          @id @default(uuid()) // Identificador único
+  student        Student         @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId      String          // ID del estudiante
+  date           DateTime        @db.Date // Fecha de la asistencia (sin hora)
+  section        ClassSection    @relation(fields: [sectionId], references: [id]) // Curso/división
+  sectionId      String          // ID del curso/división
+  value          AttendanceValue // Valor de asistencia
+  justification  String?         // Motivo de la justificación
+  justified      Boolean         @default(false) // ¿La inasistencia está justificada?
+  registeredBy   User            @relation("AttendanceRegistrar", fields: [registeredById], references: [id]) // Usuario registrador
+  registeredById String          // ID del usuario registrador
+  createdAt      DateTime        @default(now()) // Fecha de carga en el sistema
 
-  @@unique([studentId, date, shift]) // Una sola carga por estudiante/día/turno
+  @@unique([studentId, date, sectionId]) // Una sola carga por estudiante/día/sección
   @@index([studentId, date]) // Índice para cómputo de inasistencias acumuladas
 }
 
