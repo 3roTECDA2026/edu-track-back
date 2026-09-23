@@ -11,14 +11,20 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Ruta de prueba
+// Ruta de prueba del servidor
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Servidor levantado correctamente' });
+  res.json({
+    status: 'ok',
+    message: 'Servidor levantado correctamente',
+  });
 });
 
-// Importar e integrar tus rutas (ejemplo):
-// import routes from './routes';
-// app.use('/api', routes);
+// Ruta de prueba de la API
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'API de EduTrack funcionando correctamente',
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
