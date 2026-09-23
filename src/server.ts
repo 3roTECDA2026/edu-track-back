@@ -23,7 +23,7 @@ app.use('/api', routes);
 
 // Manejo de errores: siempre después de las rutas
 app.use(errorHandler);
->>>>>>> develop
+
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
