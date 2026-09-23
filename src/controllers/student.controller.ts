@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
-import * as studentService from "../services/student.service.js";
-import { listStudentsQuerySchema, studentIdParamSchema } from "../schemas/student.schema.js";
-import { createStudentSchema } from "../schemas/student.schema.js";
+import * as studentService from "../services/student.service.ts";
+import { listStudentsQuerySchema, studentIdParamSchema } from "../schemas/student.schema.ts";
+import { createStudentSchema } from "../schemas/student.schema.ts";
 
 export async function listStudents(req: Request, res: Response) {
   const query = listStudentsQuerySchema.parse(req.query);

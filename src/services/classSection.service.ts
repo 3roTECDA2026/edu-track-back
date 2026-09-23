@@ -1,5 +1,5 @@
-import { prisma } from "../lib/prisma.js";
-import type { ListClassSectionsQuery } from "../schemas/classSection.schema.js";
+import { prisma } from "../lib/prisma.ts";
+import type { ListClassSectionsQuery } from "../schemas/classSection.schema.ts";
 
 export async function listClassSections(query: ListClassSectionsQuery) {
   return prisma.classSection.findMany({

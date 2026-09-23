@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../utils/asyncHandler.js";
-import * as classSectionController from "../controllers/classSection.controller.js";
+import { asyncHandler } from "../utils/asyncHandler.ts";
+import * as classSectionController from "../controllers/classSection.controller.ts";
 
 export const classSectionRouter = Router();
 

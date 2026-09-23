@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import * as classSectionService from "../services/classSection.service.js";
-import { listClassSectionsQuerySchema } from "../schemas/classSection.schema.js";
+import * as classSectionService from "../services/classSection.service.ts";
+import { listClassSectionsQuerySchema } from "../schemas/classSection.schema.ts";
 
 export async function listClassSections(req: Request, res: Response) {
   const query = listClassSectionsQuerySchema.parse(req.query);

@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { studentRouter } from "./student.routes.js";
-import { enrollmentRouter } from "./enrollment.routes.js";
-import { gradeRouter } from "./grade.routes.js";
-import { classSectionRouter } from "./classSection.routes.js";
+import { studentRouter } from "./student.routes.ts";
+import { enrollmentRouter } from "./enrollment.routes.ts";
+import { gradeRouter } from "./grade.routes.ts";
+import { classSectionRouter } from "./classSection.routes.ts";
 
 const router = Router();
 

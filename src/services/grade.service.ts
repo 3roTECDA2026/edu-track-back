@@ -1,11 +1,11 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "../lib/prisma.js";
-import { HttpError } from "../utils/httpError.js";
+import { prisma } from "../lib/prisma.ts";
+import { HttpError } from "../utils/httpError.ts";
 import type {
   CreateGradeInput,
   UpdateGradeInput,
   ListGradesQuery,
-} from "../schemas/grade.schema.js";
+} from "../schemas/grade.schema.ts";
 
 const gradeListInclude = {
   enrollment: {
