@@ -129,7 +129,7 @@ const studentDetailSelect = {
   guardians: {
     select: {
       isPrimary: true,
-      guardian: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
+      guardian: { select: { id: true, firstName: true, lastName: true, phone: true, email: true, dni: true, relationship: true } },
     },
   },
   enrollmentHistory: {
@@ -204,7 +204,14 @@ export async function createStudent(input: CreateStudentInput) {
         });
 
         const guardian = await tx.guardian.create({
-          data: { firstName: guardianFirstName, lastName: guardianLastName, phone: input.guardianPhone, email: input.guardianEmail },
+          data: {
+            firstName: guardianFirstName,
+            lastName: guardianLastName,
+            phone: input.guardianPhone,
+            email: input.guardianEmail,
+            dni: input.guardianDni ?? null,
+            relationship: input.guardianRelationship ?? null,
+          } ,
         });
 
         await tx.studentGuardian.create({ data: { studentId: student.id, guardianId: guardian.id, isPrimary: true } });

@@ -30,6 +30,8 @@ export const createStudentSchema = z.object({
   guardianName: z.string().trim().min(1).max(150),
   guardianPhone: z.string().trim().regex(/^\d{6,15}$/, "Teléfono inválido"),
   guardianEmail: z.email(),
+  guardianDni: z.string().trim().regex(/^\d{7,8}$/, "El DNI debe tener 7 u 8 dígitos").optional(),
+  guardianRelationship: z.string().trim().min(1).max(50).optional(),
 });
 
 export type CreateStudentInput = z.infer<typeof createStudentSchema>;
