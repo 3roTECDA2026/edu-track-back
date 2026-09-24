@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import * as enrollmentController from "../controllers/enrollment.controller.js";
+import * as enrollmentController from "../controllers/enrollment.controller.ts";
 
 export const enrollmentRouter = Router();
 
