@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import * as gradeService from "../services/grade.service.js";
+import * as gradeService from "../services/grade.service.ts";
 import {
   createGradeSchema,
   updateGradeSchema,
