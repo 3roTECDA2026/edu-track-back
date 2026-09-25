@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes/index.ts';
 import { errorHandler } from './middlewares/errorHandler.ts';
+import academicCycleRoutes from './routes/academicCycle.routes';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.get('/health', (req, res) => {
 
 // Rutas de la API
 app.use('/api', routes);
+app.use('/api/cycles', academicCycleRoutes);
 
 // Manejo de errores: siempre después de las rutas
 app.use(errorHandler);

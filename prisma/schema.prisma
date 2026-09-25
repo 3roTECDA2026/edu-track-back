@@ -891,3 +891,12 @@ model InstitutionalConfig {
   subjectAttendancePercentage Float               @default(0.75) // Porcentaje de asistencia requerido por materia (0.75 = 75%)
   createdAt                   DateTime            @default(now()) // Fecha de configuración
 }
+
+model AcademicCycle {
+  id        Int      @id @default(autoincrement())
+  year      Int      @unique
+  isActive  Boolean  @default(false)
+  startDate DateTime 
+  endDate   DateTime
+  createdAt DateTime @default(now())
+}
