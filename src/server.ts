@@ -13,9 +13,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Ruta de prueba
+// Ruta de prueba del servidor
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Servidor levantado correctamente' });
+  res.json({
+    status: 'ok',
+    message: 'Servidor levantado correctamente',
+  });
 });
 
 // Rutas de la API
