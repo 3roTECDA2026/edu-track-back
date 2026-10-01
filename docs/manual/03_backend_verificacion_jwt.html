@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capítulo 3: Verificación de Firma JWT</title>
+  <style>
+    :root { --primary: #2563eb; --bg: #0f172a; --card-bg: #1e293b; --text: #f8fafc; --text-muted: #94a3b8; --border: #334155; --accent: #38bdf8; }
+    body { font-family: system-ui, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 2.5rem 1rem 1rem; text-align: center; }
+    header h1 { margin: 0; font-size: 2rem; color: var(--accent); }
+    header p { color: var(--text-muted); margin-top: 0.5rem; }
+    .container { flex: 1; max-width: 860px; margin: 0 auto; padding: 1rem 1.5rem 3rem; width: 100%; box-sizing: border-box; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
+    .card h2 { margin-top: 0; font-size: 1.4rem; color: #ffffff; border-bottom: 2px solid var(--border); padding-bottom: 0.75rem; }
+    .card p { color: #cbd5e1; font-size: 1rem; line-height: 1.6; }
+    pre { background: #090d16; border: 1px solid var(--border); color: #f1f5f9; padding: 1.2rem; border-radius: 8px; overflow-x: auto; font-size: 0.9em; line-height: 1.45; }
+    .explanation { background: rgba(37, 99, 235, 0.1); border-left: 4px solid var(--primary); padding: 1rem 1.2rem; border-radius: 0 8px 8px 0; margin-top: 1.2rem; }
+    .explanation strong { color: var(--accent); }
+    .nav-footer { display: flex; justify-content: space-between; margin-top: 2rem; }
+    .nav-btn { background: var(--primary); color: white; text-decoration: none; padding: 0.7rem 1.4rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem; }
+    .nav-btn:hover { background: #1d4ed8; }
+    .nav-btn.secondary { background: #334155; }
+    .nav-btn.secondary:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📘 Capítulo 3: Verificación de Firma JWT (`verifyToken`)</h1>
+    <p>Middleware atómico para verificar la autenticidad del Token Bearer</p>
+  </header>
+  <div class="container">
+    <div class="card">
+      <h2>Código del Middleware `verifyToken`</h2>
+      <p>Este interceptor se encarga <strong>únicamente</strong> de comprobar la firma criptográfica del token recibida en el header HTTP:</p>
+
+<pre><code>// src/middleware/auth.middleware.ts
+import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from 'express';
+
+export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as TokenPayload;
+    req.userId = decoded.usuario_id ?? decoded.id;
+    req.userRole = decoded.rol_id ?? 1;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};</code></pre>
+
+      <div class="explanation">
+        <strong>💡 Responsabilidad Única:</strong> 
+        Revisar la firma con <code>JWT_SECRET</code>. Si es inválido o no existe, retorna <code>401 Unauthorized</code>. Si es válido, inyecta <code>req.userRole</code> y llama a <code>next()</code>.
+      </div>
+    </div>
+
+    <div class="nav-footer">
+      <a href="02_sesiones_vs_jwt.html" class="nav-btn secondary">← Capítulo 2</a>
+      <a href="../index.html" class="nav-btn secondary">Índice</a>
+      <a href="04_backend_control_de_roles.html" class="nav-btn">Capítulo 4: Control de Roles →</a>
+    </div>
+  </div>
+</body>
+</html>

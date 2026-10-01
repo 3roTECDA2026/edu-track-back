@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capítulo 3: Autorización Backend</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --accent: #38bdf8;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 2rem 1rem 1rem;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2rem;
+      color: var(--accent);
+    }
+
+    header p {
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .slide-container {
+      flex: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem 3rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* Estilo Tarjeta / Slide de Presentación */
+    .card-slide {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .slide-number {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .card-slide h2 {
+      margin-top: 0;
+      font-size: 1.4rem;
+      color: #ffffff;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+
+    .card-slide p {
+      color: #cbd5e1;
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    pre {
+      background: #090d16;
+      border: 1px solid var(--border);
+      color: #f1f5f9;
+      padding: 1.2rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.9em;
+      line-height: 1.45;
+    }
+
+    .explanation-card {
+      background: rgba(37, 99, 235, 0.1);
+      border-left: 4px solid var(--primary);
+      padding: 1rem 1.2rem;
+      border-radius: 0 8px 8px 0;
+      margin-top: 1.2rem;
+    }
+
+    .explanation-card strong {
+      color: var(--accent);
+    }
+
+    .nav-footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1rem;
+    }
+
+    .nav-btn {
+      background: var(--primary);
+      color: white;
+      text-decoration: none;
+      padding: 0.7rem 1.4rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    .nav-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .nav-btn.secondary {
+      background: #334155;
+    }
+    .nav-btn.secondary:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🎬 Presentación: Autorización Backend con Middlewares</h1>
+    <p>Capítulo 3 — Diapositivas explicativas de implementación</p>
+  </header>
+
+  <div class="slide-container">
+
+    <!-- SLIDE 1: verifyToken -->
+    <div class="card-slide">
+      <span class="slide-number">SLIDE 1 / 3</span>
+      <h2>1️⃣ Verificación de Firma JWT (`verifyToken`)</h2>
+      <p>El primer interceptor comprueba que la petición traiga un token de sesión auténtico y no alterado en la cabecera HTTP.</p>
+
+<pre><code>// Interceptor 1: Verificar firma JWT (verifyToken)
+export const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userRole = decoded.rol_id;
+    next(); // Firma válida: avanza al siguiente middleware
+  } catch {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};</code></pre>
+
+      <div class="explanation-card">
+        <strong>💡 ¿Cómo funciona?</strong> 
+        Extrae el token del encabezado <code>Authorization: Bearer &lt;token&gt;</code>. Si falta o la firma no coincide con el <code>JWT_SECRET</code>, frena todo devolviendo <code>401 Unauthorized</code>. Si es válido, inyecta el rol en <code>req.userRole</code>.
+      </div>
+    </div>
+
+    <!-- SLIDE 2: requireRole -->
+    <div class="card-slide">
+      <span class="slide-number">SLIDE 2 / 3</span>
+      <h2>2️⃣ Control de Acceso por Rol (`requireRole`)</h2>
+      <p>El segundo interceptor evalúa si el rol del usuario autenticado coincide con el nivel de acceso requerido.</p>
+
+<pre><code>// Interceptor 2: Verificar Rol (requireRole)
+export const requireRole = (roleId) => (req, res, next) => {
+  if (req.userRole !== roleId) {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  next(); // Rol correcto: pasa al controlador final
+};</code></pre>
+
+      <div class="explanation-card">
+        <strong>💡 ¿Cómo funciona?</strong> 
+        Es una función de orden superior que recibe el ID de rol permitido (ej. 1 para Administrador). Compara <code>req.userRole</code>. Si no tiene permiso, bloquea la petición enviando <code>403 Forbidden</code> antes de llegar a la base de datos.
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Router -->
+    <div class="card-slide">
+      <span class="slide-number">SLIDE 3 / 3</span>
+      <h2>3️⃣ Declaración en la Capa de Ruteo (Router)</h2>
+      <p>Finalmente, unimos las piezas encadenando los interceptores directamente en la definición de la ruta.</p>
+
+<pre><code>// Declaración en la capa de ruteo Express
+router.post('/admin/config', verifyToken, requireRole(1), adminController.save);</code></pre>
+
+      <div class="explanation-card">
+        <strong>💡 ¿Cómo funciona?</strong> 
+        Express ejecuta de izquierda a derecha. Primero valida la firma (<code>verifyToken</code>), luego valida el rol (<code>requireRole(1)</code>), y solo si ambos dan el OK (<code>next()</code>), ejecuta la función del controlador (<code>adminController.save</code>).
+      </div>
+    </div>
+
+    <div class="nav-footer">
+      <a href="02_sesiones_vs_jwt.html" class="nav-btn secondary">← Capítulo 2</a>
+      <a href="../index.html" class="nav-btn secondary">Índice General</a>
+      <a href="04_frontend_enrutamiento_protegido.html" class="nav-btn">Capítulo 4: Frontend Router →</a>
+    </div>
+
+  </div>
+
+</body>
+</html>
