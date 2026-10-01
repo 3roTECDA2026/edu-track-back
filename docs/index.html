@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Guía de Seguridad: JWT & Control de Acceso por Roles</title>
+  <title>Aprende Arquitectura de Seguridad & JWT</title>
   <style>
     :root {
       --primary: #2563eb;
@@ -31,24 +31,24 @@
     header {
       background: linear-gradient(135deg, #1e293b, #0f172a);
       color: white;
-      padding: 3rem 1.5rem;
+      padding: 3.5rem 1.5rem;
       text-align: center;
     }
 
     header h1 {
       margin: 0 0 0.5rem 0;
-      font-size: 2.2rem;
+      font-size: 2.3rem;
     }
 
     header p {
       color: #94a3b8;
       margin: 0;
-      font-size: 1.1rem;
+      font-size: 1.15rem;
     }
 
     .container {
-      max-width: 900px;
-      margin: 2rem auto;
+      max-width: 920px;
+      margin: 2.5rem auto;
       padding: 0 1.5rem;
     }
 
@@ -73,6 +73,14 @@
       margin-top: 1.5rem;
     }
 
+    .concept-box {
+      background: #eff6ff;
+      border-left: 4px solid var(--primary);
+      padding: 1rem 1.2rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -90,23 +98,15 @@
       font-weight: 600;
     }
 
-    code {
-      background-color: #f1f5f9;
-      color: #0f172a;
-      padding: 0.2rem 0.4rem;
-      border-radius: 4px;
-      font-size: 0.9em;
-      font-family: monospace;
-    }
-
     pre code {
       background-color: var(--code-bg);
       color: var(--code-color);
       display: block;
-      padding: 1rem;
+      padding: 1.2rem;
       overflow-x: auto;
       border-radius: 6px;
-      line-height: 1.4;
+      line-height: 1.45;
+      font-size: 0.9em;
     }
 
     .badge {
@@ -118,7 +118,6 @@
     }
 
     .badge-success { background: #dcfce7; color: var(--success); }
-    .badge-warning { background: #fef3c7; color: var(--warning); }
 
     footer {
       text-align: center;
@@ -131,51 +130,55 @@
 <body>
 
   <header>
-    <h1>🛡️ Arquitectura de Seguridad: JWT & Control de Acceso</h1>
-    <p>Documentación técnica de implementación para desarrolladores — Instituto 166</p>
+    <h1>🎓 Guía Interactiva: Arquitectura de Seguridad & JWT</h1>
+    <p>Aprende cómo diseñamos e implementamos la autenticación y el control de acceso en los proyectos</p>
   </header>
 
   <div class="container">
 
     <section>
-      <h2>1. ¿Por qué usamos JSON Web Tokens (JWT)?</h2>
-      <p>Un <strong>JWT</strong> es un estándar firmado digitalmente que permite enviar datos de autenticación seguros entre el cliente (React) y el servidor (Express) sin necesidad de mantener sesiones guardadas en el servidor.</p>
-      
-      <h3>Comparativa de Alternativas</h3>
+      <h2>1. Entendiendo la Autenticación: ¿Por qué JWT?</h2>
+      <p>Cuando un usuario inicia sesión, el servidor debe recordar su identidad en las siguientes peticiones HTTP. Hay dos patrones principales para lograr esto:</p>
+
+      <div class="concept-box">
+        <strong>💡 Concepto Clave:</strong> 
+        Las HTTP son peticiones <em>stateless</em> (sin memoria). Los tokens JWT le dan al cliente un pasaporte firmado digitalmente para identificarse en cada llamada sin guardar datos en el servidor.
+      </div>
+
       <table>
         <thead>
           <tr>
-            <th>Característica</th>
-            <th>Sesiones Tradicionales (Cookies)</th>
-            <th>JWT (Bearer Tokens)</th>
+            <th>Criterio</th>
+            <th>Sesiones en Servidor (Cookies / Memory)</th>
+            <th>JWT Bearer Token (Nuestro Enfoque)</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Almacenamiento en Servidor</strong></td>
-            <td>Requiere guardar la sesión en memoria/base de datos.</td>
-            <td><span class="badge badge-success">Stateless:</span> El servidor no guarda estado.</td>
+            <td><strong>Persistencia</strong></td>
+            <td>Guarda sesiones en memoria RAM o Base de Datos.</td>
+            <td><span class="badge badge-success">Stateless:</span> La firma matemática valida los datos.</td>
           </tr>
           <tr>
             <td><strong>Escalabilidad</strong></td>
-            <td>Dificultad al escalar múltiples servidores.</td>
-            <td><span class="badge badge-success">Alta:</span> Cualquier backend valida la firma.</td>
+            <td>Requiere sincronizar bases de datos entre servidores.</td>
+            <td><span class="badge badge-success">Alta:</span> Cualquier servidor valida el token con la clave secreta.</td>
           </tr>
           <tr>
-            <td><strong>Compatibilidad Móvil / API</strong></td>
-            <td>Sujeto a restricciones CORS y manejo de cookies.</td>
-            <td><span class="badge badge-success">Universal:</span> Envíos vía Header HTTP.</td>
+            <td><strong>Desacoplamiento</strong></td>
+            <td>Dificulta llamadas de frontend React en dominios o puertos distintos.</td>
+            <td><span class="badge badge-success">Universal:</span> Se envía en el header <code>Authorization: Bearer &lt;token&gt;</code>.</td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section>
-      <h2>2. Implementación Backend: Middlewares</h2>
-      <p>El backend utiliza dos middlewares clave en la cadena de ejecución de Express:</p>
-      
-      <h3>A. Verificación del Token (<code>verifyToken</code>)</h3>
-      <p>Extrae el token del encabezado <code>Authorization: Bearer &lt;token&gt;</code> y valida su integridad.</p>
+      <h2>2. Arquitectura de Control de Acceso Backend (RBAC)</h2>
+      <p>Para proteger rutas sensibles, el backend encadena dos middlewares en Express:</p>
+
+      <h3>Paso 1: Verificación de Firma (<code>verifyToken</code>)</h3>
+      <p>Comprueba que el token sea auténtico y extrae el <code>userId</code> y <code>userRole</code> del payload.</p>
 <pre><code>export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -184,20 +187,21 @@
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-    req.userId = decoded.usuario_id;
-    req.userRole = decoded.rol_id;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as TokenPayload;
+    req.userId = decoded.usuario_id ?? decoded.id;
+    req.userRole = decoded.rol_id ?? 1;
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Invalid token' });
   }
 };</code></pre>
 
-      <h3>B. Control de Acceso por Rol (<code>requireRole</code>)</h3>
+      <h3>Paso 2: Autorización por Rol (<code>requireRole</code>)</h3>
+      <p>Revisa si el rol extraído tiene permiso para acceder a la ruta requerida.</p>
 <pre><code>export const requireRole = (requiredRole: number) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (Number(req.userRole) !== requiredRole) {
-      return res.status(403).json({ error: 'Acceso denegado.' });
+      return res.status(403).json({ error: 'Acceso denegado. Permisos insuficientes.' });
     }
     next();
   };
@@ -205,8 +209,8 @@
     </section>
 
     <section>
-      <h2>3. Protección de Rutas en el Frontend (React)</h2>
-      <p>En el cliente, las rutas privadas se envuelven en el componente <code>ProtectedRoute</code> para evitar accesos no autorizados en la navegación.</p>
+      <h2>3. Protección de Vistas en el Frontend (React Router)</h2>
+      <p>En React se utiliza el componente <code>ProtectedRoute</code> para envolver las vistas privadas e impedir que usuarios sin sesión accedan desde la URL.</p>
 
 <pre><code>export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -221,7 +225,7 @@
   </div>
 
   <footer>
-     Hub de Proyectos — Prácticas Profesionalizantes 2026 | Instituto 166
+    Hub de Proyectos — Guías de Arquitectura e Implementación | Instituto 166
   </footer>
 
 </body>
