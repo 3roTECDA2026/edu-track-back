@@ -8,11 +8,12 @@
     :root {
       --primary: #2563eb;
       --primary-dark: #1d4ed8;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text: #0f172a;
-      --text-muted: #475569;
-      --border: #e2e8f0;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --accent: #38bdf8;
     }
 
     body {
@@ -25,14 +26,14 @@
     }
 
     header {
-      background: linear-gradient(135deg, #1e293b, #0f172a);
-      color: white;
       padding: 3rem 1.5rem;
       text-align: center;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border-bottom: 1px solid var(--border);
     }
 
-    header h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; }
-    header p { color: #94a3b8; margin: 0; font-size: 1.1rem; }
+    header h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; color: var(--accent); }
+    header p { color: var(--text-muted); margin: 0; font-size: 1.1rem; }
 
     .container {
       max-width: 900px;
@@ -50,26 +51,26 @@
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 1.8rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+      transition: transform 0.2s, border-color 0.2s;
     }
 
     .card:hover {
       transform: translateY(-3px);
-      box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+      border-color: var(--accent);
     }
 
     .card h3 {
       margin-top: 0;
-      color: var(--primary);
-      font-size: 1.2rem;
+      color: var(--accent);
+      font-size: 1.15rem;
     }
 
     .card p {
-      color: var(--text-muted);
-      font-size: 0.95rem;
+      color: #cbd5e1;
+      font-size: 0.92rem;
       margin-bottom: 1.5rem;
     }
 
@@ -80,8 +81,8 @@
       text-decoration: none;
       padding: 0.6rem 1.2rem;
       border-radius: 6px;
-      font-weight: 500;
-      font-size: 0.9rem;
+      font-weight: 600;
+      font-size: 0.88rem;
     }
 
     .btn:hover { background-color: var(--primary-dark); }
@@ -98,7 +99,7 @@
 
   <header>
     <h1>📘 Manual de Aprendizaje: Arquitectura & Seguridad</h1>
-    <p>Capítulos de estudio modulares en HTML para consulta independiente — Instituto 166</p>
+    <p>Capítulos de estudio modulares e independientes — Instituto 166</p>
   </header>
 
   <div class="container">
@@ -118,15 +119,27 @@
       </div>
 
       <div class="card">
-        <h3>Capítulo 3: Backend Middlewares</h3>
-        <p>Aprende cómo interceptar peticiones HTTP en Express usando middlewares encadenados (verifyToken y requireRole).</p>
-        <a href="./manual/03_backend_autorizacion_middlewares.html" class="btn">Ver Capítulo 3</a>
+        <h3>Capítulo 3: Verificación de Firma JWT</h3>
+        <p>Aprende cómo funciona el middleware <code>verifyToken</code> para validar la autenticidad e integridad del token Bearer.</p>
+        <a href="./manual/03_backend_verificacion_jwt.html" class="btn">Ver Capítulo 3</a>
       </div>
 
       <div class="card">
-        <h3>Capítulo 4: Frontend ProtectedRoute</h3>
+        <h3>Capítulo 4: Control de Acceso por Rol</h3>
+        <p>Aprende cómo funciona el middleware <code>requireRole</code> para restringir accesos según los permisos del usuario.</p>
+        <a href="./manual/04_backend_control_de_roles.html" class="btn">Ver Capítulo 4</a>
+      </div>
+
+      <div class="card">
+        <h3>Capítulo 5: Declaración en Router</h3>
+        <p>Descubre cómo encadenar interceptores directamente en la capa de ruteo Express ejecutándolos de izquierda a derecha.</p>
+        <a href="./manual/05_backend_declaracion_rutas.html" class="btn">Ver Capítulo 5</a>
+      </div>
+
+      <div class="card">
+        <h3>Capítulo 6: Frontend ProtectedRoute</h3>
         <p>Descubre cómo proteger las vistas en React Router utilizando el componente envoltorio ProtectedRoute.</p>
-        <a href="./manual/04_frontend_enrutamiento_protegido.html" class="btn">Ver Capítulo 4</a>
+        <a href="./manual/06_frontend_enrutamiento_protegido.html" class="btn">Ver Capítulo 6</a>
       </div>
     </div>
   </div>
