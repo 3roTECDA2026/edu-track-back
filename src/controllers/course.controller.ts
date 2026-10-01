@@ -32,7 +32,8 @@ export const getClassSections = async (_req: Request, res: Response) => {
 
 export const getClassSectionById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ error: 'ID de curso requerido.' })
     const section = await getClassSectionByIdService(id)
     if (!section) return res.status(404).json({ error: 'Curso no encontrado.' })
     return res.status(200).json(section)
@@ -44,7 +45,9 @@ export const getClassSectionById = async (req: Request, res: Response) => {
 export const createClassSection = async (req: Request, res: Response) => {
   try {
     const validatedData = createClassSectionSchema.parse(req.body)
-    const newSection = await createClassSectionService(validatedData)
+    const { orientation, ...baseData } = validatedData
+    const payload = orientation === undefined ? baseData : { ...baseData, orientation }
+    const newSection = await createClassSectionService(payload)
     return res.status(201).json(newSection)
   } catch (error: unknown) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +59,8 @@ export const createClassSection = async (req: Request, res: Response) => {
 
 export const updateClassSection = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ error: 'ID de curso requerido.' })
     const validatedData = updateClassSectionSchema.parse(req.body)
     const updatedSection = await updateClassSectionService(id, validatedData)
     return res.status(200).json(updatedSection)
@@ -70,7 +74,8 @@ export const updateClassSection = async (req: Request, res: Response) => {
 
 export const deleteClassSection = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ error: 'ID de curso requerido.' })
     await deleteClassSectionService(id)
     return res.status(200).json({ message: 'Curso eliminado correctamente.' })
   } catch (error) {
@@ -91,7 +96,8 @@ export const getSubjects = async (_req: Request, res: Response) => {
 
 export const getSubjectById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ error: 'ID de materia requerido.' })
     const subject = await getSubjectByIdService(id)
     if (!subject) return res.status(404).json({ error: 'Materia no encontrada.' })
     return res.status(200).json(subject)
@@ -115,7 +121,8 @@ export const createSubject = async (req: Request, res: Response) => {
 
 export const updateSubject = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ error: 'ID de materia requerido.' })
     const validatedData = updateSubjectSchema.parse(req.body)
     const updatedSubject = await updateSubjectService(id, validatedData)
     return res.status(200).json(updatedSubject)
@@ -129,7 +136,8 @@ export const updateSubject = async (req: Request, res: Response) => {
 
 export const deleteSubject = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ error: 'ID de materia requerido.' })
     await deleteSubjectService(id)
     return res.status(200).json({ message: 'Materia eliminada correctamente.' })
   } catch (error) {
