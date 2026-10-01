@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Manual de Aprendizaje: Arquitectura e Implementación de Seguridad</title>
+  <title>Manual de Aprendizaje: Arquitectura & Seguridad Web</title>
   <style>
     :root {
       --primary: #2563eb;
@@ -13,14 +13,10 @@
       --text: #0f172a;
       --text-muted: #475569;
       --border: #e2e8f0;
-      --code-bg: #0f172a;
-      --code-color: #f8fafc;
-      --success: #16a34a;
-      --warning: #d97706;
     }
 
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.6;
       color: var(--text);
       background-color: var(--bg);
@@ -31,97 +27,68 @@
     header {
       background: linear-gradient(135deg, #1e293b, #0f172a);
       color: white;
-      padding: 3.5rem 1.5rem;
+      padding: 3rem 1.5rem;
       text-align: center;
     }
 
-    header h1 {
-      margin: 0 0 0.5rem 0;
-      font-size: 2.3rem;
-    }
-
-    header p {
-      color: #94a3b8;
-      margin: 0;
-      font-size: 1.15rem;
-    }
+    header h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; }
+    header p { color: #94a3b8; margin: 0; font-size: 1.1rem; }
 
     .container {
-      max-width: 920px;
+      max-width: 900px;
       margin: 2.5rem auto;
       padding: 0 1.5rem;
     }
 
-    section {
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .card {
       background: var(--card-bg);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 2rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      border: 1px solid var(--border);
+      padding: 1.8rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
     }
 
-    h2 {
-      color: var(--primary);
-      border-bottom: 2px solid var(--border);
-      padding-bottom: 0.5rem;
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+    }
+
+    .card h3 {
       margin-top: 0;
+      color: var(--primary);
+      font-size: 1.25rem;
     }
 
-    h3 {
-      color: #1e293b;
-      margin-top: 1.5rem;
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
     }
 
-    .concept-box {
-      background: #eff6ff;
-      border-left: 4px solid var(--primary);
-      padding: 1rem 1.2rem;
-      margin: 1rem 0;
-      border-radius: 0 6px 6px 0;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1.5rem 0;
-    }
-
-    th, td {
-      border: 1px solid var(--border);
-      padding: 0.75rem;
-      text-align: left;
-    }
-
-    th {
-      background-color: #f1f5f9;
-      font-weight: 600;
-    }
-
-    pre code {
-      background-color: var(--code-bg);
-      color: var(--code-color);
-      display: block;
-      padding: 1.2rem;
-      overflow-x: auto;
-      border-radius: 6px;
-      line-height: 1.45;
-      font-size: 0.9em;
-    }
-
-    .badge {
+    .btn {
       display: inline-block;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.85em;
-      font-weight: 600;
+      background-color: var(--primary);
+      color: white;
+      text-decoration: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 0.9rem;
     }
 
-    .badge-success { background: #dcfce7; color: var(--success); }
+    .btn:hover { background-color: var(--primary-dark); }
 
     footer {
       text-align: center;
-      padding: 2rem;
+      padding: 2.5rem;
       color: var(--text-muted);
       font-size: 0.9rem;
     }
@@ -130,132 +97,36 @@
 <body>
 
   <header>
-    <h1>📘 Manual de Aprendizaje: Arquitectura & Seguridad Web</h1>
-    <p>Guía didáctica sobre autenticación, autorización por ruteo, tokens JWT y buenas prácticas</p>
+    <h1>📘 Manual de Aprendizaje: Arquitectura & Seguridad</h1>
+    <p>Capítulos de estudio modulares sobre desarrollo web seguro — Instituto 166</p>
   </header>
 
   <div class="container">
-
-    <section>
-      <h2>1. Conceptos Fundamentales: Autenticación vs Autorización</h2>
-      <p>En el desarrollo web es clave diferenciar ambos términos:</p>
-      <ul>
-        <li><strong>Autenticación (¿Quién sos?):</strong> Proceso para validar la identidad del usuario (ej. verificando credenciales).</li>
-        <li><strong>Autorización (¿A qué tenés acceso?):</strong> Control de acceso para determinar si un usuario autenticado puede ejecutar una ruta o acción.</li>
-      </ul>
-    </section>
-
-    <section>
-      <h2>2. Modelos de Autenticación: Sesiones vs JWT</h2>
-      <div class="concept-box">
-        <strong>💡 ¿Por qué usamos JWT en arquitecturas modernas?</strong>
-        HTTP es un protocolo sin estado (stateless). Para que el servidor reconozca al cliente en cada petición, usamos tokens firmados que el cliente adjunta en la cabecera <code>Authorization: Bearer &lt;token&gt;</code>.
+    <h2>📚 Índice de Capítulos</h2>
+    
+    <div class="grid">
+      <div class="card">
+        <h3>1. Autenticación vs Autorización</h3>
+        <p>Aprende la diferencia fundamental entre verificar la identidad (¿quién sos?) y controlar los permisos (¿qué podés hacer?).</p>
+        <a href="./manual/01_autenticacion_vs_autorizacion.md" class="btn">Leer Capítulo 1</a>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Aspecto</th>
-            <th>Sesiones en Servidor (Stateful)</th>
-            <th>JWT Bearer Token (Stateless)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Almacenamiento</strong></td>
-            <td>El servidor guarda una tabla de sesiones activas.</td>
-            <td>El servidor no guarda estado; valida la firma matemática del token.</td>
-          </tr>
-          <tr>
-            <td><strong>Escalabilidad</strong></td>
-            <td>Requiere bases de datos compartidas (Redis) entre servidores.</td>
-            <td>Cualquier nodo del backend valida el token con la clave secreta.</td>
-          </tr>
-          <tr>
-            <td><strong>Decoupling (APIs)</strong></td>
-            <td>Depende de cookies vinculadas al dominio.</td>
-            <td>Ideal para clientes React, mobile o servicios de terceros.</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section>
-      <h2>3. Autorización por Ruteo (Routing-Based Authorization)</h2>
-      
-      <div class="concept-box">
-        <strong>💡 ¿Por qué Autorización por Ruteo?</strong> 
-        En lugar de dispersar condicionales dentro de cada controlador o vista, la autorización por ruteo declara los permisos directamente en la capa de transporte (rutas/endpoints). Esto garantiza que ninguna petición acceda a la lógica interna sin haber superado los filtros de acceso.
+      <div class="card">
+        <h3>2. Sesiones vs JWT</h3>
+        <p>Compara el modelo tradicidonal con cookies (Stateful) contra el estándar moderno de Tokens firmados JWT (Stateless).</p>
+        <a href="./manual/02_sesiones_vs_jwt.md" class="btn">Leer Capítulo 2</a>
       </div>
 
-      <h3>A. Backend: Interceptores de Ruta (Middlewares en Express)</h3>
-      <p>Las rutas definen explícitamente su nivel de protección mediante middlewares encadenados:</p>
-
-<pre><code>// 1. Verificación de Firma JWT
-export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token' });
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-    req.userId = decoded.id;
-    req.userRole = decoded.rol_id;
-    next();
-  } catch {
-    return res.status(401).json({ message: 'Invalid token' });
-  }
-};
-
-// 2. Control de Acceso por Rol (RBAC)
-export const requireRole = (roleId: number) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (req.userRole !== roleId) {
-      return res.status(403).json({ error: 'Acceso denegado' });
-    }
-    next();
-  };
-};
-
-// 3. Declaración en la Capa de Ruteo
-import { Router } from 'express';
-const router = Router();
-
-// Autorización por Ruteo: requiere autenticación Y rol de Administrador (ID 1)
-router.post('/moderacion/config', verifyToken, requireRole(1), moderationController.saveConfig);</code></pre>
-
-      <h3>B. Frontend: Protección de Rutas (React Router)</h3>
-      <p>En el cliente, se utiliza el componente <code>ProtectedRoute</code> para envolver las vistas privadas en el enrutador impidiendo la carga desprotegida desde la URL:</p>
-
-<pre><code>// Componente Envoltorio ProtectedRoute
-export const ProtectedRoute = ({ children, requiredRole }: { children: ReactNode, requiredRole?: number }) => {
-  const { isAuthenticated, user, loading } = useAuth();
-
-  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
-  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
-  if (requiredRole && user?.rol_id !== requiredRole) return &lt;Navigate to="/unauthorized" replace /&gt;;
-
-  return &lt;&gt;{children}&lt;/&gt;;
-};
-
-// Enrutador Principal (AppRouter.tsx)
-export const AppRouter = () => (
-  &lt;Routes&gt;
-    &lt;Route path="/login" element={&lt;LoginPage /&gt;} /&gt;
-
-    {/* Autorización por Ruteo en Frontend */}
-    &lt;Route path="/admin" element={
-      &lt;ProtectedRoute requiredRole={1}&gt;
-        &lt;AdminDashboardPage /&gt;
-      &lt;/ProtectedRoute&gt;
-    } /&gt;
-  &lt;/Routes&gt;
-);</code></pre>
-    </section>
-
+      <div class="card">
+        <h3>3. Autorización por Ruteo</h3>
+        <p>Descubre cómo estructurar interceptores en Express (Middlewares) y componentes protegidos en React Router.</p>
+        <a href="./manual/03_autorizacion_por_ruteo.md" class="btn">Leer Capítulo 3</a>
+      </div>
+    </div>
   </div>
 
   <footer>
-    Hub de Proyectos — Manuales de Aprendizaje | Instituto 166
+    Hub de Proyectos — Prácticas Profesionalizantes 2026 | Instituto 166
   </footer>
 
 </body>
