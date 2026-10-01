@@ -57,6 +57,15 @@
 
     .card p { color: #cbd5e1; font-size: 1rem; line-height: 1.6; }
 
+    .note {
+      background: rgba(37, 99, 235, 0.15);
+      border-left: 4px solid var(--primary);
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1.5rem;
+      color: #e2e8f0;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -96,6 +105,10 @@
 
   <div class="container">
     <div class="card">
+      <div class="note">
+        💡 <strong>Diferencia con el Capítulo 1:</strong> Mientras que el Capítulo 1 define los <em>conceptos de seguridad y control de acceso</em> (Quién sos vs Qué podés hacer), este Capítulo 2 aborda la <em>mecanización técnica de la persistencia de estado</em> (Cómo se transporta y mantiene la sesión).
+      </div>
+
       <h2>🍪 Sesiones Tradicionales (Stateful)</h2>
       <p>El servidor guarda el ID de sesión en memoria/DB y envía una cookie al navegador. Exige sincronización entre servidores al escalar.</p>
 
