@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guía de Seguridad: JWT & Control de Acceso por Roles</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --border: #e2e8f0;
+      --code-bg: #0f172a;
+      --code-color: #f8fafc;
+      --success: #16a34a;
+      --warning: #d97706;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: white;
+      padding: 3rem 1.5rem;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 2.2rem;
+    }
+
+    header p {
+      color: #94a3b8;
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+
+    section {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+    }
+
+    h2 {
+      color: var(--primary);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+
+    h3 {
+      color: #1e293b;
+      margin-top: 1.5rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f1f5f9;
+      font-weight: 600;
+    }
+
+    code {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.9em;
+      font-family: monospace;
+    }
+
+    pre code {
+      background-color: var(--code-bg);
+      color: var(--code-color);
+      display: block;
+      padding: 1rem;
+      overflow-x: auto;
+      border-radius: 6px;
+      line-height: 1.4;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+      font-weight: 600;
+    }
+
+    .badge-success { background: #dcfce7; color: var(--success); }
+    .badge-warning { background: #fef3c7; color: var(--warning); }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🛡️ Arquitectura de Seguridad: JWT & Control de Acceso</h1>
+    <p>Documentación técnica de implementación para desarrolladores — Instituto 166</p>
+  </header>
+
+  <div class="container">
+
+    <section>
+      <h2>1. ¿Por qué usamos JSON Web Tokens (JWT)?</h2>
+      <p>Un <strong>JWT</strong> es un estándar firmado digitalmente que permite enviar datos de autenticación seguros entre el cliente (React) y el servidor (Express) sin necesidad de mantener sesiones guardadas en el servidor.</p>
+      
+      <h3>Comparativa de Alternativas</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Característica</th>
+            <th>Sesiones Tradicionales (Cookies)</th>
+            <th>JWT (Bearer Tokens)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Almacenamiento en Servidor</strong></td>
+            <td>Requiere guardar la sesión en memoria/base de datos.</td>
+            <td><span class="badge badge-success">Stateless:</span> El servidor no guarda estado.</td>
+          </tr>
+          <tr>
+            <td><strong>Escalabilidad</strong></td>
+            <td>Dificultad al escalar múltiples servidores.</td>
+            <td><span class="badge badge-success">Alta:</span> Cualquier backend valida la firma.</td>
+          </tr>
+          <tr>
+            <td><strong>Compatibilidad Móvil / API</strong></td>
+            <td>Sujeto a restricciones CORS y manejo de cookies.</td>
+            <td><span class="badge badge-success">Universal:</span> Envíos vía Header HTTP.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Implementación Backend: Middlewares</h2>
+      <p>El backend utiliza dos middlewares clave en la cadena de ejecución de Express:</p>
+      
+      <h3>A. Verificación del Token (<code>verifyToken</code>)</h3>
+      <p>Extrae el token del encabezado <code>Authorization: Bearer &lt;token&gt;</code> y valida su integridad.</p>
+<pre><code>export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'No token provided' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    req.userId = decoded.usuario_id;
+    req.userRole = decoded.rol_id;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};</code></pre>
+
+      <h3>B. Control de Acceso por Rol (<code>requireRole</code>)</h3>
+<pre><code>export const requireRole = (requiredRole: number) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (Number(req.userRole) !== requiredRole) {
+      return res.status(403).json({ error: 'Acceso denegado.' });
+    }
+    next();
+  };
+};</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Protección de Rutas en el Frontend (React)</h2>
+      <p>En el cliente, las rutas privadas se envuelven en el componente <code>ProtectedRoute</code> para evitar accesos no autorizados en la navegación.</p>
+
+<pre><code>export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
+  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
+
+  return &lt;&gt;{children}&lt;/&gt;;
+};</code></pre>
+    </section>
+
+  </div>
+
+  <footer>
+     Hub de Proyectos — Prácticas Profesionalizantes 2026 | Instituto 166
+  </footer>
+
+</body>
+</html>
