@@ -64,7 +64,7 @@
     .card h3 {
       margin-top: 0;
       color: var(--primary);
-      font-size: 1.25rem;
+      font-size: 1.2rem;
     }
 
     .card p {
@@ -102,7 +102,7 @@
   </header>
 
   <div class="container">
-    <h2>📚 Índice de Capítulos</h2>
+    <h2>📚 Capítulos de Aprendizaje</h2>
     
     <div class="grid">
       <div class="card">
@@ -113,14 +113,20 @@
 
       <div class="card">
         <h3>2. Sesiones vs JWT</h3>
-        <p>Compara el modelo tradicidonal con cookies (Stateful) contra el estándar moderno de Tokens firmados JWT (Stateless).</p>
+        <p>Compara el modelo tradicional con cookies (Stateful) contra el estándar moderno de Tokens firmados JWT (Stateless).</p>
         <a href="./manual/02_sesiones_vs_jwt.md" class="btn">Leer Capítulo 2</a>
       </div>
 
       <div class="card">
-        <h3>3. Autorización por Ruteo</h3>
-        <p>Descubre cómo estructurar interceptores en Express (Middlewares) y componentes protegidos en React Router.</p>
-        <a href="./manual/03_autorizacion_por_ruteo.md" class="btn">Leer Capítulo 3</a>
+        <h3>3. Backend: Middlewares & Ruteo</h3>
+        <p>Aprende cómo interceptar peticiones HTTP en Express usando middlewares encadenados (verifyToken y requireRole).</p>
+        <a href="./manual/03_backend_autorizacion_middlewares.md" class="btn">Leer Capítulo 3</a>
+      </div>
+
+      <div class="card">
+        <h3>4. Frontend: Enrutamiento Protegido</h3>
+        <p>Descubre cómo proteger las vistas en React Router utilizando el componente envoltorio ProtectedRoute.</p>
+        <a href="./manual/04_frontend_enrutamiento_protegido.md" class="btn">Leer Capítulo 4</a>
       </div>
     </div>
   </div>
