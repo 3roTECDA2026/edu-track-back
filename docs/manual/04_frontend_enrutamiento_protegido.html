@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capítulo 4: Enrutamiento Protegido en React</title>
+  <style>
+    :root { --primary: #2563eb; --bg: #f8fafc; --card-bg: #ffffff; --text: #0f172a; --border: #e2e8f0; }
+    body { font-family: system-ui, sans-serif; line-height: 1.6; color: var(--text); background: var(--bg); margin: 0; padding: 0; }
+    header { background: #1e293b; color: white; padding: 2rem 1.5rem; text-align: center; }
+    .container { max-width: 800px; margin: 2rem auto; padding: 0 1.5rem; }
+    section { background: var(--card-bg); border-radius: 8px; padding: 2rem; margin-bottom: 2rem; border: 1px solid var(--border); }
+    h2 { color: var(--primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    pre { background: #0f172a; color: #f8fafc; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+    .nav-btn { display: inline-block; background: var(--primary); color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Capítulo 4: Frontend Routing & ProtectedRoute</h1>
+    <p>Manual de Aprendizaje — Instituto 166</p>
+  </header>
+  <div class="container">
+    <section>
+      <h2>💻 Enrutamiento Protegido en React Router</h2>
+      <p>Componente envoltorio para prevenir que usuarios anónimos o sin rol accedan desde la URL:</p>
+<pre><code>// ProtectedRoute.tsx
+export const ProtectedRoute = ({ children, requiredRole }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
+  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
+  if (requiredRole && user?.rol !== requiredRole) return &lt;Navigate to="/unauthorized" replace /&gt;;
+  return &lt;&gt;{children}&lt;/&gt;;
+};
+
+// Declaración en AppRouter.tsx
+&lt;Routes&gt;
+  &lt;Route path="/admin" element={
+    &lt;ProtectedRoute requiredRole={1}&gt;
+      &lt;AdminPage /&gt;
+    &lt;/ProtectedRoute&gt;
+  } /&gt;
+&lt;/Routes&gt;</code></pre>
+      <a href="03_backend_autorizacion_middlewares.html" class="nav-btn">← Capítulo 3</a>
+      <a href="../index.html" class="nav-btn">Índice General</a>
+    </section>
+  </div>
+</body>
+</html>
