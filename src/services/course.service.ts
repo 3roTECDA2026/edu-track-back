@@ -1,5 +1,5 @@
-import { prisma } from '../lib/prisma'; // O la instancia de Prisma que utilicen en tu proyecto
-import { Shift, Orientation } from '@prisma/client';
+import { prisma } from '@/lib/prisma'; // O la instancia de Prisma que utilicen en tu proyecto
+import { Orientation, Shift } from '@prisma/client';
 
 // --- SECCIÓN: CURSOS / DIVISIONES ---
 

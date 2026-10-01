@@ -1,7 +1,7 @@
-import type { ErrorRequestHandler } from "express";
 import { Prisma } from "@prisma/client";
+import type { ErrorRequestHandler } from "express";
 import { ZodError, z } from "zod";
-import { HttpError } from "../utils/httpError.ts";
+import { HttpError } from "@/utils/httpError";
 
 // Must be registered LAST, after all routers.
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {

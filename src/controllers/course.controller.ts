@@ -1,22 +1,22 @@
-import type { Request, Response } from 'express';
 import {
   createClassSectionSchema,
-  updateClassSectionSchema,
   createSubjectSchema,
+  updateClassSectionSchema,
   updateSubjectSchema
-} from '../schemas/course.schema';
+} from '@/schemas/course.schema';
 import {
-  getAllClassSectionsService,
-  getClassSectionByIdService,
   createClassSectionService,
-  updateClassSectionService,
-  deleteClassSectionService,
-  getAllSubjectsService,
-  getSubjectByIdService,
   createSubjectService,
-  updateSubjectService,
-  deleteSubjectService
-} from '../services/course.service';
+  deleteClassSectionService,
+  deleteSubjectService,
+  getAllClassSectionsService,
+  getAllSubjectsService,
+  getClassSectionByIdService,
+  getSubjectByIdService,
+  updateClassSectionService,
+  updateSubjectService
+} from '@/services/course.service';
+import type { Request, Response } from 'express';
 
 // --- CONTROLADORES DE CURSOS ---
 

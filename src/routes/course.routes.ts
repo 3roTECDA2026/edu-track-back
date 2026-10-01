@@ -1,16 +1,16 @@
-import { Router } from 'express';
 import {
-  getClassSections,
-  getClassSectionById,
   createClassSection,
-  updateClassSection,
-  deleteClassSection,
-  getSubjects,
-  getSubjectById,
   createSubject,
-  updateSubject,
-  deleteSubject
-} from '../controllers/course.controller';
+  deleteClassSection,
+  deleteSubject,
+  getClassSectionById,
+  getClassSections,
+  getSubjectById,
+  getSubjects,
+  updateClassSection,
+  updateSubject
+} from '@/controllers/course.controller';
+import { Router } from 'express';
 
 const router = Router();
 

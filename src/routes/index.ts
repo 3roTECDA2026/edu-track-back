@@ -1,10 +1,10 @@
+import attendanceRouter from '@/routes/attendance.routes';
+import { classSectionRouter } from "@/routes/classSection.routes";
+import courseRoutes from '@/routes/course.routes';
+import { enrollmentRouter } from "@/routes/enrollment.routes";
+import { gradeRouter } from "@/routes/grade.routes";
+import { studentRouter } from "@/routes/student.routes";
 import { Router } from "express";
-import { studentRouter } from "./student.routes.ts";
-import { enrollmentRouter } from "./enrollment.routes.ts";
-import { gradeRouter } from "./grade.routes.ts";
-import { classSectionRouter } from "./classSection.routes.ts";
-import attendanceRouter from './attendance.routes.ts';
-import courseRoutes from './course.routes.ts';
 
 const router = Router();
 

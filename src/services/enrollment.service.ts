@@ -1,7 +1,7 @@
 import { StudentStatus } from "@prisma/client";
-import { prisma } from "../lib/prisma.ts";
-import { HttpError } from "../utils/httpError.ts";
-import type { CreateEnrollmentInput, UpdateEnrollmentInput } from "../schemas/enrollment.schema.ts";
+import { prisma } from "@/lib/prisma";
+import type { CreateEnrollmentInput, UpdateEnrollmentInput } from "@/schemas/enrollment.schema";
+import { HttpError } from "@/utils/httpError";
 
 const ENROLLABLE_STATUSES: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.CONDITIONAL];
 

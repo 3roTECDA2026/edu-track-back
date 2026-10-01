@@ -1,10 +1,10 @@
-import type { Request, Response } from "express";
-import * as enrollmentService from "../services/enrollment.service.ts";
 import {
   createEnrollmentSchema,
   enrollmentIdParamSchema,
   updateEnrollmentSchema,
-} from "../schemas/enrollment.schema.ts";
+} from "@/schemas/enrollment.schema";
+import * as enrollmentService from "@/services/enrollment.service";
+import type { Request, Response } from "express";
 
 export async function createEnrollment(req: Request, res: Response) {
   const input = createEnrollmentSchema.parse(req.body);

@@ -1,8 +1,8 @@
-import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import routes from './routes/index.ts';
-import { errorHandler } from './middlewares/errorHandler.ts';
+import express from 'express';
+import { errorHandler } from '@/middlewares/errorHandler';
+import routes from '@/routes/index';
 
 dotenv.config();
 

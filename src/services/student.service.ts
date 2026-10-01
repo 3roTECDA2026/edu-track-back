@@ -1,7 +1,7 @@
-import { StudentStatus, Prisma } from "@prisma/client";
-import { prisma } from "../lib/prisma.ts";
-import { HttpError } from "../utils/httpError.ts";
-import type { ListStudentsQuery, CreateStudentInput } from "../schemas/student.schema.ts";
+import { prisma } from "@/lib/prisma";
+import type { CreateStudentInput, ListStudentsQuery } from "@/schemas/student.schema";
+import { HttpError } from "@/utils/httpError";
+import { Prisma, StudentStatus } from "@prisma/client";
 
 // Statuses shown in operational listings when no status filter is sent.
 const OPERATIONAL_STATUSES: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.CONDITIONAL];

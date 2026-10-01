@@ -1,11 +1,11 @@
-import type { Request, Response } from "express";
-import * as gradeService from "../services/grade.service.ts";
 import {
   createGradeSchema,
-  updateGradeSchema,
-  listGradesQuerySchema,
   gradeIdParamSchema,
-} from "../schemas/grade.schema.js";
+  listGradesQuerySchema,
+  updateGradeSchema,
+} from "@/schemas/grade.schema";
+import * as gradeService from "@/services/grade.service";
+import type { Request, Response } from "express";
 
 
 export async function listGrades(req: Request, res: Response) {

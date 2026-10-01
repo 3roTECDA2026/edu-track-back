@@ -2,10 +2,17 @@
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     // File Layout
-    // "rootDir": "./src",
-    // "outDir": "./dist",
-    "allowImportingTsExtensions": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "allowImportingTsExtensions": false,
     "noEmit": true,
+    "ignoreDeprecations": "6.0",
+
+    // Path Mapping
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
@@ -42,5 +49,7 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "prisma"]
 }
