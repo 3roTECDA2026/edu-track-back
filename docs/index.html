@@ -131,7 +131,7 @@
 
   <header>
     <h1>📘 Manual de Aprendizaje: Arquitectura & Seguridad Web</h1>
-    <p>Guía didáctica sobre conceptos de autenticación, autorización por ruteo y buenas prácticas</p>
+    <p>Guía didáctica sobre autenticación, autorización por ruteo, tokens JWT y buenas prácticas</p>
   </header>
 
   <div class="container">
@@ -146,52 +146,12 @@
     </section>
 
     <section>
-      <h2>2. Autorización por Ruteo (Routing-Based Authorization)</h2>
-      
+      <h2>2. Modelos de Autenticación: Sesiones vs JWT</h2>
       <div class="concept-box">
-        <strong>💡 ¿Por qué Autorización por Ruteo?</strong> 
-        En lugar de dispersar condicionales dentro de cada controlador o vista, la autorización por ruteo declara los permisos directamente en la capa de transporte (rutas/endpoints). Esto garantiza que ninguna petición acceda a la lógica interna sin haber superado los filtros de acceso.
+        <strong>💡 ¿Por qué usamos JWT en arquitecturas modernas?</strong>
+        HTTP es un protocolo sin estado (stateless). Para que el servidor reconozca al cliente en cada petición, usamos tokens firmados que el cliente adjunta en la cabecera <code>Authorization: Bearer &lt;token&gt;</code>.
       </div>
 
-      <h3>A. Backend: Interceptores de Ruta (Middlewares en Express)</h3>
-      <p>Las rutas definen explícitamente su nivel de protección antes de llamar al controlador:</p>
-
-<pre><code>// Definición declarativa en la capa de ruteo (router)
-import { Router } from 'express';
-import { verifyToken, requireRole } from '@/middleware/auth.middleware';
-import moderationController from '@/controllers/moderation.controller';
-
-const router = Router();
-
-// Ruta pública
-router.get('/public-info', publicController.getInfo);
-
-// Autorización por ruteo: requiere autenticación Y rol de Administrador (ID 1)
-router.post('/moderacion/config', verifyToken, requireRole(1), moderationController.saveConfig);</code></pre>
-
-      <h3>B. Frontend: Protección de Rutas (React Router)</h3>
-      <p>En el cliente, las vistas se agrupan en el enrutador aplicando protección previa antes de renderizar la página:</p>
-
-<pre><code>// AppRouter.tsx
-import { Routes, Route } from 'react-router-dom';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
-
-export const AppRouter = () => (
-  &lt;Routes&gt;
-    &lt;Route path="/login" element={&lt;LoginPage /&gt;} /&gt;
-
-    {/* Autorización por Ruteo en Frontend */}
-    &lt;Route path="/admin" element={
-      &lt;ProtectedRoute requiredRole={1}&gt;
-        &lt;AdminDashboardPage /&gt;
-      &lt;/ProtectedRoute&gt;
-    } /&gt;
-  &lt;/Routes&gt;
-);</code></pre>
-    </section>
-
-    <section>
-      <h2>3. Modelos de Autenticación: Sesiones vs JWT</h2>
       <table>
         <thead>
           <tr>
@@ -204,15 +164,92 @@ export const AppRouter = () => (
           <tr>
             <td><strong>Almacenamiento</strong></td>
             <td>El servidor guarda una tabla de sesiones activas.</td>
-            <td>El servidor valida la firma matemática del token.</td>
+            <td>El servidor no guarda estado; valida la firma matemática del token.</td>
           </tr>
           <tr>
             <td><strong>Escalabilidad</strong></td>
             <td>Requiere bases de datos compartidas (Redis) entre servidores.</td>
             <td>Cualquier nodo del backend valida el token con la clave secreta.</td>
           </tr>
+          <tr>
+            <td><strong>Decoupling (APIs)</strong></td>
+            <td>Depende de cookies vinculadas al dominio.</td>
+            <td>Ideal para clientes React, mobile o servicios de terceros.</td>
+          </tr>
         </tbody>
       </table>
+    </section>
+
+    <section>
+      <h2>3. Autorización por Ruteo (Routing-Based Authorization)</h2>
+      
+      <div class="concept-box">
+        <strong>💡 ¿Por qué Autorización por Ruteo?</strong> 
+        En lugar de dispersar condicionales dentro de cada controlador o vista, la autorización por ruteo declara los permisos directamente en la capa de transporte (rutas/endpoints). Esto garantiza que ninguna petición acceda a la lógica interna sin haber superado los filtros de acceso.
+      </div>
+
+      <h3>A. Backend: Interceptores de Ruta (Middlewares en Express)</h3>
+      <p>Las rutas definen explícitamente su nivel de protección mediante middlewares encadenados:</p>
+
+<pre><code>// 1. Verificación de Firma JWT
+export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    req.userId = decoded.id;
+    req.userRole = decoded.rol_id;
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+// 2. Control de Acceso por Rol (RBAC)
+export const requireRole = (roleId: number) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.userRole !== roleId) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    next();
+  };
+};
+
+// 3. Declaración en la Capa de Ruteo
+import { Router } from 'express';
+const router = Router();
+
+// Autorización por Ruteo: requiere autenticación Y rol de Administrador (ID 1)
+router.post('/moderacion/config', verifyToken, requireRole(1), moderationController.saveConfig);</code></pre>
+
+      <h3>B. Frontend: Protección de Rutas (React Router)</h3>
+      <p>En el cliente, se utiliza el componente <code>ProtectedRoute</code> para envolver las vistas privadas en el enrutador impidiendo la carga desprotegida desde la URL:</p>
+
+<pre><code>// Componente Envoltorio ProtectedRoute
+export const ProtectedRoute = ({ children, requiredRole }: { children: ReactNode, requiredRole?: number }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+
+  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
+  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
+  if (requiredRole && user?.rol_id !== requiredRole) return &lt;Navigate to="/unauthorized" replace /&gt;;
+
+  return &lt;&gt;{children}&lt;/&gt;;
+};
+
+// Enrutador Principal (AppRouter.tsx)
+export const AppRouter = () => (
+  &lt;Routes&gt;
+    &lt;Route path="/login" element={&lt;LoginPage /&gt;} /&gt;
+
+    {/* Autorización por Ruteo en Frontend */}
+    &lt;Route path="/admin" element={
+      &lt;ProtectedRoute requiredRole={1}&gt;
+        &lt;AdminDashboardPage /&gt;
+      &lt;/ProtectedRoute&gt;
+    } /&gt;
+  &lt;/Routes&gt;
+);</code></pre>
     </section>
 
   </div>
