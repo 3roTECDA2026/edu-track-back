@@ -1,12 +1,12 @@
-import { prisma } from "@/lib/prisma";
-import type { ListClassSectionsQuery } from "@/schemas/classSection.schema";
+import { prisma } from '@/lib/prisma'
+import type { ListClassSectionsQuery } from '@/schemas/classSection.schema'
 
 export async function listClassSections(query: ListClassSectionsQuery) {
   return prisma.classSection.findMany({
     where: {
       academicYear: query.year !== undefined ? { year: query.year } : { active: true },
     },
-    orderBy: [{ grade: "asc" }, { division: "asc" }, { shift: "asc" }],
+    orderBy: [{ grade: 'asc' }, { division: 'asc' }, { shift: 'asc' }],
     select: {
       id: true,
       grade: true,
@@ -14,5 +14,5 @@ export async function listClassSections(query: ListClassSectionsQuery) {
       shift: true,
       academicYear: { select: { year: true } },
     },
-  });
+  })
 }

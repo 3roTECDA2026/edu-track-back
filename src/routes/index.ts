@@ -1,18 +1,19 @@
-import attendanceRouter from '@/routes/attendance.routes';
-import { classSectionRouter } from "@/routes/classSection.routes";
-import courseRoutes from '@/routes/course.routes';
-import { enrollmentRouter } from "@/routes/enrollment.routes";
-import { gradeRouter } from "@/routes/grade.routes";
-import { studentRouter } from "@/routes/student.routes";
-import { Router } from "express";
+import { Router } from 'express'
 
-const router = Router();
+import attendanceRouter from '@/routes/attendance.routes'
+import { classSectionRouter } from '@/routes/classSection.routes'
+import courseRoutes from '@/routes/course.routes'
+import { enrollmentRouter } from '@/routes/enrollment.routes'
+import { gradeRouter } from '@/routes/grade.routes'
+import { studentRouter } from '@/routes/student.routes'
 
-router.use("/students", studentRouter);
-router.use("/enrollments", enrollmentRouter);
-router.use("/grades", gradeRouter);
-router.use("/class-sections", classSectionRouter);
-router.use('/attendance', attendanceRouter);
-router.use('/', courseRoutes);
+const router = Router()
 
-export default router;
+router.use('/students', studentRouter)
+router.use('/enrollments', enrollmentRouter)
+router.use('/grades', gradeRouter)
+router.use('/class-sections', classSectionRouter)
+router.use('/attendance', attendanceRouter)
+router.use('/', courseRoutes)
+
+export default router

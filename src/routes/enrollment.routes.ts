@@ -1,8 +1,9 @@
-import { Router } from "express";
-import * as enrollmentController from "@/controllers/enrollment.controller";
-import { asyncHandler } from "@/utils/asyncHandler";
+import { Router } from 'express'
 
-export const enrollmentRouter = Router();
+import * as enrollmentController from '@/controllers/enrollment.controller'
+import { asyncHandler } from '@/utils/asyncHandler'
 
-enrollmentRouter.post("/", asyncHandler(enrollmentController.createEnrollment));
-enrollmentRouter.put("/:id", asyncHandler(enrollmentController.updateEnrollment));
+export const enrollmentRouter = Router()
+
+enrollmentRouter.post('/', asyncHandler(enrollmentController.createEnrollment))
+enrollmentRouter.put('/:id', asyncHandler(enrollmentController.updateEnrollment))

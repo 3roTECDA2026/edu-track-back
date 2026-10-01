@@ -1,18 +1,19 @@
+import type { Request, Response } from 'express'
+
 import {
   createEnrollmentSchema,
   enrollmentIdParamSchema,
   updateEnrollmentSchema,
-} from "@/schemas/enrollment.schema";
-import * as enrollmentService from "@/services/enrollment.service";
-import type { Request, Response } from "express";
+} from '@/schemas/enrollment.schema'
+import * as enrollmentService from '@/services/enrollment.service'
 
 export async function createEnrollment(req: Request, res: Response) {
-  const input = createEnrollmentSchema.parse(req.body);
-  res.status(201).json(await enrollmentService.createEnrollment(input));
+  const input = createEnrollmentSchema.parse(req.body)
+  res.status(201).json(await enrollmentService.createEnrollment(input))
 }
 
 export async function updateEnrollment(req: Request, res: Response) {
-  const { id } = enrollmentIdParamSchema.parse(req.params);
-  const input = updateEnrollmentSchema.parse(req.body);
-  res.json(await enrollmentService.updateEnrollment(id, input));
+  const { id } = enrollmentIdParamSchema.parse(req.params)
+  const input = updateEnrollmentSchema.parse(req.body)
+  res.json(await enrollmentService.updateEnrollment(id, input))
 }

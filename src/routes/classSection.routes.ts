@@ -1,7 +1,8 @@
-import { Router } from "express";
-import * as classSectionController from "@/controllers/classSection.controller";
-import { asyncHandler } from "@/utils/asyncHandler";
+import { Router } from 'express'
 
-export const classSectionRouter = Router();
+import * as classSectionController from '@/controllers/classSection.controller'
+import { asyncHandler } from '@/utils/asyncHandler'
 
-classSectionRouter.get("/", asyncHandler(classSectionController.listClassSections));
+export const classSectionRouter = Router()
+
+classSectionRouter.get('/', asyncHandler(classSectionController.listClassSections))
