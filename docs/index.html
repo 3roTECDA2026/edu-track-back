@@ -35,6 +35,37 @@
       margin: 0 auto;
       padding: 2rem 1.5rem;
     }
+    .toc {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+    }
+    .toc h2 {
+      margin-top: 0;
+      color: var(--accent);
+      font-size: 1.3rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .toc ul {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }
+    .toc li {
+      margin: 0.5rem 0;
+    }
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .toc a:hover {
+      color: var(--accent);
+    }
     .section {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -79,7 +110,17 @@
   </header>
 
   <div class="container">
-    <div class="section">
+    <!-- Índice de Navegación -->
+    <nav class="toc">
+      <h2>📌 Índice de Guías</h2>
+      <ul>
+        <li><a href="#conceptos">1. Conceptos Universales de Seguridad</a></li>
+        <li><a href="#backend">2. Implementación en Backend (Express & Node)</a></li>
+        <li><a href="#frontend">3. Implementación en Frontend (React Router)</a></li>
+      </ul>
+    </nav>
+
+    <div id="conceptos" class="section">
       <h2>1. Conceptos Universales de Seguridad</h2>
       <table>
         <thead>
@@ -94,7 +135,7 @@
       </table>
     </div>
 
-    <div class="section">
+    <div id="backend" class="section">
       <h2>2. Implementación en Backend (Express & Node)</h2>
       <p>Componentes desacoplados según el Principio de Responsabilidad Única (SRP):</p>
 <pre><code>// 1. Interceptor de Verificación JWT (verifyToken)
@@ -115,7 +156,7 @@ export const requireRole = (roleId) => (req, res, next) => {
 router.post('/admin/config', verifyToken, requireRole(1), adminController.save);</code></pre>
     </div>
 
-    <div class="section">
+    <div id="frontend" class="section">
       <h2>3. Implementación en Frontend (React Router)</h2>
       <p>Envoltorio reutilizable para control de acceso en la navegación:</p>
 <pre><code>// ProtectedRoute.tsx
