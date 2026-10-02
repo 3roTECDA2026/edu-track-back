@@ -3,150 +3,139 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Manual de Aprendizaje: Arquitectura & Seguridad Web</title>
+  <title>Manual de Arquitectura y Seguridad</title>
   <style>
     :root {
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
       --bg: #0f172a;
       --card-bg: #1e293b;
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --border: #334155;
+      --primary: #2563eb;
       --accent: #38bdf8;
+      --code-bg: #090d16;
     }
-
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.6;
-      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
       background-color: var(--bg);
+      color: var(--text);
       margin: 0;
       padding: 0;
+      min-height: 100vh;
     }
-
     header {
-      padding: 3rem 1.5rem;
+      padding: 3rem 1.5rem 1.5rem;
       text-align: center;
-      background: linear-gradient(135deg, #1e293b, #0f172a);
       border-bottom: 1px solid var(--border);
     }
-
-    header h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; color: var(--accent); }
-    header p { color: var(--text-muted); margin: 0; font-size: 1.1rem; }
-
+    header h1 { margin: 0; font-size: 2.2rem; color: var(--accent); }
+    header p { color: var(--text-muted); font-size: 1.1rem; margin-top: 0.5rem; }
     .container {
       max-width: 900px;
-      margin: 2.5rem auto;
-      padding: 0 1.5rem;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
     }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.5rem;
-      margin-top: 2rem;
-    }
-
-    .card {
+    .section {
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.8rem;
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
-      transition: transform 0.2s, border-color 0.2s;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2rem;
     }
-
-    .card:hover {
-      transform: translateY(-3px);
-      border-color: var(--accent);
-    }
-
-    .card h3 {
+    .section h2 {
       margin-top: 0;
       color: var(--accent);
-      font-size: 1.15rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.5rem;
+      font-size: 1.4rem;
     }
-
-    .card p {
-      color: #cbd5e1;
-      font-size: 0.92rem;
-      margin-bottom: 1.5rem;
+    p, li { line-height: 1.6; color: #cbd5e1; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
     }
-
-    .btn {
-      display: inline-block;
-      background-color: var(--primary);
-      color: white;
-      text-decoration: none;
-      padding: 0.6rem 1.2rem;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.88rem;
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      text-align: left;
     }
-
-    .btn:hover { background-color: var(--primary-dark); }
-
-    footer {
-      text-align: center;
-      padding: 2.5rem;
-      color: var(--text-muted);
-      font-size: 0.9rem;
+    th { background: #0f172a; color: var(--accent); }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      color: #f1f5f9;
+      padding: 1.2rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.9em;
     }
   </style>
 </head>
 <body>
-
   <header>
-    <h1>📘 Manual de Aprendizaje: Arquitectura & Seguridad</h1>
-    <p>Capítulos de estudio modulares e independientes — Instituto 166</p>
+    <h1>🛡️ Manual de Seguridad y Arquitectura de Autenticación</h1>
+    <p>Guía unificada de conceptos, middlewares en Backend y protección en Frontend</p>
   </header>
 
   <div class="container">
-    <h2>📚 Índice de Capítulos</h2>
-    
-    <div class="grid">
-      <div class="card">
-        <h3>Capítulo 1: Autenticación vs Autorización</h3>
-        <p>Aprende la diferencia fundamental entre verificar la identidad (¿quién sos?) y controlar los permisos (¿qué podés hacer?).</p>
-        <a href="./manual/01_autenticacion_vs_autorizacion.html" class="btn">Ver Capítulo 1</a>
-      </div>
+    <div class="section">
+      <h2>1. Conceptos Universales de Seguridad</h2>
+      <table>
+        <thead>
+          <tr><th>Concepto</th><th>Definición</th><th>Error HTTP</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Autenticación</td><td>Verifica la identidad del usuario (¿Quién sos?).</td><td><code>401 Unauthorized</code></td></tr>
+          <tr><td>Autorización</td><td>Verifica si posee roles/permisos (¿Qué podés hacer?).</td><td><code>403 Forbidden</code></td></tr>
+          <tr><td>Sesiones (Stateful)</td><td>ID guardado en memoria/DB del servidor + Cookie.</td><td>-</td></tr>
+          <tr><td>JWT (Stateless)</td><td>Token firmado en encabezado <code>Authorization: Bearer</code>.</td><td>-</td></tr>
+        </tbody>
+      </table>
+    </div>
 
-      <div class="card">
-        <h3>Capítulo 2: Sesiones vs JWT</h3>
-        <p>Compara el modelo tradicional con cookies (Stateful) contra el estándar moderno de Tokens firmados JWT (Stateless).</p>
-        <a href="./manual/02_sesiones_vs_jwt.html" class="btn">Ver Capítulo 2</a>
-      </div>
+    <div class="section">
+      <h2>2. Implementación en Backend (Express & Node)</h2>
+      <p>Componentes desacoplados según el Principio de Responsabilidad Única (SRP):</p>
+<pre><code>// 1. Interceptor de Verificación JWT (verifyToken)
+export const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token' });
+  req.userRole = jwt.verify(token, process.env.JWT_SECRET).rol_id;
+  next();
+};
 
-      <div class="card">
-        <h3>Capítulo 3: Verificación de Firma JWT</h3>
-        <p>Aprende cómo funciona el middleware <code>verifyToken</code> para validar la autenticidad e integridad del token Bearer.</p>
-        <a href="./manual/03_backend_verificacion_jwt.html" class="btn">Ver Capítulo 3</a>
-      </div>
+// 2. Interceptor de Control de Rol (requireRole)
+export const requireRole = (roleId) => (req, res, next) => {
+  if (req.userRole !== roleId) return res.status(403).json({ error: 'Acceso denegado' });
+  next();
+};
 
-      <div class="card">
-        <h3>Capítulo 4: Control de Acceso por Rol</h3>
-        <p>Aprende cómo funciona el middleware <code>requireRole</code> para restringir accesos según los permisos del usuario.</p>
-        <a href="./manual/04_backend_control_de_roles.html" class="btn">Ver Capítulo 4</a>
-      </div>
+// 3. Declaración en Router
+router.post('/admin/config', verifyToken, requireRole(1), adminController.save);</code></pre>
+    </div>
 
-      <div class="card">
-        <h3>Capítulo 5: Declaración en Router</h3>
-        <p>Descubre cómo encadenar interceptores directamente en la capa de ruteo Express ejecutándolos de izquierda a derecha.</p>
-        <a href="./manual/05_backend_declaracion_rutas.html" class="btn">Ver Capítulo 5</a>
-      </div>
+    <div class="section">
+      <h2>3. Implementación en Frontend (React Router)</h2>
+      <p>Envoltorio reutilizable para control de acceso en la navegación:</p>
+<pre><code>// ProtectedRoute.tsx
+export const ProtectedRoute = ({ children, requiredRole }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
+  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
+  if (requiredRole && user?.rol !== requiredRole) return &lt;Navigate to="/unauthorized" replace /&gt;;
+  return &lt;&gt;{children}&lt;/&gt;;
+};
 
-      <div class="card">
-        <h3>Capítulo 6: Frontend ProtectedRoute</h3>
-        <p>Descubre cómo proteger las vistas en React Router utilizando el componente envoltorio ProtectedRoute.</p>
-        <a href="./manual/06_frontend_enrutamiento_protegido.html" class="btn">Ver Capítulo 6</a>
-      </div>
+// Declaración en Router
+&lt;Routes&gt;
+  &lt;Route path="/admin" element={
+    &lt;ProtectedRoute requiredRole={1}&gt;
+      &lt;AdminPage /&gt;
+    &lt;/ProtectedRoute&gt;
+  } /&gt;
+&lt;/Routes&gt;</code></pre>
     </div>
   </div>
-
-  <footer>
-    Hub de Proyectos — Prácticas Profesionalizantes 2026 | Instituto 166
-  </footer>
-
 </body>
 </html>
