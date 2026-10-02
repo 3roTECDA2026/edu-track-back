@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Guía: Arquitectura de Middlewares en Express</title>
+  <title>Guía: Fundamentos de Express y Middlewares</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -58,6 +58,9 @@
       padding-bottom: 0.5rem;
     }
     p, li { line-height: 1.6; color: #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid var(--border); padding: 0.75rem; text-align: left; }
+    th { background: #0f172a; color: var(--accent); }
     pre {
       background: var(--code-bg);
       border: 1px solid var(--border);
@@ -123,75 +126,100 @@
 <body>
 
   <header>
-    <h1>⚙️ Guía: Arquitectura de Middlewares en Express</h1>
-    <p>Patrón Chain of Responsibility e Interceptores de Pipeline</p>
+    <h1>⚙️ Guía: Fundamentos Básicos de Express y Middlewares</h1>
+    <p>Explicación detallada de `req`, `res`, `next()`, asignación de datos y manejo de errores</p>
   </header>
 
   <div class="container">
     <!-- Sección 1 -->
     <div class="slide active" id="slide-1">
-      <h2>1. ¿Qué es un Middleware en Express?</h2>
-      <p>Un middleware es una función con acceso a los objetos de solicitud (<code>req</code>), respuesta (<code>res</code>) y a la siguiente función middleware (<code>next</code>) en el ciclo de solicitud-respuesta.</p>
-      <ul>
-        <li>Ejecuta cualquier código.</li>
-        <li>Realiza cambios en la solicitud o en el objeto de respuesta.</li>
-        <li>Finaliza el ciclo de solicitud o invoca <code>next()</code>.</li>
-      </ul>
+      <h2>1. Objetos Fundamentales: `req`, `res` y `next`</h2>
+      <p>Toda función de middleware en Express recibe obligatoriamente tres argumentos:</p>
+      <table>
+        <thead>
+          <tr><th>Parámetro</th><th>Tipo</th><th>Propósito y Función</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>req</code> (Request)</td>
+            <td>Object</td>
+            <td>Representa la solicitud HTTP entrante (headers, body, query params, IP). Permite adosar variables personalizadas (ej: <code>req.userRole</code>).</td>
+          </tr>
+          <tr>
+            <td><code>res</code> (Response)</td>
+            <td>Object</td>
+            <td>Representa la respuesta HTTP. Contiene métodos para responder al cliente (<code>res.json()</code>, <code>res.status()</code>, <code>res.send()</code>).</td>
+          </tr>
+          <tr>
+            <td><code>next</code></td>
+            <td>Function</td>
+            <td>Función callback que le indica a Express: "Terminé mi tarea en este middleware, pasale el control al siguiente middleware en la cadena".</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Sección 2 -->
     <div class="slide" id="slide-2">
-      <h2>2. Middleware de Auditoría y Logging (`requestLogger`)</h2>
-      <div class="imports-box">
-        <div class="imports-title">📦 Importaciones requeridas:</div>
-<pre><code>import { Request, Response, NextFunction } from 'express';</code></pre>
+      <h2>2. ¿Cómo funciona `next()`? Sus 3 variaciones</h2>
+      <p>La función <code>next</code> altera drásticamente el flujo de la aplicación según cómo se llame:</p>
+      
+      <div class="flow-box success">
+        <strong>1. `next()` (Sin argumentos)</strong>
+        <p>Pasa el control de forma limpia al siguiente middleware o controlador registrado en la ruta.</p>
       </div>
 
-      <p>Registra el método HTTP, la URL y el tiempo de respuesta de cada petición:</p>
-<pre><code>export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    console.log(`[${req.method}] ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
-  });
-  next();
-};</code></pre>
+      <div class="flow-box error">
+        <strong>2. `next(err)` (Con un objeto de error o mensaje)</strong>
+        <p>Le indica a Express que ocurrió un fallo. Express se salta inmediatamente TODOS los middlewares normales restantes y busca el manejador global de errores.</p>
+      </div>
+
+      <div class="flow-box success">
+        <strong>3. `next('route')` (Salto de ruta)</strong>
+        <p>Comportamiento especial: se salta el resto de middlewares de la pila actual y pasa a la siguiente ruta configurada.</p>
+      </div>
     </div>
 
     <!-- Sección 3 -->
     <div class="slide" id="slide-3">
-      <h2>3. Middleware Centralizado de Errores (`errorHandler`)</h2>
+      <h2>3. Asignar datos a `req` entre Middlewares</h2>
       <div class="imports-box">
         <div class="imports-title">📦 Importaciones requeridas:</div>
 <pre><code>import { Request, Response, NextFunction } from 'express';</code></pre>
       </div>
 
-      <p>Captura excepciones lanzadas en cualquier controlador evitando la caída del servidor:</p>
-<pre><code>export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  const status = err.status || 500;
-  console.error(`❌ Error [${status}]: ${err.message}`);
-  res.status(status).json({
-    error: true,
-    message: err.message || 'Error interno del servidor'
-  });
+      <p>Dado que <code>req</code> es el mismo objeto JavaScript compartido durante toda la vida de la petición HTTP, un middleware puede enriquecerlo con datos para que el controlador final los consuma:</p>
+<pre><code>// Middleware 1: Adjunta usuario a req
+export const setContext = (req: Request, res: Response, next: NextFunction) => {
+  (req as any).userData = { id: 99, email: 'admin@sababook.com' };
+  next(); // Continuar al controlador
+};
+
+// Controlador Final: Lee userData cargado por el middleware
+export const getProfile = (req: Request, res: Response) => {
+  const user = (req as any).userData;
+  res.json({ message: `Perfil de ${user.email}` });
 };</code></pre>
     </div>
 
     <!-- Sección 4 -->
     <div class="slide" id="slide-4">
-      <h2>4. Casos de Éxito vs Falla en Pipeline de Middlewares</h2>
-      
-      <div class="flow-box success">
-        <strong>✅ Caso de Éxito: Ejecución Continuada</strong>
-        <p>Cada middleware llama exitosamente a <code>next()</code> (Logger ➜ Auth ➜ Controller ➜ Response).</p>
-        <p>➜ La petición completa su ciclo con estado HTTP <code>200 OK</code>.</p>
+      <h2>4. Manejador Global de Errores (4 Parámetros)</h2>
+      <div class="imports-box">
+        <div class="imports-title">📦 Importaciones requeridas:</div>
+<pre><code>import { Request, Response, NextFunction } from 'express';</code></pre>
       </div>
 
-      <div class="flow-box error">
-        <strong>❌ Caso de Falla: Excepción Capturada por Middleware de Errores</strong>
-        <p>Ocurre una falla inesperada en la base de datos dentro del controlador y se invoca <code>next(error)</code>.</p>
-        <p>➜ Express se saltea los middlewares restantes y salta directo al <code>errorHandler</code> de 4 parámetros retornando <code>500 Internal Server Error</code>.</p>
-      </div>
+      <p>A diferencia de los middlewares estándar de 3 parámetros, el middleware de captura de errores de Express se reconoce ÚNICAMENTE por tener 4 parámetros <code>(err, req, res, next)</code>:</p>
+<pre><code>// error.middleware.ts
+export const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('🔥 Error no capturado:', err);
+  res.status(err.status || 500).json({
+    ok: false,
+    error: err.message || 'Error interno del servidor'
+  });
+};</code></pre>
+      <p style="margin-top: 1rem;">Cualquier middleware que llame a <code>next(new Error("Algo falló"))</code> o lance una excepción terminará aquí.</p>
     </div>
 
     <!-- Controles de Navegación -->
