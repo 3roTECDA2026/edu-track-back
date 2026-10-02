@@ -14,6 +14,8 @@
       --primary: #2563eb;
       --accent: #38bdf8;
       --code-bg: #090d16;
+      --success: #22c55e;
+      --error: #ef4444;
     }
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -81,6 +83,22 @@
       margin-bottom: 0.5rem;
       font-size: 0.9rem;
     }
+    .flow-box {
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-top: 1rem;
+    }
+    .flow-box.success {
+      background: rgba(34, 197, 94, 0.1);
+      border-left: 4px solid var(--success);
+    }
+    .flow-box.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-left: 4px solid var(--error);
+    }
+    .flow-box strong { font-size: 1.05rem; }
+    .flow-box.success strong { color: var(--success); }
+    .flow-box.error strong { color: var(--error); }
     .explanation {
       background: rgba(37, 99, 235, 0.15);
       border-left: 4px solid var(--primary);
@@ -169,13 +187,33 @@ export const verifyToken = (req: Request, res: Response, next: NextFunction) => 
   req.userRole = (jwt.verify(token, process.env.JWT_SECRET!) as any).rol_id;
   next();
 };</code></pre>
-      <div class="explanation">
-        <strong>💡 Responsabilidad Única:</strong> Solo verifica la validez del JWT y extrae los datos del payload. No verifica permisos específicos.
+    </div>
+
+    <!-- Sección 3B: Éxito vs Falla verifyToken -->
+    <div class="slide" id="slide-4">
+      <h2>3B. `verifyToken` — Casos de Éxito vs Falla</h2>
+      
+      <div class="flow-box success">
+        <strong>✅ Caso de Éxito: Token Válido</strong>
+        <p>Se envía el encabezado <code>Authorization: Bearer eyJhbGci...</code>. El token es legítimo y contiene <code>{ user_id: 42, rol_id: 1 }</code>.</p>
+        <p>➜ <code>req.userRole</code> toma el valor <code>1</code> y se ejecuta <code>next()</code> pasando el control al siguiente middleware.</p>
+      </div>
+
+      <div class="flow-box error">
+        <strong>❌ Caso de Falla 1: Token Ausente</strong>
+        <p>No se incluye el encabezado <code>Authorization</code>.</p>
+        <p>➜ Retorna de inmediato HTTP <code>401 Unauthorized</code> con <code>{ message: "No token" }</code>.</p>
+      </div>
+
+      <div class="flow-box error">
+        <strong>❌ Caso de Falla 2: Token Inválido o Expirado</strong>
+        <p>El token está alterado o venció su tiempo de expiración.</p>
+        <p>➜ <code>jwt.verify()</code> lanza una excepción y la petición se detiene.</p>
       </div>
     </div>
 
     <!-- Sección 4 -->
-    <div class="slide" id="slide-4">
+    <div class="slide" id="slide-5">
       <h2>4. Control de Roles (`requireRole`)</h2>
       <div class="imports-box">
         <div class="imports-title">📦 Importaciones requeridas:</div>
@@ -188,13 +226,27 @@ export const requireRole = (roleId: number) => (req: Request, res: Response, nex
   if (req.userRole !== roleId) return res.status(403).json({ error: 'Acceso denegado' });
   next();
 };</code></pre>
-      <div class="explanation">
-        <strong>💡 Responsabilidad Única:</strong> Asume que la identidad ya fue verificada previamente por <code>verifyToken</code> y compara únicamente el nivel de acceso.
+    </div>
+
+    <!-- Sección 4B: Éxito vs Falla requireRole -->
+    <div class="slide" id="slide-6">
+      <h2>4B. `requireRole` — Casos de Éxito vs Falla (Ejemplo de Rol)</h2>
+      
+      <div class="flow-box success">
+        <strong>✅ Caso de Éxito: Rol Coincidente (Admin = 1)</strong>
+        <p>El parámetro requerido es <code>requireRole(1)</code> y el usuario tiene <code>req.userRole === 1</code> (Admin).</p>
+        <p>➜ La condición se cumple y se ejecuta <code>next()</code> para continuar al controlador.</p>
+      </div>
+
+      <div class="flow-box error">
+        <strong>❌ Caso de Falla: Rol Insuficiente (Alumno = 2)</strong>
+        <p>La ruta requiere <code>requireRole(1)</code> pero el usuario tiene <code>req.userRole === 2</code> (Alumno).</p>
+        <p>➜ Retorna HTTP <code>403 Forbidden</code> con <code>{ error: "Acceso denegado" }</code> impidiendo la acción.</p>
       </div>
     </div>
 
     <!-- Sección 5 -->
-    <div class="slide" id="slide-5">
+    <div class="slide" id="slide-7">
       <h2>5. Declaración en Express Router</h2>
       <div class="imports-box">
         <div class="imports-title">📦 Importaciones requeridas:</div>
@@ -207,13 +259,10 @@ import moderationController from '@/controllers/moderation.controller';</code></
 <pre><code>// routes.ts
 const router = Router();
 router.post('/admin/config', verifyToken, requireRole(1), moderationController.saveConfig);</code></pre>
-      <div class="explanation">
-        <strong>💡 Responsabilidad Única:</strong> El Router se limita a definir el pipeline: 1° <code>verifyToken</code>, 2° <code>requireRole(1)</code> y 3° <code>moderationController.saveConfig</code>.
-      </div>
     </div>
 
     <!-- Sección 6 -->
-    <div class="slide" id="slide-6">
+    <div class="slide" id="slide-8">
       <h2>6. Frontend Router Protegido</h2>
       <div class="imports-box">
         <div class="imports-title">📦 Importaciones requeridas:</div>
@@ -233,18 +282,41 @@ export const ProtectedRoute = ({ children, requiredRole }) => {
 };</code></pre>
     </div>
 
+    <!-- Sección 6B: Éxito vs Falla Frontend -->
+    <div class="slide" id="slide-9">
+      <h2>6B. `ProtectedRoute` — Casos de Éxito vs Falla en React</h2>
+      
+      <div class="flow-box success">
+        <strong>✅ Caso de Éxito: Usuario Autenticado con Rol Correcto</strong>
+        <p><code>isAuthenticated === true</code> y <code>user.rol === 1</code>.</p>
+        <p>➜ Renderiza directamente el componente hijo <code>&lt;AdminPage /&gt;</code>.</p>
+      </div>
+
+      <div class="flow-box error">
+        <strong>❌ Caso de Falla 1: Usuario No Autenticado (Sin Sesión)</strong>
+        <p><code>isAuthenticated === false</code>.</p>
+        <p>➜ Redirige automáticamente al login: <code>&lt;Navigate to="/login" replace /&gt;</code>.</p>
+      </div>
+
+      <div class="flow-box error">
+        <strong>❌ Caso de Falla 2: Rol Insuficiente</strong>
+        <p><code>user.rol === 2</code> (Alumno) e intenta acceder a ruta con <code>requiredRole={1}</code>.</p>
+        <p>➜ Redirige a vista no autorizada: <code>&lt;Navigate to="/unauthorized" replace /&gt;</code>.</p>
+      </div>
+    </div>
+
     <!-- Controles de Navegación -->
     <div class="controls">
       <button class="btn secondary" id="prevBtn" onclick="changeSlide(-1)">← Anterior</button>
       <a href="../index.html" class="btn secondary">🏠 Volver al Índice</a>
-      <span class="progress-text" id="progress">Sección 1 de 6</span>
+      <span class="progress-text" id="progress">Sección 1 de 9</span>
       <button class="btn" id="nextBtn" onclick="changeSlide(1)">Siguiente →</button>
     </div>
   </div>
 
   <script>
     let currentSlide = 1;
-    const totalSlides = 6;
+    const totalSlides = 9;
 
     function changeSlide(direction) {
       const newSlide = currentSlide + direction;
