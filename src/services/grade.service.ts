@@ -24,6 +24,7 @@ function buildGradeWhere(query: ListGradesQuery): Prisma.GradeWhereInput {
   const where: Prisma.GradeWhereInput = {};
   const enrollment: Prisma.EnrollmentWhereInput = {};
 
+  if (query.studentId) enrollment.studentId = query.studentId; // nuevo: filtrar por alumno
   if (query.classSectionId) enrollment.classSectionId = query.classSectionId;
   if (query.subjectId) enrollment.subjectId = query.subjectId;
   if (query.year !== undefined) enrollment.academicYear = { year: query.year };

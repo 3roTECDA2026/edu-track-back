@@ -31,6 +31,7 @@ export const updateGradeSchema = createGradeSchema.omit({ enrollmentId: true }).
 export const listGradesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
+  studentId: z.uuid().optional(), // nuevo: filtrar notas por alumno
   classSectionId: z.uuid().optional(),
   subjectId: z.uuid().optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
