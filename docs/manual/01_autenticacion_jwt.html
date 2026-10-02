@@ -68,6 +68,19 @@
       overflow-x: auto;
       font-size: 0.9em;
     }
+    .imports-box {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px dashed var(--accent);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.2rem;
+    }
+    .imports-title {
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
     .explanation {
       background: rgba(37, 99, 235, 0.15);
       border-left: 4px solid var(--primary);
@@ -103,11 +116,11 @@
 
   <header>
     <h1>📘 Guía: Autenticación y Autorización JWT</h1>
-    <p>Presentación interactiva por secciones (Single Responsibility Principle)</p>
+    <p>Presentación interactiva por secciones</p>
   </header>
 
   <div class="container">
-    <!-- Slide 1 -->
+    <!-- Sección 1 -->
     <div class="slide active" id="slide-1">
       <h2>1. Autenticación vs Autorización</h2>
       <p>Diferencias fundamentales entre verificación de identidad y control de acceso:</p>
@@ -123,7 +136,7 @@
       </table>
     </div>
 
-    <!-- Slide 2 -->
+    <!-- Sección 2 -->
     <div class="slide" id="slide-2">
       <h2>2. Sesiones (Stateful) vs JWT (Stateless)</h2>
       <p>Comparativa de arquitectura para la gestión de estado de usuario:</p>
@@ -139,15 +152,21 @@
       </table>
     </div>
 
-    <!-- Slide 3 -->
+    <!-- Sección 3 -->
     <div class="slide" id="slide-3">
       <h2>3. Verificación de JWT (`verifyToken`)</h2>
+      <div class="imports-box">
+        <div class="imports-title">📦 Importaciones requeridas:</div>
+<pre><code>import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';</code></pre>
+      </div>
+
       <p>Middleware backend dedicado exclusivamente a validar el token de entrada:</p>
 <pre><code>// auth.middleware.ts
-export const verifyToken = (req, res, next) => {
+export const verifyToken = (req: Request, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'No token' });
-  req.userRole = jwt.verify(token, process.env.JWT_SECRET).rol_id;
+  req.userRole = (jwt.verify(token, process.env.JWT_SECRET!) as any).rol_id;
   next();
 };</code></pre>
       <div class="explanation">
@@ -155,12 +174,17 @@ export const verifyToken = (req, res, next) => {
       </div>
     </div>
 
-    <!-- Slide 4 -->
+    <!-- Sección 4 -->
     <div class="slide" id="slide-4">
       <h2>4. Control de Roles (`requireRole`)</h2>
+      <div class="imports-box">
+        <div class="imports-title">📦 Importaciones requeridas:</div>
+<pre><code>import { Request, Response, NextFunction } from 'express';</code></pre>
+      </div>
+
       <p>Middleware backend encargado únicamente de autorizar según el rol:</p>
 <pre><code>// auth.middleware.ts
-export const requireRole = (roleId) => (req, res, next) => {
+export const requireRole = (roleId: number) => (req: Request, res: Response, next: NextFunction) => {
   if (req.userRole !== roleId) return res.status(403).json({ error: 'Acceso denegado' });
   next();
 };</code></pre>
@@ -169,20 +193,35 @@ export const requireRole = (roleId) => (req, res, next) => {
       </div>
     </div>
 
-    <!-- Slide 5 -->
+    <!-- Sección 5 -->
     <div class="slide" id="slide-5">
       <h2>5. Declaración en Express Router</h2>
+      <div class="imports-box">
+        <div class="imports-title">📦 Importaciones requeridas:</div>
+<pre><code>import { Router } from 'express';
+import { verifyToken, requireRole } from '@/middleware/auth.middleware';
+import moderationController from '@/controllers/moderation.controller';</code></pre>
+      </div>
+
       <p>Composición declarativa de middlewares en la definición del endpoint:</p>
 <pre><code>// routes.ts
-router.post('/admin/config', verifyToken, requireRole(1), adminController.save);</code></pre>
+const router = Router();
+router.post('/admin/config', verifyToken, requireRole(1), moderationController.saveConfig);</code></pre>
       <div class="explanation">
-        <strong>💡 Responsabilidad Única:</strong> El Router se limita a definir el pipeline: 1° <code>verifyToken</code>, 2° <code>requireRole(1)</code> y 3° <code>adminController.save</code>.
+        <strong>💡 Responsabilidad Única:</strong> El Router se limita a definir el pipeline: 1° <code>verifyToken</code>, 2° <code>requireRole(1)</code> y 3° <code>moderationController.saveConfig</code>.
       </div>
     </div>
 
-    <!-- Slide 6 -->
+    <!-- Sección 6 -->
     <div class="slide" id="slide-6">
       <h2>6. Frontend Router Protegido</h2>
+      <div class="imports-box">
+        <div class="imports-title">📦 Importaciones requeridas:</div>
+<pre><code>import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';</code></pre>
+      </div>
+
       <p>Componente envoltorio <code>ProtectedRoute</code> para React Router:</p>
 <pre><code>// ProtectedRoute.tsx
 export const ProtectedRoute = ({ children, requiredRole }) => {
