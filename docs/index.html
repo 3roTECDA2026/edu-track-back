@@ -30,21 +30,29 @@
     header h1 { margin: 0; font-size: 2.2rem; color: var(--accent); }
     header p { color: var(--text-muted); font-size: 1.1rem; margin-top: 0.5rem; }
     .container {
-      max-width: 800px;
+      max-width: 850px;
       margin: 0 auto;
       padding: 2rem 1.5rem;
+    }
+    .category-title {
+      color: var(--accent);
+      font-size: 1.4rem;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.4rem;
     }
     .topic-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 1.5rem 2rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .topic-card h2 { margin: 0; font-size: 1.2rem; color: var(--text); }
+    .topic-card h3 { margin: 0; font-size: 1.2rem; color: var(--text); }
     .topic-card p { margin: 0.3rem 0 0; color: var(--text-muted); font-size: 0.95rem; }
     .btn {
       background: var(--primary);
@@ -60,32 +68,46 @@
 </head>
 <body>
   <header>
-    <h1>🛡️ Portal de Documentación</h1>
-    <p>Índice general de temas y guías de arquitectura</p>
+    <h1>🛡️ Portal de Documentación y Arquitectura</h1>
+    <p>Índice organizado de temas de Express Node.js y Alternativas Framework/Librerías</p>
   </header>
   <div class="container">
+    <!-- Categoria 1: Express Node.js -->
+    <h2 class="category-title">🟢 Módulo Express Node.js (Ecosistema Principal)</h2>
+    
     <div class="topic-card">
       <div>
-        <h2>1. Autenticación y Autorización JWT (Moderno / Stateless)</h2>
-        <p>Guía paso a paso: token Bearer en encabezado HTTP y middlewares sin estado.</p>
+        <h3>1. Middleware Pipeline & Error Handling en Express</h3>
+        <p>Cadena de responsabilidad (`req`, `res`, `next`), logger de peticiones y manejador global de errores (4 parámetros).</p>
       </div>
-      <a href="manual/01_autenticacion_jwt.html" class="btn">Ver Guía →</a>
+      <a href="manual/03_middlewares_express.html" class="btn">Ver Guía →</a>
     </div>
 
     <div class="topic-card">
       <div>
-        <h2>2. Autenticación por Sesiones Tradicionales (Stateful / Cookie-Based)</h2>
-        <p>Guía paso a paso: express-session, cookies HTTP-Only y control de roles en sesión.</p>
+        <h3>2. Autenticación & Control de Roles JWT en Express</h3>
+        <p>Interceptores `verifyToken` y `requireRole` para protección declarativa de rutas en Express Router.</p>
+      </div>
+      <a href="manual/01_autenticacion_jwt.html" class="btn">Ver Guía →</a>
+    </div>
+
+    <!-- Categoria 2: Alternativas y Patrones de Sesión -->
+    <h2 class="category-title">🔵 Módulo Alternativas & Otros Métodos</h2>
+    
+    <div class="topic-card">
+      <div>
+        <h3>1. Autenticación por Sesiones Tradicionales (Stateful / Cookie-Based)</h3>
+        <p>Método alternativo con `express-session`, cookies HTTP-Only y persistencia de sesión en RAM / DB.</p>
       </div>
       <a href="manual/02_autenticacion_sesiones.html" class="btn">Ver Guía →</a>
     </div>
 
     <div class="topic-card">
       <div>
-        <h2>3. Arquitectura de Middlewares en Express (Cadena de Mando / Pipeline)</h2>
-        <p>Guía paso a paso: interceptores de auditoría, manejo centralizado de errores, CORS y Rate Limiting.</p>
+        <h3>2. Comparativa de Frameworks y Enfoques de Middleware (Fastify, NestJS, Express)</h3>
+        <p>Guía interactiva sobre alternativas de arquitectura: Fastify Hooks, NestJS Guards/Interceptors vs Express Middlewares.</p>
       </div>
-      <a href="manual/03_middlewares_express.html" class="btn">Ver Guía →</a>
+      <a href="manual/04_alternativas_frameworks.html" class="btn">Ver Guía →</a>
     </div>
   </div>
 </body>
