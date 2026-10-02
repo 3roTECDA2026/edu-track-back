@@ -133,7 +133,7 @@
       <h2>1. ¿Cómo Funciona el Método Tradicional por Sesión?</h2>
       <p>A diferencia de JWT donde el cliente guarda el token, en el modelo tradicional con Sesiones:</p>
       <ul>
-        <li>El servidor crea una sesión en RAM o Redis al hacer Login.</li>
+        <li>El servidor crea una sesión en RAM o Redis al hacer Login guardando los datos del usuario (id, rol, etc.).</li>
         <li>Envía una cookie segura <code>connect.sid</code> cifrada al navegador.</li>
         <li>En cada petición, la cookie se envía automáticamente y el servidor busca la sesión en memoria/DB.</li>
       </ul>
@@ -180,24 +180,42 @@ import session from 'express-session';</code></pre>
 
     <!-- Sección 4 -->
     <div class="slide" id="slide-4">
-      <h2>4. `requireSession` — Casos de Éxito vs Falla</h2>
+      <h2>4. Middleware de Control de Rol en Sesión (`requireSessionRole`)</h2>
+      <div class="imports-box">
+        <div class="imports-title">📦 Importaciones requeridas:</div>
+<pre><code>import { Request, Response, NextFunction } from 'express';</code></pre>
+      </div>
+
+      <p>Middleware backend para verificar el rol almacenado dentro de la sesión:</p>
+<pre><code>export const requireSessionRole = (roleId: number) => (req: Request, res: Response, next: NextFunction) => {
+  const user = (req.session as any)?.user;
+  if (!user || user.rol_id !== roleId) {
+    return res.status(403).json({ error: 'Acceso denegado: Rol insuficiente' });
+  }
+  next();
+};</code></pre>
+    </div>
+
+    <!-- Sección 5 -->
+    <div class="slide" id="slide-5">
+      <h2>5. `requireSessionRole` — Casos de Éxito vs Falla</h2>
       
       <div class="flow-box success">
-        <strong>✅ Caso de Éxito: Cookie Válida con Sesión Activa</strong>
-        <p>El navegador adjunta la cookie <code>connect.sid</code>. El servidor la desencripta, encuentra la sesión en RAM/DB con <code>user.rol === 1</code>.</p>
-        <p>➜ Se habilita la petición y se ejecuta <code>next()</code>.</p>
+        <strong>✅ Caso de Éxito: Rol Coincidente (Admin = 1)</strong>
+        <p>El usuario inició sesión como Admin. La sesión en el servidor contiene <code>req.session.user = { id: 10, rol_id: 1 }</code>.</p>
+        <p>➜ Se evalúa <code>requireSessionRole(1)</code>, la condición se cumple y ejecuta <code>next()</code>.</p>
       </div>
 
       <div class="flow-box error">
-        <strong>❌ Caso de Falla 1: Cookie Inexistente o Expirada</strong>
-        <p>El navegador no envía la cookie o la sesión expiró en el servidor.</p>
-        <p>➜ Retorna HTTP <code>401 Unauthorized</code> con <code>{ message: "No hay sesión activa" }</code>.</p>
+        <strong>❌ Caso de Falla 1: Rol Insuficiente (Alumno = 2)</strong>
+        <p>El usuario inició sesión como Alumno (<code>req.session.user.rol_id === 2</code>) e intenta acceder a endpoint que requiere <code>requireSessionRole(1)</code>.</p>
+        <p>➜ Retorna HTTP <code>403 Forbidden</code> con <code>{ error: "Acceso denegado: Rol insuficiente" }</code>.</p>
       </div>
 
       <div class="flow-box error">
-        <strong>❌ Caso de Falla 2: Destrucción de Sesión (Logout)</strong>
-        <p>El usuario hace logout ejecutando <code>req.session.destroy()</code>.</p>
-        <p>➜ Las peticiones posteriores fallan con <code>401 Unauthorized</code>.</p>
+        <strong>❌ Caso de Falla 2: Sesión Inexistente o Expirada</strong>
+        <p>La sesión fue destruida por logout o expiró el tiempo de la cookie.</p>
+        <p>➜ Retorna HTTP <code>401 Unauthorized</code> deteniendo la ejecución.</p>
       </div>
     </div>
 
@@ -205,14 +223,14 @@ import session from 'express-session';</code></pre>
     <div class="controls">
       <button class="btn secondary" id="prevBtn" onclick="changeSlide(-1)">← Anterior</button>
       <a href="../index.html" class="btn secondary">🏠 Volver al Índice</a>
-      <span class="progress-text" id="progress">Sección 1 de 4</span>
+      <span class="progress-text" id="progress">Sección 1 de 5</span>
       <button class="btn" id="nextBtn" onclick="changeSlide(1)">Siguiente →</button>
     </div>
   </div>
 
   <script>
     let currentSlide = 1;
-    const totalSlides = 4;
+    const totalSlides = 5;
 
     function changeSlide(direction) {
       const newSlide = currentSlide + direction;
