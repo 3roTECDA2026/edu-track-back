@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guía: Autenticación y Autorización JWT</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --primary: #2563eb;
+      --accent: #38bdf8;
+      --code-bg: #090d16;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 2rem 1rem 1rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { margin: 0; font-size: 1.8rem; color: var(--accent); }
+    header p { color: var(--text-muted); margin-top: 0.4rem; }
+    .container {
+      flex: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .slide {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+    .slide.active { display: block; }
+    .slide h2 {
+      margin-top: 0;
+      color: var(--accent);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    p, li { line-height: 1.6; color: #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid var(--border); padding: 0.75rem; text-align: left; }
+    th { background: #0f172a; color: var(--accent); }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      color: #f1f5f9;
+      padding: 1.2rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.9em;
+    }
+    .explanation {
+      background: rgba(37, 99, 235, 0.15);
+      border-left: 4px solid var(--primary);
+      padding: 1rem;
+      border-radius: 0 8px 8px 0;
+      margin-top: 1rem;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2rem;
+    }
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.7rem 1.4rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .btn.secondary { background: #334155; }
+    .btn.secondary:hover { background: #475569; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .progress-text { color: var(--text-muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📘 Guía: Autenticación y Autorización JWT</h1>
+    <p>Presentación interactiva por secciones (Single Responsibility Principle)</p>
+  </header>
+
+  <div class="container">
+    <!-- Slide 1 -->
+    <div class="slide active" id="slide-1">
+      <h2>1. Autenticación vs Autorización</h2>
+      <p>Diferencias fundamentales entre verificación de identidad y control de acceso:</p>
+      <table>
+        <thead>
+          <tr><th>Criterio</th><th>Autenticación</th><th>Autorización</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Pregunta clave</td><td>¿Quién sos?</td><td>¿Qué podés hacer?</td></tr>
+          <tr><td>Momento</td><td>Al iniciar sesión.</td><td>En cada petición protegida.</td></tr>
+          <tr><td>Error HTTP</td><td><code>401 Unauthorized</code></td><td><code>403 Forbidden</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="slide" id="slide-2">
+      <h2>2. Sesiones (Stateful) vs JWT (Stateless)</h2>
+      <p>Comparativa de arquitectura para la gestión de estado de usuario:</p>
+      <table>
+        <thead>
+          <tr><th>Criterio</th><th>Sesiones (Stateful)</th><th>JWT (Stateless)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Servidor</td><td>Guarda ID de sesión en RAM / DB.</td><td>Sin estado en servidor.</td></tr>
+          <tr><td>Mecanismo</td><td>Cookie enviada automáticamente.</td><td>Encabezado <code>Authorization: Bearer</code>.</td></tr>
+          <tr><td>Escalabilidad</td><td>Requiere sincronizar sesiones.</td><td>Alta (firma criptográfica).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="slide" id="slide-3">
+      <h2>3. Verificación de JWT (`verifyToken`)</h2>
+      <p>Middleware backend dedicado exclusivamente a validar el token de entrada:</p>
+<pre><code>// auth.middleware.ts
+export const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token' });
+  req.userRole = jwt.verify(token, process.env.JWT_SECRET).rol_id;
+  next();
+};</code></pre>
+      <div class="explanation">
+        <strong>💡 Responsabilidad Única:</strong> Solo verifica la validez del JWT y extrae los datos del payload. No verifica permisos específicos.
+      </div>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="slide" id="slide-4">
+      <h2>4. Control de Roles (`requireRole`)</h2>
+      <p>Middleware backend encargado únicamente de autorizar según el rol:</p>
+<pre><code>// auth.middleware.ts
+export const requireRole = (roleId) => (req, res, next) => {
+  if (req.userRole !== roleId) return res.status(403).json({ error: 'Acceso denegado' });
+  next();
+};</code></pre>
+      <div class="explanation">
+        <strong>💡 Responsabilidad Única:</strong> Asume que la identidad ya fue verificada previamente por <code>verifyToken</code> y compara únicamente el nivel de acceso.
+      </div>
+    </div>
+
+    <!-- Slide 5 -->
+    <div class="slide" id="slide-5">
+      <h2>5. Declaración en Express Router</h2>
+      <p>Composición declarativa de middlewares en la definición del endpoint:</p>
+<pre><code>// routes.ts
+router.post('/admin/config', verifyToken, requireRole(1), adminController.save);</code></pre>
+      <div class="explanation">
+        <strong>💡 Responsabilidad Única:</strong> El Router se limita a definir el pipeline: 1° <code>verifyToken</code>, 2° <code>requireRole(1)</code> y 3° <code>adminController.save</code>.
+      </div>
+    </div>
+
+    <!-- Slide 6 -->
+    <div class="slide" id="slide-6">
+      <h2>6. Frontend Router Protegido</h2>
+      <p>Componente envoltorio <code>ProtectedRoute</code> para React Router:</p>
+<pre><code>// ProtectedRoute.tsx
+export const ProtectedRoute = ({ children, requiredRole }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
+  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
+  if (requiredRole && user?.rol !== requiredRole) return &lt;Navigate to="/unauthorized" replace /&gt;;
+  return &lt;&gt;{children}&lt;/&gt;;
+};</code></pre>
+    </div>
+
+    <!-- Controles de Navegación -->
+    <div class="controls">
+      <button class="btn secondary" id="prevBtn" onclick="changeSlide(-1)">← Anterior</button>
+      <a href="../index.html" class="btn secondary">🏠 Volver al Índice</a>
+      <span class="progress-text" id="progress">Sección 1 de 6</span>
+      <button class="btn" id="nextBtn" onclick="changeSlide(1)">Siguiente →</button>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 6;
+
+    function changeSlide(direction) {
+      const newSlide = currentSlide + direction;
+      if (newSlide >= 1 && newSlide <= totalSlides) {
+        document.getElementById(`slide-${currentSlide}`).classList.remove('active');
+        currentSlide = newSlide;
+        document.getElementById(`slide-${currentSlide}`).classList.add('active');
+        
+        document.getElementById('prevBtn').disabled = (currentSlide === 1);
+        document.getElementById('nextBtn').disabled = (currentSlide === totalSlides);
+        document.getElementById('progress').innerText = `Sección ${currentSlide} de ${totalSlides}`;
+      }
+    }
+  </script>
+</body>
+</html>
