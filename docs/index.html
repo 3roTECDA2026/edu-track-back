@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Manual de Arquitectura y Seguridad</title>
+  <title>Portal de Arquitectura y Seguridad</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -13,7 +13,6 @@
       --border: #334155;
       --primary: #2563eb;
       --accent: #38bdf8;
-      --code-bg: #090d16;
     }
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -31,151 +30,46 @@
     header h1 { margin: 0; font-size: 2.2rem; color: var(--accent); }
     header p { color: var(--text-muted); font-size: 1.1rem; margin-top: 0.5rem; }
     .container {
-      max-width: 900px;
+      max-width: 800px;
       margin: 0 auto;
       padding: 2rem 1.5rem;
     }
-    .toc {
+    .topic-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 1.5rem 2rem;
-      margin-bottom: 2rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    .toc h2 {
-      margin-top: 0;
-      color: var(--accent);
-      font-size: 1.3rem;
-      border-bottom: 2px solid var(--border);
-      padding-bottom: 0.5rem;
-    }
-    .toc ul {
-      list-style: none;
-      padding-left: 0;
-      margin: 0;
-    }
-    .toc li {
-      margin: 0.5rem 0;
-    }
-    .toc a {
-      color: var(--text);
+    .topic-card h2 { margin: 0; font-size: 1.2rem; color: var(--text); }
+    .topic-card p { margin: 0.3rem 0 0; color: var(--text-muted); font-size: 0.95rem; }
+    .btn {
+      background: var(--primary);
+      color: white;
       text-decoration: none;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    .toc a:hover {
-      color: var(--accent);
-    }
-    .section {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2rem;
-      margin-bottom: 2rem;
-    }
-    .section h2 {
-      margin-top: 0;
-      color: var(--accent);
-      border-bottom: 2px solid var(--border);
-      padding-bottom: 0.5rem;
-      font-size: 1.4rem;
-    }
-    p, li { line-height: 1.6; color: #cbd5e1; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1rem 0;
-    }
-    th, td {
-      border: 1px solid var(--border);
-      padding: 0.75rem;
-      text-align: left;
-    }
-    th { background: #0f172a; color: var(--accent); }
-    pre {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      color: #f1f5f9;
-      padding: 1.2rem;
+      padding: 0.7rem 1.2rem;
       border-radius: 8px;
-      overflow-x: auto;
-      font-size: 0.9em;
+      font-weight: 600;
+      white-space: nowrap;
     }
+    .btn:hover { background: #1d4ed8; }
   </style>
 </head>
 <body>
   <header>
-    <h1>🛡️ Manual de Seguridad y Arquitectura de Autenticación</h1>
-    <p>Guía unificada de conceptos, middlewares en Backend y protección en Frontend</p>
+    <h1>🛡️ Portal de Documentación</h1>
+    <p>Índice general de temas y guías de arquitectura</p>
   </header>
-
   <div class="container">
-    <!-- Índice de Navegación -->
-    <nav class="toc">
-      <h2>📌 Índice de Guías</h2>
-      <ul>
-        <li><a href="#conceptos">1. Conceptos Universales de Seguridad</a></li>
-        <li><a href="#backend">2. Implementación en Backend (Express & Node)</a></li>
-        <li><a href="#frontend">3. Implementación en Frontend (React Router)</a></li>
-      </ul>
-    </nav>
-
-    <div id="conceptos" class="section">
-      <h2>1. Conceptos Universales de Seguridad</h2>
-      <table>
-        <thead>
-          <tr><th>Concepto</th><th>Definición</th><th>Error HTTP</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Autenticación</td><td>Verifica la identidad del usuario (¿Quién sos?).</td><td><code>401 Unauthorized</code></td></tr>
-          <tr><td>Autorización</td><td>Verifica si posee roles/permisos (¿Qué podés hacer?).</td><td><code>403 Forbidden</code></td></tr>
-          <tr><td>Sesiones (Stateful)</td><td>ID guardado en memoria/DB del servidor + Cookie.</td><td>-</td></tr>
-          <tr><td>JWT (Stateless)</td><td>Token firmado en encabezado <code>Authorization: Bearer</code>.</td><td>-</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div id="backend" class="section">
-      <h2>2. Implementación en Backend (Express & Node)</h2>
-      <p>Componentes desacoplados según el Principio de Responsabilidad Única (SRP):</p>
-<pre><code>// 1. Interceptor de Verificación JWT (verifyToken)
-export const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token' });
-  req.userRole = jwt.verify(token, process.env.JWT_SECRET).rol_id;
-  next();
-};
-
-// 2. Interceptor de Control de Rol (requireRole)
-export const requireRole = (roleId) => (req, res, next) => {
-  if (req.userRole !== roleId) return res.status(403).json({ error: 'Acceso denegado' });
-  next();
-};
-
-// 3. Declaración en Router
-router.post('/admin/config', verifyToken, requireRole(1), adminController.save);</code></pre>
-    </div>
-
-    <div id="frontend" class="section">
-      <h2>3. Implementación en Frontend (React Router)</h2>
-      <p>Envoltorio reutilizable para control de acceso en la navegación:</p>
-<pre><code>// ProtectedRoute.tsx
-export const ProtectedRoute = ({ children, requiredRole }) => {
-  const { isAuthenticated, user, loading } = useAuth();
-  if (loading) return &lt;div&gt;Cargando...&lt;/div&gt;;
-  if (!isAuthenticated) return &lt;Navigate to="/login" replace /&gt;;
-  if (requiredRole && user?.rol !== requiredRole) return &lt;Navigate to="/unauthorized" replace /&gt;;
-  return &lt;&gt;{children}&lt;/&gt;;
-};
-
-// Declaración en Router
-&lt;Routes&gt;
-  &lt;Route path="/admin" element={
-    &lt;ProtectedRoute requiredRole={1}&gt;
-      &lt;AdminPage /&gt;
-    &lt;/ProtectedRoute&gt;
-  } /&gt;
-&lt;/Routes&gt;</code></pre>
+    <div class="topic-card">
+      <div>
+        <h2>Autenticación y Autorización JWT</h2>
+        <p>Guía interactiva paso a paso (conceptos, middlewares backend y router frontend).</p>
+      </div>
+      <a href="manual/01_autenticacion_jwt.html" class="btn">Ver Guía →</a>
     </div>
   </div>
 </body>
