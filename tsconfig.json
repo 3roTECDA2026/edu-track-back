@@ -3,13 +3,21 @@
   "compilerOptions": {
     // File Layout
     // "rootDir": "./src",
-    // "outDir": "./dist",
-    "allowImportingTsExtensions": true,
+    "outDir": "./dist",
+    "allowImportingTsExtensions": false,
     "noEmit": true,
+    "ignoreDeprecations": "5.0",
+
+    // Path Mapping
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "target": "esnext",
     "types": [],
     // For nodejs:
@@ -24,7 +32,7 @@
 
     // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
 
     // Style Options
     // "noImplicitReturns": true,
@@ -41,6 +49,8 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
-  }
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "prisma"]
 }
