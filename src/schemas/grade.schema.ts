@@ -7,6 +7,10 @@ const scoreSchema = z
   .min(1, 'La nota mínima es 1')
   .max(10, 'La nota máxima es 10')
 
+const termScoresSchema = z
+  .array(scoreSchema.nullable())
+  .length(4, 'Deben ser 4 notas (usá null para las vacías)')
+
 export const gradeIdParamSchema = z.object({
   id: z.uuid(),
 })
@@ -16,9 +20,11 @@ export const createGradeSchema = z.object({
   preliminaryAssessment1: z.enum(PreliminaryAssessment).optional(),
   rationale1: z.string().trim().optional(),
   term1Score: scoreSchema.optional(),
+  term1Scores: termScoresSchema.optional(),
   preliminaryAssessment2: z.enum(PreliminaryAssessment).optional(),
   rationale2: z.string().trim().optional(),
   term2Score: scoreSchema.optional(),
+  term2Scores: termScoresSchema.optional(),
   recoveryIn2ndTerm: z.boolean().optional(),
   finalScore: scoreSchema.optional(),
   subjectStatus: z.enum(SubjectStatus).optional(),
