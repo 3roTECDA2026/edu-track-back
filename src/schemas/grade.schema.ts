@@ -43,6 +43,13 @@ export const listGradesQuerySchema = z.object({
   subjectStatus: z.enum(SubjectStatus).optional(),
 })
 
+export const gradeRosterQuerySchema = z.object({
+  classSectionId: z.uuid(),
+  subjectId: z.uuid(),
+  year: z.coerce.number().int().min(2000).max(2100),
+})
+
 export type CreateGradeInput = z.infer<typeof createGradeSchema>
 export type UpdateGradeInput = z.infer<typeof updateGradeSchema>
 export type ListGradesQuery = z.infer<typeof listGradesQuerySchema>
+export type GradeRosterQuery = z.infer<typeof gradeRosterQuerySchema>

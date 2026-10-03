@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import {
   createGradeSchema,
   gradeIdParamSchema,
+  gradeRosterQuerySchema,
   listGradesQuerySchema,
   updateGradeSchema,
 } from '@/schemas/grade.schema'
@@ -11,6 +12,11 @@ import * as gradeService from '@/services/grade.service'
 export async function listGrades(req: Request, res: Response) {
   const query = listGradesQuerySchema.parse(req.query)
   res.json(await gradeService.listGrades(query))
+}
+
+export async function getGradeRoster(req: Request, res: Response) {
+  const query = gradeRosterQuerySchema.parse(req.query)
+  res.json(await gradeService.getGradeRoster(query))
 }
 
 export async function createGrade(req: Request, res: Response) {
