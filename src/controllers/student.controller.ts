@@ -4,6 +4,7 @@ import {
   createStudentSchema,
   listStudentsQuerySchema,
   studentIdParamSchema,
+  updateStudentSchema,
 } from '@/schemas/student.schema'
 import * as studentService from '@/services/student.service'
 
@@ -30,4 +31,10 @@ export async function createStudent(req: Request, res: Response) {
 export async function getStudent(req: Request, res: Response) {
   const { id } = studentIdParamSchema.parse(req.params)
   res.json(await studentService.getStudent(id))
+}
+
+export async function updateStudent(req: Request, res: Response) {
+  const { id } = studentIdParamSchema.parse(req.params)
+  const data = updateStudentSchema.parse(req.body)
+  res.json(await studentService.updateStudent(id, data))
 }
