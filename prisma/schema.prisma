@@ -1,5 +1,5 @@
 // ============================================================================
-// Sistema de Gestión de Trayectorias Educativas "Aura"
+// Sistema de Gestión de Trayectorias Educativas "NOTAR" 
 // Educación Secundaria — Provincia de Buenos Aires (Res. 1650/24 DGCyE)
 // ============================================================================
 
@@ -8,8 +8,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // Proveedor de base de datos: PostgreSQL
-  url      = env("DATABASE_URL") // URL de conexión a la BD desde variable de entorno
+  provider = "postgresql" // Proveedor de base de datos: PostgreS
+ 
 }
 
 // ============================================================================
@@ -156,6 +156,13 @@ enum AlertType {
   PENDING_SUBJECTS // Alerta por Materias Pendientes
   TED_ASSESSMENT   // Alerta por Valoración TED
   DROPOUT_RISK     // Alerta por Riesgo de Desgranamiento / Abandono
+  HEALTH           // Alerta por situaciones de salud / enfermedad
+  CONDUCT          // Alerta por mala conducta / convivencia
+}
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 // ============================================================================
@@ -731,6 +738,7 @@ model Notification {
   student   Student   @relation(fields: [studentId], references: [id]) // Estudiante sujeto de la alerta
   studentId String    // ID del estudiante
   type      AlertType // Tipo de alerta (Inasistencias, riesgo de abandono, etc.)
+  severity  AlertSeverity @default(MEDIUM)
   message   String    // Texto o detalle del motivo de la alerta
   read      Boolean   @default(false) // ¿Alerta leída por el destinatario?
   createdAt DateTime  @default(now()) // Fecha de generación automática
