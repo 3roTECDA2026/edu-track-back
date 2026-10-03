@@ -1,7 +1,11 @@
 import { Prisma, StudentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { CreateStudentInput, ListStudentsQuery } from '@/schemas/student.schema'
+import type {
+  CreateStudentInput,
+  ListStudentsQuery,
+  UpdateStudentInput,
+} from '@/schemas/student.schema'
 import { HttpError } from '@/utils/httpError'
 
 // Statuses shown in operational listings when no status filter is sent.
@@ -302,4 +306,25 @@ export async function getStudentHistory(id: string) {
     endDate: record.endDate,
     leaveReason: record.leaveReason,
   }))
+}
+
+// Actualiza los datos personales de un estudiante.
+// El legajo y el estado no se modifican acá (el estado se cambia con deactivateStudent).
+export async function updateStudent(id: string, input: UpdateStudentInput) {
+  const student = await prisma.student.findUnique({ where: { id }, select: { id: true } })
+  if (!student) throw new HttpError(404, 'Student not found')
+
+  // El DNI es único: no puede repetirse con el de otro estudiante.
+  if (input.dni) {
+    const duplicated = await prisma.student.findFirst({
+      where: { dni: input.dni, NOT: { id } },
+      select: { id: true },
+    })
+    if (duplicated) throw new HttpError(409, 'Another student already has this DNI')
+  }
+
+  await prisma.student.update({ where: { id }, data: input })
+
+  // Devuelve el mismo formato que GET /students/:id.
+  return buildStudentResponse(prisma, id)
 }
