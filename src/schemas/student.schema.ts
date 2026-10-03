@@ -47,8 +47,8 @@ export const createStudentSchema = z.object({
   guardianRelationship: z.string().trim().min(1).max(50).optional(),
 })
 
-// Datos personales editables, con las mismas reglas que el alta.
-// El legajo y el estado no se modifican por acá (el estado se cambia con PATCH /students/:id/deactivate).
+// Datos editables, con las mismas reglas que el alta: datos personales, domicilio
+// y adulto responsable. El legajo, el estado y la inscripción no se modifican por acá.
 export const updateStudentSchema = createStudentSchema
   .pick({
     firstName: true,
@@ -59,6 +59,11 @@ export const updateStudentSchema = createStudentSchema
     address: true,
     city: true,
     phone: true,
+    guardianName: true,
+    guardianPhone: true,
+    guardianEmail: true,
+    guardianDni: true,
+    guardianRelationship: true,
   })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
