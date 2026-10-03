@@ -20,16 +20,10 @@ function buildGradeWhere(query: ListGradesQuery): Prisma.GradeWhereInput {
   const where: Prisma.GradeWhereInput = {}
   const enrollment: Prisma.EnrollmentWhereInput = {}
 
-<<<<<<< HEAD
-  if (query.studentId) enrollment.studentId = query.studentId; // nuevo: filtrar por alumno
-  if (query.classSectionId) enrollment.classSectionId = query.classSectionId;
-  if (query.subjectId) enrollment.subjectId = query.subjectId;
-  if (query.year !== undefined) enrollment.academicYear = { year: query.year };
-=======
+  if (query.studentId) enrollment.studentId = query.studentId // filtrar notas por alumno
   if (query.classSectionId) enrollment.classSectionId = query.classSectionId
   if (query.subjectId) enrollment.subjectId = query.subjectId
   if (query.year !== undefined) enrollment.academicYear = { year: query.year }
->>>>>>> develop
 
   if (Object.keys(enrollment).length > 0) where.enrollment = enrollment
   if (query.subjectStatus) where.subjectStatus = query.subjectStatus
@@ -91,10 +85,5 @@ export async function deleteGrade(id: string) {
   const grade = await prisma.grade.findUnique({ where: { id }, select: { id: true } })
   if (!grade) throw new HttpError(404, 'Grade not found')
 
-<<<<<<< HEAD
-  await prisma.grade.delete({ where: { id } });
-}
-=======
   await prisma.grade.delete({ where: { id } })
 }
->>>>>>> develop

@@ -38,12 +38,6 @@ export const listGradesQuerySchema = z.object({
   subjectStatus: z.enum(SubjectStatus).optional(),
 })
 
-<<<<<<< HEAD
-export type CreateGradeInput = z.infer<typeof createGradeSchema>;
-export type UpdateGradeInput = z.infer<typeof updateGradeSchema>;
-export type ListGradesQuery = z.infer<typeof listGradesQuerySchema>;
-=======
 export type CreateGradeInput = z.infer<typeof createGradeSchema>
 export type UpdateGradeInput = z.infer<typeof updateGradeSchema>
 export type ListGradesQuery = z.infer<typeof listGradesQuerySchema>
->>>>>>> develop
