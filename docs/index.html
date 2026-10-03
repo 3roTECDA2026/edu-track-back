@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal de Arquitectura y Seguridad</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --primary: #2563eb;
+      --accent: #38bdf8;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+    header {
+      padding: 3rem 1.5rem 1.5rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { margin: 0; font-size: 2.2rem; color: var(--accent); }
+    header p { color: var(--text-muted); font-size: 1.1rem; margin-top: 0.5rem; }
+    .container {
+      max-width: 850px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    .category-title {
+      color: var(--accent);
+      font-size: 1.4rem;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.4rem;
+    }
+    .topic-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .topic-card h3 { margin: 0; font-size: 1.2rem; color: var(--text); }
+    .topic-card p { margin: 0.3rem 0 0; color: var(--text-muted); font-size: 0.95rem; }
+    .btn {
+      background: var(--primary);
+      color: white;
+      text-decoration: none;
+      padding: 0.7rem 1.2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛡️ Portal de Documentación y Arquitectura</h1>
+    <p>Índice organizado de temas de Express Node.js y Alternativas Framework/Librerías</p>
+  </header>
+  <div class="container">
+    <!-- Categoria 1: Express Node.js -->
+    <h2 class="category-title">🟢 Módulo Express Node.js (Ecosistema Principal)</h2>
+    
+    <div class="topic-card">
+      <div>
+        <h3>1. Middleware Pipeline & Error Handling en Express</h3>
+        <p>Cadena de responsabilidad (`req`, `res`, `next`), logger de peticiones y manejador global de errores (4 parámetros).</p>
+      </div>
+      <a href="manual/03_middlewares_express.html" class="btn">Ver Guía →</a>
+    </div>
+
+    <div class="topic-card">
+      <div>
+        <h3>2. Autenticación & Control de Roles JWT en Express</h3>
+        <p>Interceptores `verifyToken` y `requireRole` para protección declarativa de rutas en Express Router.</p>
+      </div>
+      <a href="manual/01_autenticacion_jwt.html" class="btn">Ver Guía →</a>
+    </div>
+
+    <!-- Categoria 2: Alternativas y Patrones de Sesión -->
+    <h2 class="category-title">🔵 Módulo Alternativas & Otros Métodos</h2>
+    
+    <div class="topic-card">
+      <div>
+        <h3>1. Autenticación por Sesiones Tradicionales (Stateful / Cookie-Based)</h3>
+        <p>Método alternativo con `express-session`, cookies HTTP-Only y persistencia de sesión en RAM / DB.</p>
+      </div>
+      <a href="manual/02_autenticacion_sesiones.html" class="btn">Ver Guía →</a>
+    </div>
+
+    <div class="topic-card">
+      <div>
+        <h3>2. Comparativa de Frameworks y Enfoques de Middleware (Fastify, NestJS, Express)</h3>
+        <p>Guía interactiva sobre alternativas de arquitectura: Fastify Hooks, NestJS Guards/Interceptors vs Express Middlewares.</p>
+      </div>
+      <a href="manual/04_alternativas_frameworks.html" class="btn">Ver Guía →</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,10 +1,11 @@
-import { Router } from "express";
-import { asyncHandler } from "../utils/asyncHandler.ts";
-import * as gradeController from "../controllers/grade.controller.ts";
+import { Router } from 'express'
 
-export const gradeRouter = Router();
+import * as gradeController from '@/controllers/grade.controller'
+import { asyncHandler } from '@/utils/asyncHandler'
 
-gradeRouter.get("/", asyncHandler(gradeController.listGrades));
-gradeRouter.post("/", asyncHandler(gradeController.createGrade));
-gradeRouter.put("/:id", asyncHandler(gradeController.updateGrade));
-gradeRouter.delete("/:id", asyncHandler(gradeController.deleteGrade));
+export const gradeRouter = Router()
+
+gradeRouter.get('/', asyncHandler(gradeController.listGrades))
+gradeRouter.post('/', asyncHandler(gradeController.createGrade))
+gradeRouter.put('/:id', asyncHandler(gradeController.updateGrade))
+gradeRouter.delete('/:id', asyncHandler(gradeController.deleteGrade))
