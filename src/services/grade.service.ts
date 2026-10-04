@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { CreateGradeInput, ListGradesQuery, UpdateGradeInput } from '@/schemas/grade.schema'
+import type { CreateGradeInput, GradeRosterQuery, ListGradesQuery, UpdateGradeInput } from '@/schemas/grade.schema'
 import { HttpError } from '@/utils/httpError'
 
 const gradeListInclude = {
@@ -52,7 +52,38 @@ export async function listGrades(query: ListGradesQuery) {
     totalPages: Math.ceil(total / query.limit),
   }
 }
+  const gradeRosterSelect = {
+  id: true,
+  student: { select: { id: true, dni: true, lastName: true, firstName: true } },
+  subject: { select: { id: true, name: true } },
+  grade: {
+    select: {
+      id: true,
+      term1Scores: true,
+      term2Scores: true,
+      term1Score: true,
+      term2Score: true,
+      finalScore: true,
+      subjectStatus: true,
+      term1Closed: true,
+      term2Closed: true,
+    },
+  },
+} satisfies Prisma.EnrollmentSelect
 
+// GET /grades/roster: alumnos de una materia/sección/año con su enrollmentId y su nota (si existe).
+// Es la grilla de calificaciones: una fila por alumno, tenga o no nota cargada.
+export async function getGradeRoster(query: GradeRosterQuery) {
+  return prisma.enrollment.findMany({
+    where: {
+      classSectionId: query.classSectionId,
+      subjectId: query.subjectId,
+      academicYear: { year: query.year },
+    },
+    select: gradeRosterSelect,
+    orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
+  })
+} 
 export async function upsertGrade(input: CreateGradeInput) {
   const { enrollmentId, ...scores } = input
 

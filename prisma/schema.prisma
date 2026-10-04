@@ -470,11 +470,13 @@ model Grade {
   preliminaryAssessment1 PreliminaryAssessment? // Valoración preliminar (TEA / TEP / TED)
   rationale1             String?                // Fundamentación pedagógica del informe preliminar
   term1Score             Int?                   // Nota final 1° Cuatrimestre (1 a 10)
+  term1Scores            Json?                  // 4 notas del 1° cuatri: [n1,n2,n3,n4] (null = sin cargar)
 
   // 2° Cuatrimestre:
   preliminaryAssessment2 PreliminaryAssessment? // Valoración preliminar (TEA / TEP / TED)
   rationale2             String?                // Fundamentación pedagógica del informe preliminar
   term2Score             Int?                   // Nota final 2° Cuatrimestre (1 a 10)
+  term2Scores            Json?                  // 4 notas del 2° cuatri: [n1,n2,n3,n4] (null = sin cargar)
   recoveryIn2ndTerm      Boolean?               // ¿Recuperó saberes del 1° cuatrimestre durante el 2°?
 
   // Calificación e informe final:

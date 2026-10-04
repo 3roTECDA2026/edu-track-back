@@ -7,6 +7,10 @@ const scoreSchema = z
   .min(1, 'La nota mínima es 1')
   .max(10, 'La nota máxima es 10')
 
+const termScoresSchema = z
+  .array(scoreSchema.nullable())
+  .length(4, 'Deben ser 4 notas (usá null para las vacías)')
+
 export const gradeIdParamSchema = z.object({
   id: z.uuid(),
 })
@@ -16,9 +20,11 @@ export const createGradeSchema = z.object({
   preliminaryAssessment1: z.enum(PreliminaryAssessment).optional(),
   rationale1: z.string().trim().optional(),
   term1Score: scoreSchema.optional(),
+  term1Scores: termScoresSchema.optional(),
   preliminaryAssessment2: z.enum(PreliminaryAssessment).optional(),
   rationale2: z.string().trim().optional(),
   term2Score: scoreSchema.optional(),
+  term2Scores: termScoresSchema.optional(),
   recoveryIn2ndTerm: z.boolean().optional(),
   finalScore: scoreSchema.optional(),
   subjectStatus: z.enum(SubjectStatus).optional(),
@@ -38,6 +44,13 @@ export const listGradesQuerySchema = z.object({
   subjectStatus: z.enum(SubjectStatus).optional(),
 })
 
+export const gradeRosterQuerySchema = z.object({
+  classSectionId: z.uuid(),
+  subjectId: z.uuid(),
+  year: z.coerce.number().int().min(2000).max(2100),
+})
+
 export type CreateGradeInput = z.infer<typeof createGradeSchema>
 export type UpdateGradeInput = z.infer<typeof updateGradeSchema>
 export type ListGradesQuery = z.infer<typeof listGradesQuerySchema>
+export type GradeRosterQuery = z.infer<typeof gradeRosterQuerySchema>
