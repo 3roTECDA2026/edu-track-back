@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { CreateGradeInput, GradeRosterQuery, ListGradesQuery, UpdateGradeInput } from '@/schemas/grade.schema'
+import type { CreateGradeInput, GradeByStudentQuery, GradeRosterQuery, ListGradesQuery, UpdateGradeInput } from '@/schemas/grade.schema'
 import { HttpError } from '@/utils/httpError'
 
 const gradeListInclude = {
@@ -84,6 +84,37 @@ export async function getGradeRoster(query: GradeRosterQuery) {
     orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
   })
 } 
+
+const gradeByStudentSelect = {
+  id: true,
+  subject: { select: { id: true, name: true } },
+  grade: {
+    select: {
+      id: true,
+      term1Scores: true,
+      term2Scores: true,
+      term1Score: true,
+      term2Score: true,
+      finalScore: true,
+      subjectStatus: true,
+      term1Closed: true,
+      term2Closed: true,
+    },
+  },
+} satisfies Prisma.EnrollmentSelect
+
+// GET /grades/by-student: todas las materias que cursa un alumno en un año,
+// cada una con su nota (si tiene). Alimenta la vista "Por alumno".
+export async function getGradesByStudent(query: GradeByStudentQuery) {
+  return prisma.enrollment.findMany({
+    where: {
+      studentId: query.studentId,
+      academicYear: { year: query.year },
+    },
+    select: gradeByStudentSelect,
+    orderBy: { subject: { name: 'asc' } },
+  })
+}
 export async function upsertGrade(input: CreateGradeInput) {
   const { enrollmentId, ...scores } = input
 
