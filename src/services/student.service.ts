@@ -1,7 +1,11 @@
 import { Prisma, StudentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { CreateStudentInput, ListStudentsQuery } from '@/schemas/student.schema'
+import type {
+  CreateStudentInput,
+  ListStudentsQuery,
+  UpdateStudentInput,
+} from '@/schemas/student.schema'
 import { HttpError } from '@/utils/httpError'
 
 // Statuses shown in operational listings when no status filter is sent.
@@ -302,4 +306,88 @@ export async function getStudentHistory(id: string) {
     endDate: record.endDate,
     leaveReason: record.leaveReason,
   }))
+}
+
+// Actualiza los datos personales y el adulto responsable principal de un estudiante.
+// El legajo, el estado y la inscripción no se modifican acá.
+export async function updateStudent(id: string, input: UpdateStudentInput) {
+  const student = await prisma.student.findUnique({ where: { id }, select: { id: true } })
+  if (!student) throw new HttpError(404, 'Student not found')
+
+  // El DNI es único: no puede repetirse con el de otro estudiante.
+  if (input.dni) {
+    const duplicated = await prisma.student.findFirst({
+      where: { dni: input.dni, NOT: { id } },
+      select: { id: true },
+    })
+    if (duplicated) throw new HttpError(409, 'Another student already has this DNI')
+  }
+
+  const {
+    guardianName,
+    guardianPhone,
+    guardianEmail,
+    guardianDni,
+    guardianRelationship,
+    ...studentData
+  } = input
+
+  const hasGuardianData = [
+    guardianName,
+    guardianPhone,
+    guardianEmail,
+    guardianDni,
+    guardianRelationship,
+  ].some((value) => value !== undefined)
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    if (Object.keys(studentData).length > 0) {
+      await tx.student.update({ where: { id }, data: studentData })
+    }
+
+    if (!hasGuardianData) return
+
+    const guardianData = {
+      ...(guardianName !== undefined ? splitGuardianName(guardianName) : {}),
+      ...(guardianPhone !== undefined ? { phone: guardianPhone } : {}),
+      ...(guardianEmail !== undefined ? { email: guardianEmail } : {}),
+      ...(guardianDni !== undefined ? { dni: guardianDni } : {}),
+      ...(guardianRelationship !== undefined ? { relationship: guardianRelationship } : {}),
+    }
+
+    const primaryLink = await tx.studentGuardian.findFirst({
+      where: { studentId: id, isPrimary: true },
+      select: { guardianId: true },
+    })
+
+    if (primaryLink) {
+      await tx.guardian.update({ where: { id: primaryLink.guardianId }, data: guardianData })
+      return
+    }
+
+    // El alumno no tiene adulto responsable: se crea con los datos enviados.
+    if (!guardianName || !guardianPhone || !guardianEmail) {
+      throw new HttpError(
+        400,
+        'Para registrar un adulto responsable hacen falta nombre, teléfono y email'
+      )
+    }
+
+    const guardian = await tx.guardian.create({
+      data: {
+        ...splitGuardianName(guardianName),
+        phone: guardianPhone,
+        email: guardianEmail,
+        dni: guardianDni ?? null,
+        relationship: guardianRelationship ?? null,
+      },
+    })
+
+    await tx.studentGuardian.create({
+      data: { studentId: id, guardianId: guardian.id, isPrimary: true },
+    })
+  })
+
+  // Devuelve el mismo formato que GET /students/:id.
+  return buildStudentResponse(prisma, id)
 }

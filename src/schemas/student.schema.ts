@@ -47,5 +47,29 @@ export const createStudentSchema = z.object({
   guardianRelationship: z.string().trim().min(1).max(50).optional(),
 })
 
+// Datos editables, con las mismas reglas que el alta: datos personales, domicilio
+// y adulto responsable. El legajo, el estado y la inscripción no se modifican por acá.
+export const updateStudentSchema = createStudentSchema
+  .pick({
+    firstName: true,
+    lastName: true,
+    dni: true,
+    dateOfBirth: true,
+    placeOfBirth: true,
+    address: true,
+    city: true,
+    phone: true,
+    guardianName: true,
+    guardianPhone: true,
+    guardianEmail: true,
+    guardianDni: true,
+    guardianRelationship: true,
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'Hay que enviar al menos un campo para actualizar',
+  })
+
 export type CreateStudentInput = z.infer<typeof createStudentSchema>
+export type UpdateStudentInput = z.infer<typeof updateStudentSchema>
 export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>
