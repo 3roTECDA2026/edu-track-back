@@ -1,0 +1,17 @@
+-- CRM-015: Asignación de materias a docentes (N:M)
+--
+-- Migración intencionalmente vacía.
+--
+-- El ticket agregar la capa HTTP (CRUD) sobre el modelo TeacherSubjectCourse, que
+-- ya estaba definido en el schema desde la migración inicial
+-- (20260915004228_init_english_schema) junto con su índice único
+-- (teacherId, subjectId, classSectionId).
+--
+-- Como no hubo cambios en el modelo de datos, no hay sentencias SQL que aplicar.
+-- Este archivo queda solo como registro de trazabilidad del ticket:
+-- la funcionalidad está en src/{schemas,services,controllers,routes}/teacherAssignment.*
+--
+-- Verificado con:
+--   prisma migrate diff --from-migrations prisma/migrations \
+--                        --to-schema-datamodel prisma/schema.prisma
+--   => No difference detected.

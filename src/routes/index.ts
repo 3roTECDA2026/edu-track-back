@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { teacherAssignmentRouter } from "@/teacherAssignment.routes";
 import attendanceRouter from '@/routes/attendance.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
@@ -14,6 +15,7 @@ router.use('/students', studentRouter)
 router.use('/enrollments', enrollmentRouter)
 router.use('/grades', gradeRouter)
 router.use('/class-sections', classSectionRouter)
+router.use("/teacher-assignments", teacherAssignmentRouter);
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
 router.use('/', courseRoutes)
