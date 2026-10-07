@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 
 import {
   createGradeSchema,
+  gradeByStudentQuerySchema,
   gradeIdParamSchema,
   gradeRosterQuerySchema,
   listGradesQuerySchema,
@@ -17,6 +18,11 @@ export async function listGrades(req: Request, res: Response) {
 export async function getGradeRoster(req: Request, res: Response) {
   const query = gradeRosterQuerySchema.parse(req.query)
   res.json(await gradeService.getGradeRoster(query))
+}
+
+export async function getGradesByStudent(req: Request, res: Response) {
+  const query = gradeByStudentQuerySchema.parse(req.query)
+  res.json(await gradeService.getGradesByStudent(query))
 }
 
 export async function createGrade(req: Request, res: Response) {
