@@ -15,35 +15,51 @@ export interface AcademicCycle {
 function toAcademicCycle(record: {
   id: string
   year: number
-  isActive: boolean
-  startDate: Date | null
-  endDate: Date | null
+  active: boolean
+  term1StartDate: Date | null
+  term2EndDate: Date | null
   createdAt: Date
 }): AcademicCycle {
   return {
     id: record.id,
     year: record.year,
-    isActive: record.isActive,
-    startDate: record.startDate,
-    endDate: record.endDate,
+    isActive: record.active,
+    startDate: record.term1StartDate,
+    endDate: record.term2EndDate,
     createdAt: record.createdAt,
   }
 }
 
 export async function listCycles(): Promise<AcademicCycle[]> {
-  const cycles = await prisma.academicCycle.findMany({
+  const cycles = await prisma.academicYear.findMany({
     orderBy: { year: 'desc' },
-    select: { id: true, year: true, isActive: true, startDate: true, endDate: true, createdAt: true },
+    select: {
+      id: true,
+      year: true,
+      active: true,
+      term1StartDate: true,
+      term2EndDate: true,
+      createdAt: true,
+    },
   })
+
   return cycles.map(toAcademicCycle)
 }
 
 export async function getActiveCycle(): Promise<AcademicCycle | null> {
-  const cycle = await prisma.academicCycle.findFirst({
-    where: { isActive: true },
+  const cycle = await prisma.academicYear.findFirst({
+    where: { active: true },
     orderBy: { year: 'desc' },
-    select: { id: true, year: true, isActive: true, startDate: true, endDate: true, createdAt: true },
+    select: {
+      id: true,
+      year: true,
+      active: true,
+      term1StartDate: true,
+      term2EndDate: true,
+      createdAt: true,
+    },
   })
+
   return cycle ? toAcademicCycle(cycle) : null
 }
 
@@ -54,44 +70,80 @@ export async function createCycle(input: {
   endDate?: Date
 }): Promise<AcademicCycle> {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
-    throw new HttpError(400, 'La fecha de cierre no puede ser anterior al inicio.')
+    throw new HttpError(
+      400,
+      'La fecha de cierre no puede ser anterior al inicio.',
+    )
   }
 
-  const created = await prisma.academicCycle.create({
+  const created = await prisma.academicYear.create({
     data: {
       year: input.year,
-      isActive: false,
-      startDate: input.startDate,
-      endDate: input.endDate,
+      active: false,
+      term1StartDate: input.startDate ?? null,
+      term2EndDate: input.endDate ?? null,
     },
-    select: { id: true, year: true, isActive: true, startDate: true, endDate: true, createdAt: true },
+    select: {
+      id: true,
+      year: true,
+      active: true,
+      term1StartDate: true,
+      term2EndDate: true,
+      createdAt: true,
+    },
   })
 
-  if (!input.isActive) return toAcademicCycle(created)
+  if (!input.isActive) {
+    return toAcademicCycle(created)
+  }
+
   return activateCycle(created.id)
 }
 
 export async function activateCycle(id: string): Promise<AcademicCycle> {
   return prisma.$transaction(
     async (transaction) => {
-      const target = await transaction.academicCycle.findUnique({
+      const target = await transaction.academicYear.findUnique({
         where: { id },
         select: { id: true },
       })
-      if (!target) throw new HttpError(404, 'No existe el ciclo lectivo solicitado.')
 
-      await transaction.academicCycle.updateMany({
-        where: { isActive: true, id: { not: id } },
-        data: { isActive: false },
+      if (!target) {
+        throw new HttpError(
+          404,
+          'No existe el ciclo lectivo solicitado.',
+        )
+      }
+
+      await transaction.academicYear.updateMany({
+        where: {
+          active: true,
+          id: { not: id },
+        },
+        data: {
+          active: false,
+        },
       })
 
-      const activated = await transaction.academicCycle.update({
+      const activated = await transaction.academicYear.update({
         where: { id },
-        data: { isActive: true },
-        select: { id: true, year: true, isActive: true, startDate: true, endDate: true, createdAt: true },
+        data: {
+          active: true,
+        },
+        select: {
+          id: true,
+          year: true,
+          active: true,
+          term1StartDate: true,
+          term2EndDate: true,
+          createdAt: true,
+        },
       })
+
       return toAcademicCycle(activated)
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    },
   )
 }

@@ -1,36 +1,47 @@
-import { prisma } from '@/lib/prisma'
 import type { Prisma, PrismaClient } from '@prisma/client'
 
-export function getAcademicYearFilter(year?: number) {
-  return year !== undefined ? { year } : { isActive: true }
+import { prisma } from '@/lib/prisma'
+
+type PrismaDbClient = PrismaClient | Prisma.TransactionClient
+
+function toDate(value: Date | string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  return value instanceof Date ? value : new Date(value)
 }
 
-export async function listAcademicYearsService(client: PrismaClient = prisma) {
-  const years = await client.academicCycle.findMany({
+export function getAcademicYearFilter(year?: number) {
+  return year !== undefined
+    ? { year }
+    : { active: true }
+}
+
+export async function listAcademicYearsService(
+  client: PrismaClient = prisma,
+) {
+  return client.academicYear.findMany({
     orderBy: { year: 'desc' },
     select: {
       id: true,
       year: true,
-      isActive: true,
+      active: true,
       term1StartDate: true,
       term1EndDate: true,
       term2StartDate: true,
       term2EndDate: true,
-      startDate: true,
-      endDate: true,
       createdAt: true,
       updatedAt: true,
     },
   })
-  return years.map(({ isActive, ...year }) => ({ ...year, active: isActive }))
 }
 
-export async function getCurrentAcademicYearService(client: PrismaClient = prisma) {
-  const year = await client.academicCycle.findFirst({
-    where: { isActive: true },
+export async function getCurrentAcademicYearService(
+  client: PrismaClient = prisma,
+) {
+  return client.academicYear.findFirst({
+    where: { active: true },
     orderBy: { year: 'desc' },
   })
-  return year ? { ...year, active: year.isActive } : null
 }
 
 export async function createAcademicYearService(
@@ -44,41 +55,58 @@ export async function createAcademicYearService(
     startDate?: Date | string | null
     endDate?: Date | string | null
   },
-  client: PrismaClient | Prisma.TransactionClient = prisma
+  client: PrismaDbClient = prisma,
 ) {
-  const { active, ...fields } = data
-  const created = await client.academicCycle.create({
+  const shouldActivate = data.active ?? false
+
+  if (shouldActivate) {
+    await client.academicYear.updateMany({
+      where: { active: true },
+      data: { active: false },
+    })
+  }
+
+  return client.academicYear.create({
     data: {
-      ...fields,
-      isActive: active ?? false,
-      term1StartDate: fields.term1StartDate ?? null,
-      term1EndDate: fields.term1EndDate ?? null,
-      term2StartDate: fields.term2StartDate ?? null,
-      term2EndDate: fields.term2EndDate ?? null,
-      startDate: fields.startDate ?? null,
-      endDate: fields.endDate ?? null,
+      year: data.year,
+      active: shouldActivate,
+
+      // Compatibilidad con los nombres nuevos startDate/endDate.
+      term1StartDate: toDate(
+        data.term1StartDate ?? data.startDate,
+      ) ?? null,
+
+      term1EndDate: toDate(data.term1EndDate) ?? null,
+
+      term2StartDate: toDate(data.term2StartDate) ?? null,
+
+      term2EndDate: toDate(
+        data.term2EndDate ?? data.endDate,
+      ) ?? null,
     },
   })
-  return { ...created, active: created.isActive }
 }
 
 export async function setAcademicYearActiveService(
   id: string,
-  client: PrismaClient | Prisma.TransactionClient = prisma
+  client: PrismaDbClient = prisma,
 ) {
-  await client.academicCycle.updateMany({
+  await client.academicYear.updateMany({
     where: {
-      isActive: true,
+      active: true,
       id: { not: id },
     },
-    data: { isActive: false },
+    data: {
+      active: false,
+    },
   })
 
-  const updated = await client.academicCycle.update({
+  return client.academicYear.update({
     where: { id },
-    data: { isActive: true },
+    data: {
+      active: true,
+    },
   })
-  return { ...updated, active: updated.isActive }
 }
 
 export async function updateAcademicYearService(
@@ -93,12 +121,52 @@ export async function updateAcademicYearService(
     startDate: Date | string | null
     endDate: Date | string | null
   }>,
-  client: PrismaClient = prisma
+  client: PrismaClient = prisma,
 ) {
-  const { active, ...fields } = data
-  const updated = await client.academicCycle.update({
+  const updateData: Prisma.AcademicYearUpdateInput = {}
+
+  if (data.year !== undefined) {
+    updateData.year = data.year
+  }
+
+  if (data.active !== undefined) {
+    updateData.active = data.active
+  }
+
+  if (data.term1StartDate !== undefined || data.startDate !== undefined) {
+    updateData.term1StartDate = toDate(
+      data.term1StartDate ?? data.startDate,
+    )
+  }
+
+  if (data.term1EndDate !== undefined) {
+    updateData.term1EndDate = toDate(data.term1EndDate)
+  }
+
+  if (data.term2StartDate !== undefined) {
+    updateData.term2StartDate = toDate(data.term2StartDate)
+  }
+
+  if (data.term2EndDate !== undefined || data.endDate !== undefined) {
+    updateData.term2EndDate = toDate(
+      data.term2EndDate ?? data.endDate,
+    )
+  }
+
+  if (data.active === true) {
+    await client.academicYear.updateMany({
+      where: {
+        active: true,
+        id: { not: id },
+      },
+      data: {
+        active: false,
+      },
+    })
+  }
+
+  return client.academicYear.update({
     where: { id },
-    data: { ...fields, ...(active !== undefined ? { isActive: active } : {}) },
+    data: updateData,
   })
-  return { ...updated, active: updated.isActive }
 }
