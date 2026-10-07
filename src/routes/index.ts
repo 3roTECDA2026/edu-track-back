@@ -1,6 +1,6 @@
 import { Router } from 'express'
 
-import { teacherAssignmentRouter } from "@/teacherAssignment.routes";
+import { teacherAssignmentRouter } from "@/routes/teacherAssignment.routes";
 import attendanceRouter from '@/routes/attendance.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
