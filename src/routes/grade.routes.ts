@@ -7,6 +7,7 @@ export const gradeRouter = Router()
 
 gradeRouter.get('/', asyncHandler(gradeController.listGrades))
 gradeRouter.get('/roster', asyncHandler(gradeController.getGradeRoster))
+gradeRouter.get('/by-student', asyncHandler(gradeController.getGradesByStudent))
 gradeRouter.post('/', asyncHandler(gradeController.createGrade))
 gradeRouter.put('/:id', asyncHandler(gradeController.updateGrade))
 gradeRouter.delete('/:id', asyncHandler(gradeController.deleteGrade))
