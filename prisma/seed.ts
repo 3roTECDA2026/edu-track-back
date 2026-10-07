@@ -16,7 +16,7 @@ const prisma = new PrismaClient()
 
 type Scores = (number | null)[]
 
-// UUIDs fijos para la base de pruebas de EduTrack
+// UUIDs fijos para la base de pruebas de Notar
 const ids = {
   academicYear: '00000000-0000-0000-0000-000000000001',
   teacher: '00000000-0000-0000-0000-000000000010',
@@ -38,7 +38,7 @@ const ids = {
 } as const
 
 export async function main() {
-  console.log('🌱 Ejecutando seed unificado de EduTrack...')
+  console.log('🌱 Ejecutando seed unificado de Notar...')
 
   // ============================================================
   // 1. Ciclo Lectivo 2026
@@ -75,7 +75,7 @@ export async function main() {
       id: ids.teacher,
       firstName: 'Usuario',
       lastName: 'Prueba',
-      email: 'docente.prueba@edutrack.local',
+      email: 'docente.prueba@notar.local',
       passwordHash: 'hash-de-prueba',
       role: Role.TEACHER,
       status: UserStatus.ACTIVE,

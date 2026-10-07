@@ -1,10 +1,10 @@
 # Guía de Seguridad para Desarrolladores Backend (edu-track-back)
 
-Este documento describe el estado actual de la seguridad en el proyecto backend de Edu-Track.
+Este documento describe el estado actual de la seguridad en el proyecto backend de Notar.
 
 ## 1. Postura de Seguridad Actual: Implementación de Prototipo
 
-La API de Edu-Track opera actualmente con una implementación de seguridad a nivel de prototipo. No hay autenticación ni autorización aplicadas.
+La API de Notar opera actualmente con una implementación de seguridad a nivel de prototipo. No hay autenticación ni autorización aplicadas.
 
 *   **Estado de Autenticación:** todas las rutas bajo `/api/*` (`/students`, `/enrollments`, `/grades`, `/class-sections`, `/attendance`, cursos) son accesibles sin sesión ni token. Existe `src/schemas/auth.schema.ts` (`loginSchema`) pero no hay endpoint de login montado en `src/routes/index.ts` ni middleware de verificación.
 *   **CORS:** abierto (`app.use(cors())` en `src/server.ts`), sin restricción de orígenes.
