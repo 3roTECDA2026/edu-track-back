@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../utils/asyncHandler.ts";
-import * as teacherAssignmentController from "../controllers/teacherAssignment.controller.ts";
+import { asyncHandler } from "../utils/asyncHandler";
+import * as teacherAssignmentController from "../controllers/teacherAssignment.controller";
 
 export const teacherAssignmentRouter = Router();
 

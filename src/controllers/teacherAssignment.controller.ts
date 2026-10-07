@@ -1,11 +1,11 @@
 import type { Request, Response } from "express";
-import * as teacherAssignmentService from "../services/teacherAssignment.service.ts";
+import * as teacherAssignmentService from "../services/teacherAssignment.service";
 import {
   createTeacherAssignmentSchema,
   listTeacherAssignmentsQuerySchema,
   teacherAssignmentIdParamSchema,
   updateTeacherAssignmentSchema,
-} from "../schemas/teacherAssignment.schema.ts";
+} from "../schemas/teacherAssignment.schema";
 
 export async function listTeacherAssignments(req: Request, res: Response) {
   const query = listTeacherAssignmentsQuerySchema.parse(req.query);

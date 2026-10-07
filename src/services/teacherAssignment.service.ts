@@ -1,6 +1,6 @@
 import { Prisma, Role } from "@prisma/client";
-import { prisma } from "../lib/prisma.ts";
-import { HttpError } from "../utils/httpError.ts";
+import { prisma } from "../lib/prisma";
+import { HttpError } from "../utils/httpError";
 import type {
   CreateTeacherAssignmentInput,
   ListTeacherAssignmentsQuery,

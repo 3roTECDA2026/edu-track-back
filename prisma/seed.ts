@@ -94,7 +94,7 @@ export async function main() {
     update: {},
 
     create: {
-      id: '00000000-0000-0000-0000-000000000200',
+      id: '7487031d-db90-4732-a844-3ed3b324aba4',
       name: 'Matemática',
       code: 'MAT-TEST',
       hoursPerWeek: 5,
