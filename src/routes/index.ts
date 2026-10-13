@@ -8,9 +8,10 @@ import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
 import notificationRoutes from '@/routes/notification.routes'
 import { studentRouter } from '@/routes/student.routes'
+import userRoutes from '@/routes/user.routes'
 
 const router = Router()
-
+router.use('/users', userRoutes)
 router.use('/students', studentRouter)
 router.use('/enrollments', enrollmentRouter)
 router.use('/grades', gradeRouter)

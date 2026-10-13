@@ -1,35 +1,63 @@
+
 import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 
 import { errorHandler } from '@/middlewares/errorHandler'
+import authRoutes from '@/routes/auth.routes'
 import routes from '@/routes/index'
 
+// Cargar variables de entorno
 dotenv.config()
 
+// Inicializar Express
 const app = express()
 const PORT = process.env.PORT || 3000
 
-// Middlewares globales
+// ========================================
+// MIDDLEWARES GLOBALES
+// ========================================
+
 app.use(cors())
 app.use(express.json())
 
-// Ruta de prueba del servidor
-app.get('/health', (req, res) => {
-  res.json({
+// ========================================
+// RUTA DE SALUD DEL SERVIDOR
+// ========================================
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({
     status: 'ok',
     message: 'Servidor levantado correctamente',
   })
 })
 
-// Rutas de la API
+// ========================================
+// RUTAS DE AUTENTICACIÓN
+// ========================================
+
+app.use('/api/auth', authRoutes)
+
+// ========================================
+// RUTAS PRINCIPALES DE LA API
+// ========================================
+
 app.use('/api', routes)
 
-// Manejo de errores: siempre después de las rutas
+// ========================================
+// MANEJO GLOBAL DE ERRORES
+// ========================================
+
 app.use(errorHandler)
+
+// ========================================
+// INICIAR SERVIDOR
+// ========================================
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`)
+  console.log(` Login: http://localhost:${PORT}/api/auth/login`)
+  console.log(` Health: http://localhost:${PORT}/health`)
 })
 
 export default app

@@ -1,4 +1,7 @@
+
+import 'dotenv/config'
 import process from 'node:process'
+import bcrypt from 'bcrypt'
 
 import {
   AlertSeverity,
@@ -16,17 +19,14 @@ const prisma = new PrismaClient()
 
 type Scores = (number | null)[]
 
-// UUIDs fijos para la base de pruebas de Notar
 const ids = {
   academicYear: '00000000-0000-0000-0000-000000000001',
   teacher: '00000000-0000-0000-0000-000000000010',
-
   sections: [
-    '00000000-0000-0000-0000-000000000020', // 3° A Mañana
-    '00000000-0000-0000-0000-000000000021', // 2° B Tarde
-    '00000000-0000-0000-0000-000000000022', // 4° A Mañana
+    '00000000-0000-0000-0000-000000000020',
+    '00000000-0000-0000-0000-000000000021',
+    '00000000-0000-0000-0000-000000000022',
   ],
-
   students: [
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000102',
@@ -38,21 +38,33 @@ const ids = {
 } as const
 
 export async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('No ejecutar el seed en producción')
+  }
+
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD
+  const teacherPassword = process.env.SEED_TEACHER_PASSWORD
+
+  if (
+    !adminPassword ||
+    adminPassword.length < 8 ||
+    !teacherPassword ||
+    teacherPassword.length < 8
+  ) {
+    throw new Error(
+      'Configurá SEED_ADMIN_PASSWORD y SEED_TEACHER_PASSWORD en .env (mínimo 8 caracteres)',
+    )
+  }
+
   console.log('🌱 Ejecutando seed unificado de Notar...')
 
   // ============================================================
-  // 1. Ciclo Lectivo 2026
+  // 1. CICLO LECTIVO 2026
   // ============================================================
 
   const academicYear = await prisma.academicYear.upsert({
-    where: {
-      id: ids.academicYear,
-    },
-
-    update: {
-      active: true,
-    },
-
+    where: { id: ids.academicYear },
+    update: { active: true },
     create: {
       id: ids.academicYear,
       year: 2026,
@@ -61,38 +73,74 @@ export async function main() {
   })
 
   // ============================================================
-  // 2. Docente de prueba
+  // 2. USUARIOS DE PRUEBA
   // ============================================================
 
-  const teacher = await prisma.user.upsert({
-    where: {
-      id: ids.teacher,
-    },
+  const adminEmail = 'admin@notar.local'
+  const teacherEmail = 'docente.prueba@notar.local'
 
-    update: {},
-
-    create: {
-      id: ids.teacher,
-      firstName: 'Usuario',
-      lastName: 'Prueba',
-      email: 'docente.prueba@notar.local',
-      passwordHash: 'hash-de-prueba',
-      role: Role.TEACHER,
-      status: UserStatus.ACTIVE,
-    },
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
   })
 
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
+        firstName: 'Administrador',
+        lastName: 'Notar',
+        email: adminEmail,
+        passwordHash: await bcrypt.hash(adminPassword, 12),
+        role: Role.ADMINISTRATOR,
+        status: UserStatus.ACTIVE,
+      },
+    })
+
+    console.log('✅ Administrador creado')
+  } else {
+    console.log('ℹ️ Administrador existente, sin modificaciones')
+  }
+
+  const existingTeacher = await prisma.user.findUnique({
+    where: { id: ids.teacher },
+  })
+
+  let teacher: { id: string }
+
+  if (!existingTeacher) {
+    teacher = await prisma.user.create({
+      data: {
+        id: ids.teacher,
+        firstName: 'Usuario',
+        lastName: 'Prueba',
+        email: teacherEmail,
+        passwordHash: await bcrypt.hash(teacherPassword, 12),
+        role: Role.TEACHER,
+        status: UserStatus.ACTIVE,
+      },
+    })
+
+    console.log('✅ Docente creado')
+  } else if (existingTeacher.passwordHash === 'hash-de-prueba') {
+    teacher = await prisma.user.update({
+      where: { id: ids.teacher },
+      data: {
+        passwordHash: await bcrypt.hash(teacherPassword, 12),
+      },
+    })
+
+    console.log('✅ Contraseña ficticia del docente corregida')
+  } else {
+    teacher = existingTeacher
+    console.log('ℹ️ Docente existente, contraseña conservada')
+  }
+
   // ============================================================
-  // 3. Materias
+  // 3. MATERIAS
   // ============================================================
 
   const matematica = await prisma.subject.upsert({
-    where: {
-      code: 'MAT-TEST',
-    },
-
+    where: { code: 'MAT-TEST' },
     update: {},
-
     create: {
       id: '7487031d-db90-4732-a844-3ed3b324aba4',
       name: 'Matemática',
@@ -104,12 +152,8 @@ export async function main() {
   })
 
   const lengua = await prisma.subject.upsert({
-    where: {
-      code: 'LEN-TEST',
-    },
-
+    where: { code: 'LEN-TEST' },
     update: {},
-
     create: {
       id: '00000000-0000-0000-0000-000000000201',
       name: 'Lengua',
@@ -121,7 +165,7 @@ export async function main() {
   })
 
   // ============================================================
-  // 4. Secciones
+  // 4. CURSOS Y DIVISIONES
   // ============================================================
 
   const sections = [
@@ -147,33 +191,26 @@ export async function main() {
 
   for (const section of sections) {
     await prisma.classSection.upsert({
-      where: {
-        id: section.id,
-      },
-
+      where: { id: section.id },
       update: {
         grade: section.grade,
         division: section.division,
         shift: section.shift,
       },
-
       create: {
         id: section.id,
         grade: section.grade,
         division: section.division,
         shift: section.shift,
-
         academicYear: {
-          connect: {
-            id: academicYear.id,
-          },
+          connect: { id: academicYear.id },
         },
       },
     })
   }
 
   // ============================================================
-  // Sección específica 1° A Mañana
+  // 5. CURSO 1° A MAÑANA
   // ============================================================
 
   let section1A = await prisma.classSection.findFirst({
@@ -197,18 +234,10 @@ export async function main() {
     })
   }
 
-  /*
-   * IMPORTANTE:
-   * Guardamos el ID después de garantizar que section1A existe.
-   * Esto evita el error:
-   *
-   * 'section1A' is possibly 'null'
-   */
-
   const section1AId: string = section1A.id
 
   // ============================================================
-  // 5. Alumnos Generales
+  // 6. ALUMNOS GENERALES
   // ============================================================
 
   const generalStudents = [
@@ -220,7 +249,6 @@ export async function main() {
       recordNumber: 'LEGAJO-001',
       sectionId: ids.sections[0],
     },
-
     {
       id: ids.students[1],
       dni: '46222333',
@@ -229,7 +257,6 @@ export async function main() {
       recordNumber: 'LEGAJO-002',
       sectionId: ids.sections[0],
     },
-
     {
       id: ids.students[2],
       dni: '47333444',
@@ -238,7 +265,6 @@ export async function main() {
       recordNumber: 'LEGAJO-003',
       sectionId: ids.sections[0],
     },
-
     {
       id: ids.students[3],
       dni: '48444555',
@@ -247,7 +273,6 @@ export async function main() {
       recordNumber: 'LEGAJO-004',
       sectionId: ids.sections[1],
     },
-
     {
       id: ids.students[4],
       dni: '49555666',
@@ -256,7 +281,6 @@ export async function main() {
       recordNumber: 'LEGAJO-005',
       sectionId: ids.sections[1],
     },
-
     {
       id: ids.students[5],
       dni: '50666777',
@@ -269,17 +293,13 @@ export async function main() {
 
   for (const student of generalStudents) {
     await prisma.student.upsert({
-      where: {
-        id: student.id,
-      },
-
+      where: { id: student.id },
       update: {
         dni: student.dni,
         lastName: student.lastName,
         firstName: student.firstName,
         recordNumber: student.recordNumber,
       },
-
       create: {
         id: student.id,
         dni: student.dni,
@@ -296,87 +316,40 @@ export async function main() {
       `00000000-0000-0000-0000-0000000${student.id.slice(-5)}`
 
     await prisma.enrollmentHistory.upsert({
-      where: {
-        id: historyId,
-      },
-
+      where: { id: historyId },
       update: {
         classSection: {
-          connect: {
-            id: student.sectionId,
-          },
+          connect: { id: student.sectionId },
         },
-
         student: {
-          connect: {
-            id: student.id,
-          },
+          connect: { id: student.id },
         },
       },
-
       create: {
         id: historyId,
-
         student: {
-          connect: {
-            id: student.id,
-          },
+          connect: { id: student.id },
         },
-
         classSection: {
-          connect: {
-            id: student.sectionId,
-          },
+          connect: { id: student.sectionId },
         },
       },
     })
   }
 
   // ============================================================
-  // 6. Alumnos para Grilla de Calificaciones (1° A)
+  // 7. ALUMNOS PARA GRILLA DE CALIFICACIONES
   // ============================================================
 
   const gradeStudentsSeed = [
-    {
-      dni: '50000001',
-      lastName: 'Acosta',
-      firstName: 'María',
-    },
-    {
-      dni: '50000002',
-      lastName: 'Benítez',
-      firstName: 'Juan',
-    },
-    {
-      dni: '50000003',
-      lastName: 'Castro',
-      firstName: 'Lucía',
-    },
-    {
-      dni: '50000004',
-      lastName: 'Díaz',
-      firstName: 'Mateo',
-    },
-    {
-      dni: '50000005',
-      lastName: 'Fernández',
-      firstName: 'Sofía',
-    },
-    {
-      dni: '50000006',
-      lastName: 'Gómez',
-      firstName: 'Tomás',
-    },
-    {
-      dni: '50000007',
-      lastName: 'Herrera',
-      firstName: 'Valentina',
-    },
-    {
-      dni: '50000008',
-      lastName: 'Ibáñez',
-      firstName: 'Lautaro',
-    },
+    { dni: '50000001', lastName: 'Acosta', firstName: 'María' },
+    { dni: '50000002', lastName: 'Benítez', firstName: 'Juan' },
+    { dni: '50000003', lastName: 'Castro', firstName: 'Lucía' },
+    { dni: '50000004', lastName: 'Díaz', firstName: 'Mateo' },
+    { dni: '50000005', lastName: 'Fernández', firstName: 'Sofía' },
+    { dni: '50000006', lastName: 'Gómez', firstName: 'Tomás' },
+    { dni: '50000007', lastName: 'Herrera', firstName: 'Valentina' },
+    { dni: '50000008', lastName: 'Ibáñez', firstName: 'Lautaro' },
   ]
 
   const gradeStudentsByDni: Record<string, string> = {}
@@ -385,12 +358,8 @@ export async function main() {
 
   for (const s of gradeStudentsSeed) {
     const student = await prisma.student.upsert({
-      where: {
-        dni: s.dni,
-      },
-
+      where: { dni: s.dni },
       update: {},
-
       create: {
         dni: s.dni,
         lastName: s.lastName,
@@ -403,12 +372,11 @@ export async function main() {
     })
 
     gradeStudentsByDni[s.dni] = student.id
-
     idx += 1
   }
 
   // ============================================================
-  // Helpers para inscripciones y notas
+  // 8. HELPERS PARA INSCRIPCIONES Y NOTAS
   // ============================================================
 
   async function ensureEnrollment(
@@ -457,12 +425,8 @@ export async function main() {
     }
 
     await prisma.grade.upsert({
-      where: {
-        enrollmentId,
-      },
-
+      where: { enrollmentId },
       update: data,
-
       create: {
         enrollmentId,
         ...data,
@@ -471,7 +435,7 @@ export async function main() {
   }
 
   // ============================================================
-  // Calificaciones: Matemática
+  // 9. CALIFICACIONES DE MATEMÁTICA
   // ============================================================
 
   const matGrades: Array<{
@@ -484,40 +448,33 @@ export async function main() {
       t1: [8, 7, null, 9],
       t2: [10, null, 6, 7],
     },
-
     {
       dni: '50000002',
       t1: [6, 6, 7, 5],
       t2: [7, 6, 6, 8],
     },
-
     {
       dni: '50000003',
       t1: [9, 10, 9, 8],
       t2: [10, 9, 10, 9],
     },
-
     {
       dni: '50000004',
       t1: [3, 4, 2, 5],
       t2: [4, 5, null, 4],
     },
-
     {
       dni: '50000005',
       t1: [7, 8, null, null],
     },
-
     {
       dni: '50000006',
     },
-
     {
       dni: '50000007',
       t1: [5, 6, 6, 7],
       t2: [6, 7, 7, 6],
     },
-
     {
       dni: '50000008',
     },
@@ -529,9 +486,7 @@ export async function main() {
     const studentId = gradeStudentsByDni[r.dni]
 
     if (!studentId) {
-      throw new Error(
-        `No se encontró el estudiante con DNI ${r.dni}`,
-      )
+      throw new Error(`No se encontró el estudiante con DNI ${r.dni}`)
     }
 
     const enrollmentId = await ensureEnrollment(
@@ -544,16 +499,12 @@ export async function main() {
     }
 
     if (r.t1 || r.t2) {
-      await setGrade(
-        enrollmentId,
-        r.t1,
-        r.t2,
-      )
+      await setGrade(enrollmentId, r.t1, r.t2)
     }
   }
 
   // ============================================================
-  // Calificaciones: Lengua
+  // 10. CALIFICACIONES DE LENGUA
   // ============================================================
 
   const lenGrades: Array<{
@@ -566,24 +517,20 @@ export async function main() {
       t1: [9, 8, 8, 7],
       t2: [8, 9, 8, 9],
     },
-
     {
       dni: '50000002',
       t1: [6, 5, 6, 6],
       t2: [7, 6, 5, 6],
     },
-
     {
       dni: '50000003',
       t1: [10, 9, 9, 10],
       t2: [9, 10, 10, 9],
     },
-
     {
       dni: '50000004',
       t1: [4, 3, 5, 4],
     },
-
     {
       dni: '50000005',
     },
@@ -593,9 +540,7 @@ export async function main() {
     const studentId = gradeStudentsByDni[r.dni]
 
     if (!studentId) {
-      throw new Error(
-        `No se encontró el estudiante con DNI ${r.dni}`,
-      )
+      throw new Error(`No se encontró el estudiante con DNI ${r.dni}`)
     }
 
     const enrollmentId = await ensureEnrollment(
@@ -604,16 +549,12 @@ export async function main() {
     )
 
     if (r.t1 || r.t2) {
-      await setGrade(
-        enrollmentId,
-        r.t1,
-        r.t2,
-      )
+      await setGrade(enrollmentId, r.t1, r.t2)
     }
   }
 
   // ============================================================
-  // 7. Asistencias Diarias de Prueba
+  // 11. ASISTENCIAS DIARIAS
   // ============================================================
 
   const attendances = [
@@ -626,7 +567,6 @@ export async function main() {
       justification: 'Certificado médico',
       justified: true,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001002',
       studentId: ids.students[0],
@@ -636,7 +576,6 @@ export async function main() {
       justification: null,
       justified: false,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001003',
       studentId: ids.students[1],
@@ -646,7 +585,6 @@ export async function main() {
       justification: null,
       justified: false,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001004',
       studentId: ids.students[1],
@@ -656,7 +594,6 @@ export async function main() {
       justification: null,
       justified: false,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001005',
       studentId: ids.students[2],
@@ -666,7 +603,6 @@ export async function main() {
       justification: 'Turno médico',
       justified: true,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001006',
       studentId: ids.students[3],
@@ -676,7 +612,6 @@ export async function main() {
       justification: null,
       justified: false,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001007',
       studentId: ids.students[3],
@@ -686,7 +621,6 @@ export async function main() {
       justification: 'Certificado médico',
       justified: true,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001008',
       studentId: ids.students[4],
@@ -696,7 +630,6 @@ export async function main() {
       justification: null,
       justified: false,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001009',
       studentId: ids.students[5],
@@ -706,7 +639,6 @@ export async function main() {
       justification: 'Actividad institucional',
       justified: true,
     },
-
     {
       id: '00000000-0000-0000-0000-000000001010',
       studentId: ids.students[5],
@@ -719,8 +651,9 @@ export async function main() {
   ]
 
   for (const attendance of attendances) {
-    const attendanceDate =
-      new Date(`${attendance.date}T00:00:00.000Z`)
+    const attendanceDate = new Date(
+      `${attendance.date}T00:00:00.000Z`,
+    )
 
     await prisma.dailyAttendance.upsert({
       where: {
@@ -730,49 +663,35 @@ export async function main() {
           sectionId: attendance.sectionId,
         },
       },
-
       update: {
         value: attendance.value,
         justification: attendance.justification,
         justified: attendance.justified,
-
         registeredBy: {
-          connect: {
-            id: teacher.id,
-          },
+          connect: { id: teacher.id },
         },
       },
-
       create: {
         id: attendance.id,
         value: attendance.value,
         justification: attendance.justification,
         justified: attendance.justified,
         date: attendanceDate,
-
         student: {
-          connect: {
-            id: attendance.studentId,
-          },
+          connect: { id: attendance.studentId },
         },
-
         section: {
-          connect: {
-            id: attendance.sectionId,
-          },
+          connect: { id: attendance.sectionId },
         },
-
         registeredBy: {
-          connect: {
-            id: teacher.id,
-          },
+          connect: { id: teacher.id },
         },
       },
     })
   }
 
   // ============================================================
-  // 8. Alertas / Notificaciones
+  // 12. ALERTAS Y NOTIFICACIONES
   // ============================================================
 
   const alertDefinitions = [
@@ -783,7 +702,6 @@ export async function main() {
       message:
         'Se reportó ausencia por enfermedad con certificado médico vigente.',
     },
-
     {
       id: '00000000-0000-0000-0000-000000002002',
       studentId: ids.students[1],
@@ -791,7 +709,6 @@ export async function main() {
       message:
         'Se registró falta de respeto en clase y se requiere seguimiento de convivencia.',
     },
-
     {
       id: '00000000-0000-0000-0000-000000002003',
       studentId: ids.students[3],
@@ -799,7 +716,6 @@ export async function main() {
       message:
         'El estudiante presenta tratamiento médico y requiere apoyo pedagógico.',
     },
-
     {
       id: '00000000-0000-0000-0000-000000002004',
       studentId: ids.students[4],
@@ -807,7 +723,6 @@ export async function main() {
       message:
         'Se evidenció conducta disruptiva durante la jornada escolar y se citó a entrevista.',
     },
-
     {
       id: '00000000-0000-0000-0000-000000002005',
       studentId: ids.students[2],
@@ -816,7 +731,6 @@ export async function main() {
       message:
         'Rendimiento bajo en Matemática: promedio actual 3,5. Se recomienda acordar actividades de apoyo y revisar avances en el próximo período.',
     },
-
     {
       id: '00000000-0000-0000-0000-000000002006',
       studentId: ids.students[5],
@@ -829,30 +743,20 @@ export async function main() {
 
   for (const alert of alertDefinitions) {
     await prisma.notification.upsert({
-      where: {
-        id: alert.id,
-      },
-
+      where: { id: alert.id },
       update: {
         type: alert.type,
-        severity:
-          alert.severity ?? AlertSeverity.MEDIUM,
+        severity: alert.severity ?? AlertSeverity.MEDIUM,
         message: alert.message,
         read: false,
       },
-
       create: {
         id: alert.id,
-
         student: {
-          connect: {
-            id: alert.studentId,
-          },
+          connect: { id: alert.studentId },
         },
-
         type: alert.type,
-        severity:
-          alert.severity ?? AlertSeverity.MEDIUM,
+        severity: alert.severity ?? AlertSeverity.MEDIUM,
         message: alert.message,
         read: false,
       },
@@ -860,29 +764,24 @@ export async function main() {
   }
 
   // ============================================================
-  // Finalización
+  // FINALIZACIÓN
   // ============================================================
 
   console.log('✅ Datos de prueba creados correctamente.')
-
+  console.log('👤 Administrador: admin@notar.local')
+  console.log('👤 Docente: docente.prueba@notar.local')
+  console.log('🔐 Contraseñas configuradas desde .env')
   console.log(
-    `👉 1° A cargado con ${gradeStudentsSeed.length} alumnos para la grilla (Matemática y Lengua).`,
+    `👉 1° A cargado con ${gradeStudentsSeed.length} alumnos para la grilla.`,
   )
-
-  console.log(
-    '👉 Se incorporaron alertas de salud, conducta y bajo rendimiento.',
-  )
-
-  console.log(
-    '👉 Primer enrollmentId de prueba:',
-    firstEnrollmentId,
-  )
+  console.log('👉 Alertas y asistencias incorporadas.')
+  console.log('👉 Primer enrollmentId:', firstEnrollmentId)
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main()
-    .catch(async (e) => {
-      console.error('❌ Error ejecutando el seed:', e)
+    .catch((error) => {
+      console.error('❌ Error ejecutando el seed:', error)
       process.exitCode = 1
     })
     .finally(async () => {
