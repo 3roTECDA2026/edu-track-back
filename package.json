@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "build:vercel": "prisma generate && tsup src/entrypoints/vercel.ts --format esm --platform node --target node22 --out-dir dist --clean"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

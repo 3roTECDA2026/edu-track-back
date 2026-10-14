@@ -1,11 +1,10 @@
-
 import 'dotenv/config'
 
 import cors from 'cors'
 import express from 'express'
 
-import { errorHandler } from '@/middlewares/errorHandler'
-import routes from '@/routes/index'
+import { errorHandler } from './middlewares/errorHandler'
+import routes from './routes/index'
 
 const app = express()
 
@@ -21,7 +20,7 @@ app.get('/health', (_req, res) => {
   })
 })
 
-// Rutas principales: usuarios, autenticación y gestión escolar
+// Rutas principales
 app.use('/api', routes)
 
 // Manejo global de errores
