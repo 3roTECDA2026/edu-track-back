@@ -541,6 +541,7 @@ model Rite {
   generalNotes          String? // Apreciación general del equipo docente
   status                RiteStatus   @default(DRAFT) // Estado de la planilla RITE (Borrador, Cerrado, Firmado)
   pdfUrl                String? // Enlace al archivo PDF generado del RITE
+  snapshot              Json? // Copia fija de los datos del RITE al momento de firmarlo
   signedAt              DateTime? // Fecha y hora de firma digital/electrónica
   signingAuthority      User?        @relation("SigningAuthority", fields: [signingAuthorityId], references: [id]) // Directivo/Autoridad firmante
   signingAuthorityId    String? // ID de la autoridad que firma
