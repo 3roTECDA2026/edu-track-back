@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 
 import {
   AlertSeverity,
@@ -1372,19 +1373,12 @@ export async function main() {
 
       create: {
         id: alert.id,
-
-        student: {
-          connect: {
-            id: alert.studentId,
-          },
-        },
-
+        studentId: alert.studentId,
+        academicYearId: academicYear.id,
         type: alert.type,
-        severity:
-          alert.severity ?? AlertSeverity.MEDIUM,
+        severity: alert.severity ?? AlertSeverity.MEDIUM,
         message: alert.message,
         read: alert.read ?? false,
-        academicYearId: academicYear.id,
       },
     })
   }
@@ -1409,7 +1403,7 @@ export async function main() {
   )
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .catch(async (e) => {
       console.error('❌ Error ejecutando el seed:', e)
