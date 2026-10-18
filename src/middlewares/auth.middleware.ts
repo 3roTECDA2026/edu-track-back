@@ -1,17 +1,45 @@
+
+import { Role, UserStatus } from '@prisma/client'
 import type { NextFunction, Request, Response } from 'express'
-import { Role } from '@prisma/client'
-import jwt, { type JwtPayload } from 'jsonwebtoken'
+import jwt from 'jsonwebtoken'
+import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
+import { asyncHandler } from '@/utils/asyncHandler'
 
-interface AuthPayload extends JwtPayload {
-  userId: string
-  role: Role
+const tokenPayloadSchema = z.object({
+  userId: z.uuid(),
+  role: z.enum(Role),
+  name: z.string(),
+})
+
+export type AuthUser = z.infer<typeof tokenPayloadSchema>
+
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: AuthUser
+  }
 }
 
-export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  try {
+// Obtener clave JWT de forma segura
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+
+  if (!secret) {
+    throw new HttpError(500, 'JWT_SECRET no está configurado')
+  }
+
+  return secret
+}
+
+// Middleware de autenticación
+export const verifyToken = asyncHandler(
+  async (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     const authorization = req.headers.authorization
 
     if (!authorization?.startsWith('Bearer ')) {
@@ -20,59 +48,74 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     const token = authorization.slice(7)
 
-    if (!process.env.JWT_SECRET) {
-      throw new HttpError(500, 'JWT_SECRET no está configurado')
+    let decoded: unknown
+
+    try {
+      decoded = jwt.verify(token, getJwtSecret())
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw error
+      }
+
+      throw new HttpError(401, 'Token inválido o expirado')
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as AuthPayload
+    const parsed = tokenPayloadSchema.safeParse(decoded)
 
-    if (!decoded.userId || typeof decoded.userId !== 'string') {
+    if (!parsed.success) {
       throw new HttpError(401, 'Token inválido')
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+    // Consultar rol y estado actual en la base de datos
+    const dbUser = await prisma.user.findUnique({
+      where: {
+        id: parsed.data.userId,
+      },
       select: {
-        id: true,
         role: true,
         status: true,
       },
     })
 
-    if (!user || user.status !== 'ACTIVE') {
-      throw new HttpError(403, 'Usuario inactivo o suspendido')
+    if (!dbUser || dbUser.status !== UserStatus.ACTIVE) {
+      throw new HttpError(401, 'Usuario inexistente o suspendido')
     }
 
-    res.locals.authUser = {
-      id: user.id,
-      role: user.role,
+    req.user = {
+      ...parsed.data,
+      role: dbUser.role,
     }
 
     next()
-  } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      next(new HttpError(401, 'Token inválido o expirado'))
-      return
-    }
-
-    next(error)
   }
-}
+)
 
-export function requireRole(...allowedRoles: Role[]) {
-  return (_req: Request, res: Response, next: NextFunction) => {
-    const user = res.locals.authUser as { id: string; role: Role } | undefined
-
-    if (!user) {
-      next(new HttpError(401, 'Usuario no autenticado'))
+// Middleware de autorización por roles
+export const requireRole =
+  (...roles: Role[]) =>
+  (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): void => {
+    if (!req.user) {
+      next(new HttpError(401, 'No autenticado'))
       return
     }
 
-    if (!allowedRoles.includes(user.role)) {
-      next(new HttpError(403, 'No tenés permisos para esta operación'))
+    if (!roles.includes(req.user.role)) {
+      next(new HttpError(403, 'Acceso denegado'))
       return
     }
 
     next()
   }
+
+// Obtener usuario autenticado
+export function getAuthUser(req: Request): AuthUser {
+  if (!req.user) {
+    throw new HttpError(401, 'No autenticado')
+  }
+
+  return req.user
 }
