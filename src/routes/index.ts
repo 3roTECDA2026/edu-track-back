@@ -11,6 +11,7 @@ import { gradeRouter } from '@/routes/grade.routes'
 import notificationRoutes from '@/routes/notification.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { userRouter } from '@/routes/user.routes'
+import { riteRouter } from '@/routes/rite.routes'
 
 const router = Router()
 
@@ -25,6 +26,7 @@ router.use('/notifications', notificationRoutes)
 router.use('/auth', authRoutes)
 router.use('/users', userRouter)
 router.use('/courses', courseRoutes)
+router.use('/rites', riteRouter)
 
 
 export default router
