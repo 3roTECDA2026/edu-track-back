@@ -7,17 +7,16 @@ import { asyncHandler } from '@/utils/asyncHandler'
 
 export const riteRouter = Router()
 
-riteRouter.get('/', asyncHandler(riteController.listRites))
-riteRouter.post('/', asyncHandler(riteController.createRite))
-riteRouter.get('/:id', asyncHandler(riteController.getRite))
-riteRouter.patch('/:id', asyncHandler(riteController.updateRiteNotes))
-riteRouter.patch('/:id/close', asyncHandler(riteController.closeRite))
-riteRouter.patch('/:id/reopen', asyncHandler(riteController.reopenRite))
+// Cerrar, reabrir y firmar el RITE es tarea de la dirección o del EOE.
+const directiveRoles = requireRole(Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE, Role.ADMINISTRATOR)
 
-// Solo la dirección o el EOE firman, y la autoridad firmante es el usuario logueado.
-riteRouter.patch(
-  '/:id/sign',
-  verifyToken,
-  requireRole(Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE, Role.ADMINISTRATOR),
-  asyncHandler(riteController.signRite)
-)
+riteRouter.get('/', asyncHandler(riteController.listRites))
+riteRouter.get('/:id', asyncHandler(riteController.getRite))
+
+// Crear y editar observaciones requiere un usuario logueado.
+riteRouter.post('/', verifyToken, asyncHandler(riteController.createRite))
+riteRouter.patch('/:id', verifyToken, asyncHandler(riteController.updateRiteNotes))
+
+riteRouter.patch('/:id/close', verifyToken, directiveRoles, asyncHandler(riteController.closeRite))
+riteRouter.patch('/:id/reopen', verifyToken, directiveRoles, asyncHandler(riteController.reopenRite))
+riteRouter.patch('/:id/sign', verifyToken, directiveRoles, asyncHandler(riteController.signRite))
