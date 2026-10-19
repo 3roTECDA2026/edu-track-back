@@ -7,8 +7,9 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { asyncHandler } from '@/utils/asyncHandler'
 
+// z.guid() acepta también los ids fijos del seed (00000000-...), que z.uuid() rechaza en Zod 4.
 const tokenPayloadSchema = z.object({
-  userId: z.uuid(),
+  userId: z.guid(),
   role: z.enum(Role),
   name: z.string(),
 })
