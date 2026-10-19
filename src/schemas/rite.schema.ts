@@ -12,10 +12,12 @@ export const listRitesQuerySchema = z.object({
 })
 
 // Se crea con el año del ciclo lectivo (ej: 2026), que es lo que el front tiene a mano.
+// El RITE post-intensificación (E2-RF-12) se guarda siempre como del 2° cuatrimestre.
 export const createRiteSchema = z.object({
   studentId: z.guid(),
   year: z.number().int().min(2000).max(2100),
   term: z.enum(Term),
+  isPostIntensification: z.boolean().default(false),
 })
 
 export const updateRiteNotesSchema = z.object({

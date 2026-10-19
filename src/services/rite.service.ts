@@ -72,6 +72,7 @@ function toRiteSummary(rite: RiteWithRelations) {
     academicYearId: rite.academicYearId,
     academicYear: rite.academicYear.year,
     term: rite.term,
+    isPostIntensification: rite.isPostIntensification,
     status: rite.status,
     generalNotes: rite.generalNotes,
     signedAt: rite.signedAt,
@@ -84,6 +85,7 @@ function toRiteSummary(rite: RiteWithRelations) {
 // Arma todos los datos del formulario RITE a partir de lo cargado en el sistema (E2-RF-14).
 async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
   const { studentId, academicYearId, term } = rite
+  // El RITE post-intensificación se guarda como del 2° cuatrimestre, así que muestra el año completo.
   const isFirstTerm = term === Term.FIRST
 
   const [enrollmentRecord, enrollments, attendances, yearRites] = await Promise.all([
@@ -104,10 +106,11 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
       where: { studentId, section: { academicYearId } },
       select: { date: true, value: true },
     }),
+    // Los tres RITE del ciclo (1° y 2° cuatrimestre y post-intensificación), para las notificaciones.
     client.rite.findMany({
-      where: { studentId, academicYearId, isPostIntensification: false },
+      where: { studentId, academicYearId },
       include: { signingAuthority: { select: { firstName: true, lastName: true } } },
-      orderBy: { term: 'asc' },
+      orderBy: [{ term: 'asc' }, { isPostIntensification: 'asc' }],
     }),
   ])
 
@@ -164,6 +167,7 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
     institution: INSTITUTION,
     academicYear: rite.academicYear.year,
     term,
+    isPostIntensification: rite.isPostIntensification,
     student: rite.student,
     section: enrollmentRecord?.classSection ?? null,
     subjects,
@@ -176,6 +180,7 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
     generalNotes: rite.generalNotes,
     notifications: yearRites.map((item) => ({
       term: item.term,
+      isPostIntensification: item.isPostIntensification,
       status: item.status,
       signedAt: item.signedAt,
       signedBy: authorityName(item.signingAuthority),
@@ -205,7 +210,7 @@ export async function listStudentRites(studentId: string) {
   const rites = await prisma.rite.findMany({
     where: { studentId },
     include: riteInclude,
-    orderBy: [{ academicYear: { year: 'desc' } }, { term: 'asc' }],
+    orderBy: [{ academicYear: { year: 'desc' } }, { term: 'asc' }, { isPostIntensification: 'asc' }],
   })
 
   return rites.map(toRiteSummary)
@@ -219,14 +224,43 @@ export async function createRite(input: CreateRiteInput) {
   if (!student) throw new HttpError(404, 'Estudiante no encontrado')
   if (!academicYear) throw new HttpError(404, 'Ciclo lectivo no encontrado')
 
+  // El RITE post-intensificación se guarda como del 2° cuatrimestre.
+  const term = input.isPostIntensification ? Term.SECOND : input.term
+
+  // La intensificación viene después del cierre del año: el 2° cuatrimestre tiene que estar firmado.
+  if (input.isPostIntensification) {
+    const secondTermRite = await prisma.rite.findUnique({
+      where: {
+        studentId_academicYearId_term_isPostIntensification: {
+          studentId: input.studentId,
+          academicYearId: academicYear.id,
+          term: Term.SECOND,
+          isPostIntensification: false,
+        },
+      },
+      select: { status: true },
+    })
+    if (secondTermRite?.status !== RiteStatus.SIGNED) {
+      throw new HttpError(
+        409,
+        'Para generar el RITE post-intensificación, primero hay que firmar el del 2° cuatrimestre'
+      )
+    }
+  }
+
   try {
     const rite = await prisma.rite.create({
-      data: { studentId: input.studentId, academicYearId: academicYear.id, term: input.term },
+      data: {
+        studentId: input.studentId,
+        academicYearId: academicYear.id,
+        term,
+        isPostIntensification: input.isPostIntensification,
+      },
     })
     return getRite(rite.id)
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw new HttpError(409, 'Ya existe un RITE para ese alumno, ciclo lectivo y cuatrimestre')
+      throw new HttpError(409, 'Ya existe ese RITE para el alumno en este ciclo lectivo')
     }
     throw err
   }
