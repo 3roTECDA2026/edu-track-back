@@ -21,6 +21,7 @@ enum Role {
   SCHOOL_MANAGEMENT // Equipo de Conducción / Directivo de la escuela
   EOE_DIRECTIVE // Integrante del Equipo de Orientación Escolar (EOE)
   TEACHER // Docente / Profesor
+  PRECEPTOR // Preceptor / Tutor de curso
   STUDENT // Estudiante / Alumno
   FAMILY // Adulto responsable / Familia / Tutor
 }
@@ -194,6 +195,7 @@ model User {
   linkedStudent         Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian              Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers           EdteMember[] // Participaciones en reuniones del EDTE
+  passwordResetTokens   PasswordResetToken[] // Tokens para recuperación de contraseña
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -911,4 +913,20 @@ model InstitutionalConfig {
   absenceLimitInstitutional   Int                 @default(28) // Límite institucional de faltas tope por año
   subjectAttendancePercentage Float               @default(0.75) // Porcentaje de asistencia requerido por materia (0.75 = 75%)
   createdAt                   DateTime            @default(now()) // Fecha de configuración
+}
+
+// ===================================================================================
+// PASSWORD RESET TOKENS (Tokens de Restablecimiento de Contraseña)
+// ===================================================================================
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
