@@ -1,18 +1,32 @@
+import { Role } from '@prisma/client'
 import { Router } from 'express'
+
 import * as attendanceController from '@/controllers/attendance.controller'
+import { requireRole, verifyToken } from '@/middlewares/auth.middleware'
+import { asyncHandler } from '@/utils/asyncHandler'
 
 const router = Router()
 
-// Endpoint para guardar o actualizar la asistencia diaria masiva (Carga Diaria)
-router.post('/batch', attendanceController.saveBatch)
+// Ver la asistencia: personal de la escuela. Estudiantes y familias tendrán su propio acceso (etapa 7).
+const canView = requireRole(
+  Role.ADMINISTRATOR,
+  Role.SCHOOL_MANAGEMENT,
+  Role.EOE_DIRECTIVE,
+  Role.TEACHER
+)
 
-// Endpoint para obtener el listado general de asistencias
-router.get('/', attendanceController.listAttendances)
+// Cargar y justificar: quienes toman asistencia y la dirección.
+// TODO: sumar el rol de preceptor cuando exista en el esquema.
+const canRegister = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER)
 
-// Endpoint para obtener el resumen agrupado de inasistencias por estudiante (Resumen)
-router.get('/summary', attendanceController.getSummary)
+router.use(verifyToken)
 
-// Endpoint para marcar una inasistencia como justificada
-router.patch('/:id/justify', attendanceController.justify)
+router.post('/batch', canRegister, asyncHandler(attendanceController.saveBatch))
+router.patch('/:id/justify', canRegister, asyncHandler(attendanceController.justify))
+
+router.get('/sections', canView, asyncHandler(attendanceController.listAttendanceSections))
+router.get('/section/:sectionId', canView, asyncHandler(attendanceController.getSectionAttendance))
+router.get('/', canView, asyncHandler(attendanceController.listAttendances))
+router.get('/summary', canView, asyncHandler(attendanceController.getSummary))
 
 export default router
