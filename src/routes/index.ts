@@ -10,7 +10,15 @@ import { gradeRouter } from '@/routes/grade.routes';
 import notificationRoutes from '@/routes/notification.routes';
 import { studentRouter } from '@/routes/student.routes';
 import { teacherAssignmentRouter } from "@/routes/teacherAssignment.routes";
-import { userRouter } from '@/routes/user.routes';
+import attendanceRouter from '@/routes/attendance.routes'
+import { classSectionRouter } from '@/routes/classSection.routes'
+import courseRoutes from '@/routes/course.routes'
+import { enrollmentRouter } from '@/routes/enrollment.routes'
+import { gradeRouter } from '@/routes/grade.routes'
+import notificationRoutes from '@/routes/notification.routes'
+import { studentRouter } from '@/routes/student.routes'
+import { userRouter } from '@/routes/user.routes'
+import { riteRouter } from '@/routes/rite.routes'
 
 const router = Router()
 
@@ -25,6 +33,8 @@ router.use('/notifications', notificationRoutes)
 router.use('/auth', authRoutes)
 router.use('/users', userRouter)
 router.use('/', courseRoutes)
+router.use('/courses', courseRoutes)
+router.use('/rites', riteRouter)
 
 
 export default router
