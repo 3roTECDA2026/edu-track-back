@@ -1,4 +1,4 @@
-import { Prisma, Role } from '@prisma/client'
+import { Prisma, Role, UserStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type {
@@ -197,4 +197,15 @@ export async function removeScheduleSubject(id: string, entryId: string) {
   }
   await prisma.intensificationScheduleSubject.delete({ where: { id: entryId } })
   return toScheduleResponse(await findScheduleOrFail(id))
+}
+
+// Docentes activos para elegir el responsable de cada materia.
+// El listado de usuarios (/api/users) es solo para administración, y la dirección también arma el calendario.
+export async function listScheduleTeachers() {
+  const teachers = await prisma.user.findMany({
+    where: { role: Role.TEACHER, status: UserStatus.ACTIVE },
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+  })
+  return teachers.map((teacher) => ({ id: teacher.id, name: `${teacher.lastName}, ${teacher.firstName}` }))
 }

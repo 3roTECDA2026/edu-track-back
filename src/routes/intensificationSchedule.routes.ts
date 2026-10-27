@@ -13,6 +13,7 @@ const canEdit = requireRole(Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR)
 intensificationScheduleRouter.use(verifyToken)
 
 intensificationScheduleRouter.get('/', asyncHandler(scheduleController.listSchedules))
+intensificationScheduleRouter.get('/teachers', canEdit, asyncHandler(scheduleController.listScheduleTeachers))
 intensificationScheduleRouter.post('/', canEdit, asyncHandler(scheduleController.createSchedule))
 intensificationScheduleRouter.patch('/:id', canEdit, asyncHandler(scheduleController.updateSchedule))
 intensificationScheduleRouter.delete('/:id', canEdit, asyncHandler(scheduleController.deleteSchedule))

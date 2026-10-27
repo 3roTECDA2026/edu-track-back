@@ -30,7 +30,7 @@ export async function updateSchedule(req: Request, res: Response) {
 export async function deleteSchedule(req: Request, res: Response) {
   const { id } = scheduleIdParamSchema.parse(req.params)
   await scheduleService.deleteSchedule(id)
-  res.status(204).send()
+  res.json({ deleted: true })
 }
 
 export async function addScheduleSubject(req: Request, res: Response) {
@@ -48,4 +48,8 @@ export async function updateScheduleSubject(req: Request, res: Response) {
 export async function removeScheduleSubject(req: Request, res: Response) {
   const { id, entryId } = scheduleSubjectParamSchema.parse(req.params)
   res.json(await scheduleService.removeScheduleSubject(id, entryId))
+}
+
+export async function listScheduleTeachers(_req: Request, res: Response) {
+  res.json(await scheduleService.listScheduleTeachers())
 }
