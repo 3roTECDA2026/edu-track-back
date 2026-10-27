@@ -12,6 +12,7 @@ import notificationRoutes from '@/routes/notification.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { userRouter } from '@/routes/user.routes'
 import { riteRouter } from '@/routes/rite.routes'
+import { intensificationScheduleRouter } from '@/routes/intensificationSchedule.routes'
 
 const router = Router()
 
@@ -27,6 +28,8 @@ router.use('/auth', authRoutes)
 router.use('/users', userRouter)
 router.use('/courses', courseRoutes)
 router.use('/rites', riteRouter)
+router.use('/intensification-schedules', intensificationScheduleRouter)
+
 
 
 export default router
