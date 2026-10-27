@@ -22,8 +22,12 @@ declare module 'express-serve-static-core' {
   }
 }
 
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'clave_secreta_temporal'
+// La clave de los tokens tiene que venir del .env. Sin ella no se puede firmar ni verificar
+// una sesión: nunca se usa una clave escrita en el código (el repositorio es público).
+export function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error('Falta la variable de entorno JWT_SECRET en el .env')
+  return secret
 }
 
 // Autenticación: ¿quién sos? -> 401

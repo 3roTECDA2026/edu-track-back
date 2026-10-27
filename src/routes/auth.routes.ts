@@ -1,20 +1,23 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
+
+import { prisma } from '@/lib/prisma';
+import { getJwtSecret } from '@/middlewares/auth.middleware';
+
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Endpoint POST /auth/login
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    // Capturamos 'user' (que viene desde tu frontend) y 'password'
+    // Capturamos 'user' (el email que viene desde el front) y 'password'
     const { user, password } = req.body;
 
     if (!user || !password) {
-      return res.status(400).json({ message: 'Por favor, ingresa tu usuario y contraseña.' });
+      return res.status(400).json({ message: 'Por favor, ingresá tu usuario y contraseña.' });
     }
 
     // Buscamos al usuario en la base de datos por email
@@ -32,15 +35,19 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Credenciales inválidas.' });
     }
 
-    // Generamos el Token JWT con vigencia de 24 horas
-    const jwtSecret = process.env.JWT_SECRET || 'clave_secreta_temporal';
+    // Un usuario suspendido desde la pantalla de Usuarios no puede iniciar sesión
+    if (dbUser.status !== UserStatus.ACTIVE) {
+      return res.status(403).json({ message: 'El usuario está suspendido. Consultá con la administración.' });
+    }
+
+    // Generamos el token JWT con vigencia de 24 horas (la clave sale del .env)
     const token = jwt.sign(
-      { 
-        userId: dbUser.id, 
-        role: dbUser.role, 
-        name: `${dbUser.firstName} ${dbUser.lastName}` 
+      {
+        userId: dbUser.id,
+        role: dbUser.role,
+        name: `${dbUser.firstName} ${dbUser.lastName}`,
       },
-      jwtSecret,
+      getJwtSecret(),
       { expiresIn: '24h' }
     );
 
@@ -55,7 +62,6 @@ router.post('/login', async (req: Request, res: Response) => {
         lastName: dbUser.lastName,
       },
     });
-
   } catch (error) {
     console.error('Error en el login:', error);
     return res.status(500).json({ message: 'Error interno del servidor.' });
