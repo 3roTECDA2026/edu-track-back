@@ -106,6 +106,18 @@ enum IntensificationResultCode {
   CSA // Sin Actividades / No Intensificó
 }
 
+// Estado de una materia pendiente de aprobación y acreditación (MPAA)
+enum PendingSubjectStatus {
+  PENDING // Pendiente: se sigue intensificando
+  ACCREDITED // Aprobada y acreditada
+}
+
+// Resultado del motor de promoción (E3-RF-11 y E3-RF-12)
+enum PromotionOutcome {
+  PROMOTED // Promueve con hasta 4 MPAA
+  REFERRED_TO_EDTE // 5 o más MPAA: no promueve y se deriva al EDTE
+}
+
 enum RiteStatus {
   DRAFT // RITE en Borrador
   CLOSED // RITE Cerrado
@@ -172,17 +184,20 @@ enum AlertSeverity {
 // ============================================================================
 
 model User {
-  id           String     @id @default(uuid()) // Identificador único (UUID)
-  firstName    String // Nombre
-  lastName     String // Apellido
-  email        String     @unique // Correo electrónico (único)
-  passwordHash String // Contraseña encriptada
-  role         Role // Rol del usuario en el sistema
-  status       UserStatus @default(ACTIVE) // Estado de la cuenta de usuario
-  mfaEnabled   Boolean    @default(false) // Autenticación de doble factor activada
-  lastLogin    DateTime? // Fecha y hora del último acceso
-  createdAt    DateTime   @default(now()) // Fecha de creación
-  updatedAt    DateTime   @updatedAt // Fecha de última actualización
+  id                              String                           @id @default(uuid()) // Identificador único (UUID)
+  intensificationScheduleSubjects IntensificationScheduleSubject[] // Materias de intensificación a cargo
+  responsibleIntensifications     Intensification[] // Intensificaciones que evalúa
+  promotionDecisions              PromotionDecision[] // Ejecuciones del motor de promoción
+  firstName                       String // Nombre
+  lastName                        String // Apellido
+  email                           String                           @unique // Correo electrónico (único)
+  passwordHash                    String // Contraseña encriptada
+  role                            Role // Rol del usuario en el sistema
+  status                          UserStatus                       @default(ACTIVE) // Estado de la cuenta de usuario
+  mfaEnabled                      Boolean                          @default(false) // Autenticación de doble factor activada
+  lastLogin                       DateTime? // Fecha y hora del último acceso
+  createdAt                       DateTime                         @default(now()) // Fecha de creación
+  updatedAt                       DateTime                         @updatedAt // Fecha de última actualización
 
   // Relaciones:
   teacherAssignments    TeacherSubjectCourse[] // Materias y cursos asignados al docente
@@ -205,9 +220,12 @@ model User {
 // ============================================================================
 
 model AcademicYear {
-  id     String  @id @default(uuid())
-  year   Int     @unique
-  active Boolean @default(false)
+  id                       String                    @id @default(uuid())
+  pendingSubjects          PendingSubject[] // MPAA que quedaron pendientes en este ciclo
+  intensificationSchedules IntensificationSchedule[] // Períodos de intensificación del ciclo
+  promotionDecisions       PromotionDecision[] // Decisiones del motor de promoción del ciclo
+  year                     Int                       @unique
+  active                   Boolean                   @default(false)
 
   term1StartDate DateTime?
   term1EndDate   DateTime?
@@ -237,14 +255,15 @@ model CalendarMilestone {
 }
 
 model ClassSection {
-  id             String       @id @default(uuid()) // Identificador único
-  grade          Int // Año / Criterio de año (1° a 6° año)
-  division       String // División / Sección (Ej: "A", "1°", "3°")
-  shift          Shift // Turno
-  orientation    Orientation? // Orientación académica
-  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo al que pertenece
-  academicYearId String // ID del ciclo lectivo
-  createdAt      DateTime     @default(now()) // Fecha de creación
+  id               String            @id @default(uuid()) // Identificador único
+  intensifications Intensification[] // Intensificaciones que se cursan en esta sección
+  grade            Int // Año / Criterio de año (1° a 6° año)
+  division         String // División / Sección (Ej: "A", "1°", "3°")
+  shift            Shift // Turno
+  orientation      Orientation? // Orientación académica
+  academicYear     AcademicYear      @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo al que pertenece
+  academicYearId   String // ID del ciclo lectivo
+  createdAt        DateTime          @default(now()) // Fecha de creación
 
   // Relaciones:
   enrollments        Enrollment[] // Estudiantes matriculados en esta división
@@ -281,12 +300,14 @@ model CurriculumSubject {
 }
 
 model Subject {
-  id           String @id @default(uuid()) // Identificador único
-  name         String // Nombre de la materia (Ej: "Matemática", "NTICx")
-  code         String @unique // Código interno único de la materia
-  hoursPerWeek Int // Carga horaria semanal
-  gradeLevel   Int // Año escolar correspondiente
-  area         String // Área del conocimiento / Departamento
+  id                              String                           @id @default(uuid()) // Identificador único
+  pendingSubjects                 PendingSubject[] // MPAA de esta materia
+  intensificationScheduleSubjects IntensificationScheduleSubject[] // Períodos en que se intensifica
+  name                            String // Nombre de la materia (Ej: "Matemática", "NTICx")
+  code                            String                           @unique // Código interno único de la materia
+  hoursPerWeek                    Int // Carga horaria semanal
+  gradeLevel                      Int // Año escolar correspondiente
+  area                            String // Área del conocimiento / Departamento
 
   // Relaciones:
   enrollments        Enrollment[] // Inscripciones a esta materia
@@ -313,19 +334,21 @@ model TeacherSubjectCourse {
 // ============================================================================
 
 model Student {
-  id               String        @id @default(uuid()) // Identificador único
-  dni              String        @unique // DNI del estudiante (único)
-  lastName         String // Apellido
-  firstName        String // Nombre
-  dateOfBirth      DateTime // Fecha de nacimiento
-  placeOfBirth     String? // Lugar de nacimiento
-  address          String // Domicilio particular
-  city             String? // Localidad / Ciudad
-  phone            String? // Teléfono de contacto
-  recordNumber     String        @unique // Número de legajo escolar único
-  status           StudentStatus @default(ACTIVE) // Estado de la matrícula
-  hasPPI           Boolean       @default(false) // ¿Cuenta con Proyecto Pedagógico Individual (PPI / Inclusión)?
-  conditionalUntil DateTime? // Fecha límite en caso de inscripción condicional
+  id                 String              @id @default(uuid()) // Identificador único
+  pendingSubjects    PendingSubject[] // Materias pendientes (MPAA) del alumno
+  promotionDecisions PromotionDecision[] // Decisiones del motor de promoción
+  dni                String              @unique // DNI del estudiante (único)
+  lastName           String // Apellido
+  firstName          String // Nombre
+  dateOfBirth        DateTime // Fecha de nacimiento
+  placeOfBirth       String? // Lugar de nacimiento
+  address            String // Domicilio particular
+  city               String? // Localidad / Ciudad
+  phone              String? // Teléfono de contacto
+  recordNumber       String              @unique // Número de legajo escolar único
+  status             StudentStatus       @default(ACTIVE) // Estado de la matrícula
+  hasPPI             Boolean             @default(false) // ¿Cuenta con Proyecto Pedagógico Individual (PPI / Inclusión)?
+  conditionalUntil   DateTime? // Fecha límite en caso de inscripción condicional
 
   user   User?   @relation("StudentUser", fields: [userId], references: [id]) // Usuario de acceso del alumno
   userId String? @unique // ID de usuario vinculado
@@ -404,17 +427,18 @@ model EnrollmentHistory {
 // ============================================================================
 
 model Enrollment {
-  id                 String        @id @default(uuid()) // Identificador único
-  student            Student       @relation(fields: [studentId], references: [id]) // Estudiante
+  id                 String          @id @default(uuid()) // Identificador único
+  pendingSubject     PendingSubject? // MPAA que se originó en esta cursada, si la desaprobó
+  student            Student         @relation(fields: [studentId], references: [id]) // Estudiante
   studentId          String // ID del estudiante
-  classSection       ClassSection  @relation(fields: [classSectionId], references: [id]) // División
+  classSection       ClassSection    @relation(fields: [classSectionId], references: [id]) // División
   classSectionId     String // ID de la división
-  subject            Subject       @relation(fields: [subjectId], references: [id]) // Materia
+  subject            Subject         @relation(fields: [subjectId], references: [id]) // Materia
   subjectId          String // ID de la materia
-  courseType         CourseType    @default(FIRST_TIME) // Condición: Cursada por 1° vez o recursado
-  academicYear       AcademicYear  @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  courseType         CourseType      @default(FIRST_TIME) // Condición: Cursada por 1° vez o recursado
+  academicYear       AcademicYear    @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
   academicYearId     String // ID del ciclo lectivo
-  subjectStatus      SubjectStatus @default(IN_PROGRESS) // Estado académico de la materia
+  subjectStatus      SubjectStatus   @default(IN_PROGRESS) // Estado académico de la materia
   originalGradeLevel Int? // Año académico de origen de la materia (para pendienteros/MPAA)
 
   createdAt DateTime @default(now()) // Fecha de inscripción
@@ -486,11 +510,12 @@ model Grade {
   term1Scores            Json? // 4 notas del 1° cuatri: [n1,n2,n3,n4] (null = sin cargar)
 
   // 2° Cuatrimestre:
-  preliminaryAssessment2 PreliminaryAssessment? // Valoración preliminar (TEA / TEP / TED)
-  rationale2             String? // Fundamentación pedagógica del informe preliminar
-  term2Score             Int? // Nota final 2° Cuatrimestre (1 a 10)
-  term2Scores            Json? // 4 notas del 2° cuatri: [n1,n2,n3,n4] (null = sin cargar)
-  recoveryIn2ndTerm      Boolean? // ¿Recuperó saberes del 1° cuatrimestre durante el 2°?
+  preliminaryAssessment2    PreliminaryAssessment? // Valoración preliminar (TEA / TEP / TED)
+  rationale2                String? // Fundamentación pedagógica del informe preliminar
+  term2Score                Int? // Nota final 2° Cuatrimestre (1 a 10)
+  term2Scores               Json? // 4 notas del 2° cuatri: [n1,n2,n3,n4] (null = sin cargar)
+  recoveryIn2ndTerm         Boolean? // ¿Recuperó saberes del 1° cuatrimestre durante el 2°?
+  term1IntensificationScore Int? // Nota de intensificación del 1° cuatrimestre (E2-RF-04, CRM-042)
 
   // Calificación e informe final:
   finalScore    Int? // Calificación final cuantitativa
@@ -511,21 +536,26 @@ model Grade {
 
 model Intensification {
   id                   String                     @id @default(uuid()) // Identificador único
-  enrollment           Enrollment                 @relation(fields: [enrollmentId], references: [id]) // Materia/Cursada a intensificar
+  enrollment           Enrollment                 @relation(fields: [enrollmentId], references: [id]) // Cursada desaprobada (origen de la MPAA)
   enrollmentId         String // ID de la inscripción
+  schedule             IntensificationSchedule?   @relation(fields: [scheduleId], references: [id]) // Período y ciclo del intento (E3-RF-04)
+  scheduleId           String? // ID del período del calendario
   period               IntensificationPeriod // Período (Diciembre, Febrero/Marzo, Agosto)
-  model                IntensificationModel // Modelo organizacional aplicado
-  targetClassSection   String? // Sección/Aula asignada para la intensificación
+  model                IntensificationModel // Modelo organizacional aplicado (E3-RF-06)
+  targetClassSection   ClassSection?              @relation(fields: [targetClassSectionId], references: [id]) // Sección donde intensifica, modelos 2 y 3 (E3-RF-07)
+  targetClassSectionId String? // ID de esa sección
   resultCode           IntensificationResultCode? // Resultado de la intensificación (AA, CCA, CSA)
   score                Int? // Nota numérica obtenida
-  pendingKnowledge     String // Saberes/Contenidos pendientes a intensificar
+  pendingKnowledge     String? // Saberes/Contenidos pendientes a intensificar en este intento
   knowledgeAtClose     String? // Logros/Saberes alcanzados al cierre
-  responsibleTeacherId String? // ID del docente evaluador responsable
+  responsibleTeacher   User?                      @relation(fields: [responsibleTeacherId], references: [id]) // Docente evaluador responsable
+  responsibleTeacherId String? // ID del docente
   evidenceUrl          String? // Link a planillas o evidencias de evaluación digitalizadas
   evaluationDate       DateTime? // Fecha de la evaluación/cierre
   createdAt            DateTime                   @default(now()) // Fecha de registro
 
   @@index([enrollmentId, period]) // Índice para consulta de historial de intensificaciones
+  @@index([scheduleId]) // Índice para listar los intentos de un período
 }
 
 // ============================================================================
@@ -907,6 +937,9 @@ model ConductAgreement {
 
 model InstitutionalConfig {
   id                          String              @id @default(uuid()) // Identificador único
+  institutionName             String? // Nombre de la institución (encabezado del RITE, CRM-042)
+  institutionNumber           String? // Número de la institución
+  district                    String? // Distrito
   organizationalModel         OrganizationalModel // Modelo organizacional adoptado por la escuela (Res. 1650/24)
   adoptedAt                   DateTime            @default(now()) // Fecha de aprobación del modelo en la escuela
   minimumExpiryDate           DateTime // Fecha mínima de permanencia antes de poder cambiar de modelo
@@ -929,4 +962,75 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Materia pendiente de aprobación y acreditación (MPAA) de un alumno (E3-RF-01, E3-RF-02)
+model PendingSubject {
+  id                      String               @id @default(uuid()) // Identificador único
+  student                 Student              @relation(fields: [studentId], references: [id]) // Alumno que la adeuda
+  studentId               String // ID del alumno
+  subject                 Subject              @relation(fields: [subjectId], references: [id]) // Materia pendiente
+  subjectId               String // ID de la materia
+  originEnrollment        Enrollment           @relation(fields: [originEnrollmentId], references: [id]) // Cursada desaprobada que la originó
+  originEnrollmentId      String               @unique // De esa cursada cuelgan los intentos de intensificación
+  originAcademicYear      AcademicYear         @relation(fields: [originAcademicYearId], references: [id]) // Ciclo en que quedó pendiente
+  originAcademicYearId    String // ID de ese ciclo
+  status                  PendingSubjectStatus @default(PENDING) // Pendiente o acreditada
+  initialPendingKnowledge String? // Saberes pendientes al inicio del ciclo
+  closingPendingKnowledge String? // Saberes pendientes al cierre del ciclo
+  finalScore              Int? // Nota final al acreditar (4 a 10) o al cierre (1 a 3)
+  accreditedAt            DateTime? // Fecha en que se acreditó
+  createdAt               DateTime             @default(now()) // Fecha de alta
+  updatedAt               DateTime             @updatedAt // Fecha de modificación
+
+  @@index([studentId, status]) // Índice para contar las MPAA de un alumno
+}
+
+// Calendario de intensificación: un período por ciclo lectivo (E3-RF-04).
+// Diciembre y febrero/marzo pertenecen al ciclo que cierran; agosto, al ciclo en curso.
+model IntensificationSchedule {
+  id             String                @id @default(uuid()) // Identificador único
+  academicYear   AcademicYear          @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  academicYearId String // ID del ciclo
+  period         IntensificationPeriod // Diciembre, Febrero/Marzo o Agosto
+  startDate      DateTime // Inicio del período
+  endDate        DateTime // Fin del período
+  createdAt      DateTime              @default(now()) // Fecha de creación
+  updatedAt      DateTime              @updatedAt // Fecha de modificación
+
+  subjects         IntensificationScheduleSubject[] // Materias que se intensifican en el período
+  intensifications Intensification[] // Intentos de intensificación del período
+
+  @@unique([academicYearId, period]) // Un solo período de cada tipo por ciclo
+}
+
+// Materias que se intensifican en un período, con su docente responsable (E3-RF-04)
+model IntensificationScheduleSubject {
+  id         String                  @id @default(uuid()) // Identificador único
+  schedule   IntensificationSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade) // Período
+  scheduleId String // ID del período
+  subject    Subject                 @relation(fields: [subjectId], references: [id]) // Materia
+  subjectId  String // ID de la materia
+  teacher    User?                   @relation(fields: [teacherId], references: [id]) // Docente responsable
+  teacherId  String? // ID del docente
+
+  @@unique([scheduleId, subjectId]) // Cada materia una sola vez por período
+}
+
+// Decisiones del motor de promoción: historial para auditoría (E3-RF-11, E3-RF-12, E3-RNF-02)
+model PromotionDecision {
+  id             String           @id @default(uuid()) // Identificador único
+  student        Student          @relation(fields: [studentId], references: [id]) // Alumno evaluado
+  studentId      String // ID del alumno
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id]) // Ciclo que se cierra
+  academicYearId String // ID del ciclo
+  pendingCount   Int // Cantidad de MPAA al momento de decidir
+  outcome        PromotionOutcome // Promueve o se deriva al EDTE
+  executedBy     User             @relation(fields: [executedById], references: [id]) // Quién ejecutó el motor
+  executedById   String // ID de ese usuario
+  executedAt     DateTime         @default(now()) // Cuándo se decidió
+  notes          String? // Observaciones
+
+  @@index([academicYearId, outcome]) // Índice para la pantalla del motor
+  @@index([studentId]) // Índice para el historial de un alumno
 }
