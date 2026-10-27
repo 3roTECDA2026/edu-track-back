@@ -81,3 +81,18 @@ export const batchAttendanceSchema = z.object({
 export const justificationSchema = z.object({
   justification: z.string().trim().min(1, 'La justificación es obligatoria'),
 })
+// Días hábiles del ciclo lectivo (modal de días hábiles)
+const schoolDaysValue = z.number().int().min(0).max(366).nullable()
+
+export const schoolDaysQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+})
+
+export const updateSchoolDaysSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+  term1SchoolDays: schoolDaysValue,
+  term2SchoolDays: schoolDaysValue,
+  totalSchoolDays: schoolDaysValue,
+})
+
+export type UpdateSchoolDaysInput = z.infer<typeof updateSchoolDaysSchema>

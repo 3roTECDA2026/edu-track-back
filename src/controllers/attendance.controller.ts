@@ -7,14 +7,17 @@ import {
   batchAttendanceSchema,
   justificationSchema,
   paginationAttendanceSchema,
+  schoolDaysQuerySchema,
   sectionAttendanceQuerySchema,
+  updateSchoolDaysSchema,
 } from '@/schemas/attendance.schema'
 import * as attendanceService from '@/services/attendance.service'
 
+// El rol decide si se puede corregir un día anterior
 export async function saveBatch(req: Request, res: Response) {
   const input = batchAttendanceSchema.parse(req.body)
-  const { userId } = getAuthUser(req)
-  const result = await attendanceService.saveBatchAttendance({ ...input, registeredById: userId })
+  const { userId, role } = getAuthUser(req)
+  const result = await attendanceService.saveBatchAttendance({ ...input, registeredById: userId, role })
   return res.status(201).json(result)
 }
 
@@ -46,4 +49,14 @@ export async function justify(req: Request, res: Response) {
   const { justification } = justificationSchema.parse(req.body)
   const result = await attendanceService.justifyAttendance(id, justification)
   return res.json(result)
+}
+
+export async function getSchoolDays(req: Request, res: Response) {
+  const { year } = schoolDaysQuerySchema.parse(req.query)
+  return res.json(await attendanceService.getSchoolDays(year))
+}
+
+export async function updateSchoolDays(req: Request, res: Response) {
+  const input = updateSchoolDaysSchema.parse(req.body)
+  return res.json(await attendanceService.updateSchoolDays(input))
 }

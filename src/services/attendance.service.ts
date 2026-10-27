@@ -1,23 +1,32 @@
-import { AttendanceValue, Prisma } from '@prisma/client'
+import { AttendanceValue, Prisma, Role } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { PaginationAttendanceFilters } from '@/schemas/attendance.schema'
+import type { PaginationAttendanceFilters, UpdateSchoolDaysInput } from '@/schemas/attendance.schema'
 import { HttpError } from '@/utils/httpError'
 
 // La escuela está en Argentina: "hoy" se calcula con esa hora, no con la del servidor (que puede estar en UTC)
 const SCHOOL_TIME_ZONE = 'America/Argentina/Buenos_Aires'
 
-// Motivo que se guarda cuando la falta se marca como justificada (J) en la carga diaria
+// Motivo que se guarda cuando la falta se marca como justificada (J) en la carga diaria.
+// Sirve para distinguirla de una justificación cargada después (por ejemplo, con certificado).
 const DAILY_JUSTIFICATION = 'Justificada en la carga diaria'
 
-const toDate = (value: string) => new Date(`${value}T00:00:00.000Z`)
+// Pueden corregir la asistencia de días anteriores (por ejemplo, si la preceptoría se equivocó)
+const EDIT_PAST_ROLES: Role[] = [Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR]
 
+const toDate = (value: string) => new Date(`${value}T00:00:00.000Z`)
+const toDay = (value: Date) => value.toISOString().slice(0, 10)
+
+// Peso de cada valor en faltas: el retardo puede ser de ¼ (QUARTER) o de ½ (HALF)
 const WEIGHT: Record<AttendanceValue, number> = {
   PRESENT: 0,
   ABSENT: 1,
   HALF: 0.5,
   QUARTER: 0.25,
 }
+
+const isLateArrival = (value: AttendanceValue) =>
+  value === AttendanceValue.QUARTER || value === AttendanceValue.HALF
 
 type AttendanceRecordInput = { studentId: string; value: AttendanceValue; justified?: boolean }
 
@@ -31,8 +40,11 @@ function todayInSchoolTimeZone() {
   }).format(new Date())
 }
 
-// Reglas de la carga: solo el día de hoy (no días anteriores ni futuros) y nunca sábados ni domingos
-function assertCanRegisterAttendance(date: string) {
+// Reglas de la carga:
+// - nunca sábados, domingos ni días futuros;
+// - el día de hoy lo puede cargar quien toma asistencia;
+// - un día anterior solo lo corrigen preceptoría, dirección o administración, dentro del ciclo activo.
+async function assertCanRegisterAttendance(date: string, role: Role) {
   const weekDay = toDate(date).getUTCDay()
   if (weekDay === 0 || weekDay === 6) {
     throw new HttpError(409, 'No se toma asistencia los sábados ni los domingos')
@@ -40,8 +52,21 @@ function assertCanRegisterAttendance(date: string) {
 
   const today = todayInSchoolTimeZone()
   if (date > today) throw new HttpError(409, 'No se puede tomar asistencia de días futuros')
+
   if (date < today) {
-    throw new HttpError(409, 'La asistencia de días anteriores no se puede modificar')
+    if (!EDIT_PAST_ROLES.includes(role)) {
+      throw new HttpError(
+        403,       
+ 'Solo la dirección o la administración pueden corregir la asistencia de días anteriores'
+      )
+    }
+    const academicYear = await prisma.academicYear.findFirst({
+      where: { active: true },
+      select: { year: true },
+    })
+    if (!academicYear || Number(date.slice(0, 4)) !== academicYear.year) {
+      throw new HttpError(409, 'Solo se puede corregir la asistencia del ciclo lectivo activo')
+    }
   }
 }
 
@@ -85,7 +110,7 @@ export async function getSectionAttendance(sectionId: string, date: string) {
     students,
     records: attendances.map((attendance) => ({
       ...attendance,
-      date: attendance.date.toISOString().slice(0, 10),
+      date: toDay(attendance.date),
     })),
   }
 }
@@ -114,7 +139,10 @@ export async function listAttendanceSections() {
   }))
 }
 
-// Cómo queda la justificación al guardar: la J la marca; si cambia el valor o se saca la J, se borra
+// Cómo queda la justificación al volver a guardar un día:
+// - con la J, se marca como justificada (conservando el motivo si ya lo tenía);
+// - una justificación cargada después (por ejemplo, con certificado) se conserva mientras no cambie la falta;
+// - si cambia la falta, o se saca la J de la carga diaria, la justificación se borra.
 function justificationData(
   record: AttendanceRecordInput,
   previous?: { value: AttendanceValue; justified: boolean; justification: string | null }
@@ -128,18 +156,22 @@ function justificationData(
   if (!previous) return { justified: false, justification: null }
 
   const valueChanged = previous.value !== record.value
-  const justificationRemoved = record.value === AttendanceValue.ABSENT && previous.justified
-  return valueChanged || justificationRemoved ? { justified: false, justification: null } : {}
+  const justifiedLater = previous.justified && previous.justification !== DAILY_JUSTIFICATION
+  if (!valueChanged && justifiedLater) return {}
+
+  const dailyJustificationRemoved = record.value === AttendanceValue.ABSENT && previous.justified
+  return valueChanged || dailyJustificationRemoved ? { justified: false, justification: null } : {}
 }
 
 export async function saveBatchAttendance(data: {
   date: string
   sectionId: string
   registeredById: string
+  role: Role
   records: AttendanceRecordInput[]
 }) {
-  const { date, sectionId, registeredById, records } = data
-  assertCanRegisterAttendance(date)
+  const { date, sectionId, registeredById, role, records } = data
+  await assertCanRegisterAttendance(date, role)
 
   // Solo una falta (ausente) puede venir justificada desde la carga diaria
   if (records.some((record) => record.justified && record.value !== AttendanceValue.ABSENT)) {
@@ -171,6 +203,7 @@ export async function saveBatchAttendance(data: {
   })
   const previousRecords = new Map(existingRecords.map((record) => [record.studentId, record]))
 
+  // registeredById guarda quién hizo el último cambio (también al corregir un día anterior)
   const saved = await prisma.$transaction(
     records.map((record) => {
       const justification = justificationData(record, previousRecords.get(record.studentId))
@@ -195,8 +228,8 @@ export async function saveBatchAttendance(data: {
   return { saved: saved.length }
 }
 
-// La justificación posterior (por ejemplo, con certificado) se puede cargar cualquier día:
-// no modifica la falta, solo la marca como justificada (E1-RF-10)
+// La justificación posterior (por ejemplo, con certificado) se puede cargar cualquier día,
+// para inasistencias y retardos: no modifica la falta, solo la marca como justificada (E1-RF-10)
 export async function justifyAttendance(id: string, justification: string) {
   const attendance = await prisma.dailyAttendance.findUnique({
     where: { id },
@@ -207,7 +240,7 @@ export async function justifyAttendance(id: string, justification: string) {
   if (attendance.value === AttendanceValue.PRESENT) {
     throw new HttpError(409, 'No se puede justificar una asistencia presente')
   }
-  if (attendance.justified) throw new HttpError(409, 'La inasistencia ya está justificada')
+  if (attendance.justified) throw new HttpError(409, 'Ya está justificada')
 
   return prisma.dailyAttendance.update({
     where: { id },
@@ -257,7 +290,7 @@ export async function listAttendances(filters: PaginationAttendanceFilters) {
   return {
     items: attendances.map((attendance) => ({
       ...attendance,
-      date: attendance.date.toISOString().slice(0, 10),
+      date: toDay(attendance.date),
     })),
     pagination: {
       page,
@@ -277,11 +310,11 @@ type SummaryRecord = {
   // Columnas del wireframe: total = presentes + ausentes + justificadas + retardos
   totalClasses: number
   presents: number
-  absences: number
-  justified: number
-  lateArrivals: number
+  absences: number // Ausentes sin justificar
+  justified: number // Inasistencias y retardos justificados
+  lateArrivals: number // Retardos (¼ o ½) sin justificar
   attendancePercentage: number
-  // Faltas computables (1, ½ y ¼), para el seguimiento del tope institucional
+  // Faltas computables para el tope institucional: solo lo NO justificado (1, ½ y ¼)
   weightedAbsences: number
   justifications: Array<{ id: string; date: string; type: 'ausente' | 'media' | 'cuarto'; reason: string }>
   attendanceRecords: Array<{
@@ -295,9 +328,9 @@ type SummaryRecord = {
 
 type SummaryPeriod = 'FULL' | 'FIRST' | 'SECOND'
 
-// Fechas del período elegido, según el ciclo lectivo activo.
+// Fechas y días hábiles del período elegido, según el ciclo lectivo activo.
 // Si el ciclo no tiene cargadas las fechas de los cuatrimestres, se usan marzo-julio y agosto-diciembre.
-async function periodDateRange(period: SummaryPeriod) {
+async function periodInfo(period: SummaryPeriod) {
   const academicYear = await prisma.academicYear.findFirst({ where: { active: true } })
   if (!academicYear) throw new HttpError(404, 'No hay un ciclo lectivo activo')
 
@@ -307,9 +340,13 @@ async function periodDateRange(period: SummaryPeriod) {
   const secondStart = academicYear.term2StartDate ?? toDate(`${year}-08-01`)
   const secondEnd = academicYear.term2EndDate ?? toDate(`${year}-12-31`)
 
-  if (period === 'FIRST') return { gte: firstStart, lte: firstEnd }
-  if (period === 'SECOND') return { gte: secondStart, lte: secondEnd }
-  return { gte: firstStart, lte: secondEnd }
+  if (period === 'FIRST') {
+    return { range: { gte: firstStart, lte: firstEnd }, schoolDays: academicYear.term1SchoolDays }
+  }
+  if (period === 'SECOND') {
+    return { range: { gte: secondStart, lte: secondEnd }, schoolDays: academicYear.term2SchoolDays }
+  }
+  return { range: { gte: firstStart, lte: secondEnd }, schoolDays: academicYear.totalSchoolDays }
 }
 
 const JUSTIFICATION_TYPE: Record<Exclude<AttendanceValue, 'PRESENT'>, 'ausente' | 'media' | 'cuarto'> = {
@@ -318,17 +355,45 @@ const JUSTIFICATION_TYPE: Record<Exclude<AttendanceValue, 'PRESENT'>, 'ausente' 
   QUARTER: 'cuarto',
 }
 
+function emptySummary(
+  student: { id: string; firstName: string; lastName: string; dni: string },
+  section: { id: string; grade: number; division: string }
+): SummaryRecord {
+  return {
+    studentId: student.id,
+    sectionId: section.id,
+    student: `${student.lastName}, ${student.firstName}`,
+    dni: student.dni,
+    course: `${section.grade}° Año Sección ${section.division}`,
+    totalClasses: 0,
+    presents: 0,
+    absences: 0,
+    justified: 0,
+    lateArrivals: 0,
+    attendancePercentage: 0,
+    weightedAbsences: 0,
+    justifications: [],
+    attendanceRecords: [],
+  }
+}
+
+const normalize = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
 // Resumen por alumno del ciclo lectivo activo.
-// El total de clases son los días con asistencia tomada (cada día cargado tiene un registro por alumno),
-// y el porcentaje es presentes / total de clases, como en el wireframe.
+// El total de clases son los días con asistencia tomada, y el porcentaje es presentes / total de clases.
+// Al filtrar por curso, aparecen todos los inscriptos, aunque todavía no tengan asistencia cargada.
 export async function getAttendanceSummary(filters: PaginationAttendanceFilters) {
   const { page = 1, pageSize = 20, period = 'FULL' } = filters
-  const dateRange = await periodDateRange(period)
+  const { range, schoolDays } = await periodInfo(period)
 
   const attendances = await prisma.dailyAttendance.findMany({
     where: {
       ...buildAttendanceWhere({ ...filters, from: undefined, to: undefined }),
-      date: dateRange,
+      date: range,
       section: { academicYear: { active: true } },
     },
     include: { student: true, section: true },
@@ -339,35 +404,21 @@ export async function getAttendanceSummary(filters: PaginationAttendanceFilters)
 
   for (const attendance of attendances) {
     const key = `${attendance.studentId}:${attendance.sectionId}`
-    const current = grouped.get(key) ?? {
-      studentId: attendance.studentId,
-      sectionId: attendance.sectionId,
-      student: `${attendance.student.lastName}, ${attendance.student.firstName}`,
-      dni: attendance.student.dni,
-      course: `${attendance.section.grade}° Año Sección ${attendance.section.division}`,
-      totalClasses: 0,
-      presents: 0,
-      absences: 0,
-      justified: 0,
-      lateArrivals: 0,
-      attendancePercentage: 0,
-      weightedAbsences: 0,
-      justifications: [],
-      attendanceRecords: [],
-    }
+    const current = grouped.get(key) ?? emptySummary(attendance.student, attendance.section)
 
     current.totalClasses += 1
-    current.weightedAbsences += WEIGHT[attendance.value]
 
     if (attendance.value === AttendanceValue.PRESENT) {
       current.presents += 1
     } else {
-      // Retardo = cuarto de falta (llegada tarde). Ausente y media falta van a ausentes o justificadas.
-      if (attendance.value === AttendanceValue.QUARTER) current.lateArrivals += 1
-      else if (attendance.justified) current.justified += 1
+      // Lo justificado (inasistencias y retardos) se descuenta de las faltas computables
+      if (attendance.justified) current.justified += 1
+      else if (isLateArrival(attendance.value)) current.lateArrivals += 1
       else current.absences += 1
 
-      const date = attendance.date.toISOString().slice(0, 10)
+      if (!attendance.justified) current.weightedAbsences += WEIGHT[attendance.value]
+
+      const date = toDay(attendance.date)
       current.attendanceRecords.push({
         id: attendance.id,
         date,
@@ -389,9 +440,35 @@ export async function getAttendanceSummary(filters: PaginationAttendanceFilters)
     grouped.set(key, current)
   }
 
+  // Filtrando por curso: se suman los inscriptos del período que no tienen ningún registro
+  if (filters.sectionId) {
+    const section = await prisma.classSection.findUnique({
+      where: { id: filters.sectionId },
+      select: { id: true, grade: true, division: true },
+    })
+    if (section) {
+      const enrollments = await prisma.enrollmentHistory.findMany({
+        where: {
+          classSectionId: section.id,
+          startDate: { lte: range.lte },
+          OR: [{ endDate: null }, { endDate: { gte: range.gte } }],
+        },
+        select: { student: { select: { id: true, firstName: true, lastName: true, dni: true } } },
+      })
+      const search = normalize(filters.search ?? '')
+      for (const { student } of enrollments) {
+        const key = `${student.id}:${section.id}`
+        const matches =
+          !search || normalize(`${student.lastName} ${student.firstName} ${student.dni}`).includes(search)
+        if (!grouped.has(key) && matches) grouped.set(key, emptySummary(student, section))
+      }
+    }
+  }
+
   const allItems = [...grouped.values()]
     .map((item) => ({
       ...item,
+      weightedAbsences: Math.round(item.weightedAbsences * 100) / 100,
       attendancePercentage:
         item.totalClasses > 0 ? Math.round((item.presents / item.totalClasses) * 1000) / 10 : 0,
     }))
@@ -402,6 +479,8 @@ export async function getAttendanceSummary(filters: PaginationAttendanceFilters)
 
   return {
     items,
+    // Días hábiles del período, si la dirección ya los cargó (null si no)
+    schoolDays,
     pagination: {
       page,
       pageSize,
@@ -409,4 +488,27 @@ export async function getAttendanceSummary(filters: PaginationAttendanceFilters)
       totalPages: Math.ceil(total / pageSize),
     },
   }
+}
+
+// Días hábiles de un ciclo lectivo (modal de días hábiles)
+export async function getSchoolDays(year: number) {
+  const academicYear = await prisma.academicYear.findUnique({
+    where: { year },
+    select: { year: true, term1SchoolDays: true, term2SchoolDays: true, totalSchoolDays: true },
+  })
+  if (!academicYear) throw new HttpError(404, 'Ciclo lectivo no encontrado')
+  return academicYear
+}
+
+export async function updateSchoolDays(input: UpdateSchoolDaysInput) {
+  await getSchoolDays(input.year)
+  return prisma.academicYear.update({
+    where: { year: input.year },
+    data: {
+      term1SchoolDays: input.term1SchoolDays,
+      term2SchoolDays: input.term2SchoolDays,
+      totalSchoolDays: input.totalSchoolDays,
+    },
+    select: { year: true, term1SchoolDays: true, term2SchoolDays: true, totalSchoolDays: true },
+  })
 }
