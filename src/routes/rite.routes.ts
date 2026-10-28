@@ -10,8 +10,9 @@ export const riteRouter = Router()
 // Cerrar, reabrir y firmar el RITE es tarea de la dirección o del EOE.
 const directiveRoles = requireRole(Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE, Role.ADMINISTRATOR)
 
-riteRouter.get('/', asyncHandler(riteController.listRites))
-riteRouter.get('/:id', asyncHandler(riteController.getRite))
+// Las consultas también exigen sesión: el RITE tiene datos personales del alumno
+riteRouter.get('/', verifyToken, asyncHandler(riteController.listRites))
+riteRouter.get('/:id', verifyToken, asyncHandler(riteController.getRite))
 
 // Crear y editar observaciones requiere un usuario logueado.
 riteRouter.post('/', verifyToken, asyncHandler(riteController.createRite))

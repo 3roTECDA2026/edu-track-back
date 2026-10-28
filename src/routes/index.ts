@@ -1,17 +1,16 @@
 import { Router } from 'express'
-import authRoutes from '@/routes/auth.routes'
 
-import authRouter from '@/routes/auth.routes'
-import { teacherAssignmentRouter } from "@/routes/teacherAssignment.routes";
 import attendanceRouter from '@/routes/attendance.routes'
+import authRouter from '@/routes/auth.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
 import notificationRoutes from '@/routes/notification.routes'
-import { studentRouter } from '@/routes/student.routes'
-import { userRouter } from '@/routes/user.routes'
 import { riteRouter } from '@/routes/rite.routes'
+import { studentRouter } from '@/routes/student.routes'
+import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
+import { userRouter } from '@/routes/user.routes'
 
 const router = Router()
 
@@ -23,10 +22,10 @@ router.use('/class-sections', classSectionRouter)
 router.use('/teacher-assignments', teacherAssignmentRouter)
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
-router.use('/auth', authRoutes)
 router.use('/users', userRouter)
+// Las rutas de cursos se montan también en la raíz para que /api/subjects siga funcionando
+router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
 router.use('/rites', riteRouter)
-
 
 export default router

@@ -231,6 +231,13 @@ model AcademicYear {
   term2StartDate DateTime?
   term2EndDate   DateTime?
 
+
+  // Días hábiles de clase del ciclo, cargados desde el modal de días hábiles.
+  // Los usan el resumen de asistencia y el RITE.
+  term1SchoolDays Int? // Días hábiles del 1° cuatrimestre
+  term2SchoolDays Int? // Días hábiles del 2° cuatrimestre
+  totalSchoolDays Int? // Días hábiles del ciclo completo
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
