@@ -6,6 +6,7 @@ import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
+import { intensificationScheduleRouter } from '@/routes/intensificationSchedule.routes'
 import notificationRoutes from '@/routes/notification.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
@@ -27,5 +28,7 @@ router.use('/users', userRouter)
 router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
 router.use('/rites', riteRouter)
+// Calendario de períodos de intensificación (CRM-055)
+router.use('/intensification-schedules', intensificationScheduleRouter)
 
 export default router
