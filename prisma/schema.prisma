@@ -210,7 +210,6 @@ model User {
   linkedStudent         Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian              Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers           EdteMember[] // Participaciones en reuniones del EDTE
-  passwordResetTokens   PasswordResetToken[] // Tokens para recuperación de contraseña
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -231,6 +230,13 @@ model AcademicYear {
   term1EndDate   DateTime?
   term2StartDate DateTime?
   term2EndDate   DateTime?
+
+
+  // Días hábiles de clase del ciclo, cargados desde el modal de días hábiles.
+  // Los usan el resumen de asistencia y el RITE.
+  term1SchoolDays Int? // Días hábiles del 1° cuatrimestre
+  term2SchoolDays Int? // Días hábiles del 2° cuatrimestre
+  totalSchoolDays Int? // Días hábiles del ciclo completo
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -946,22 +952,6 @@ model InstitutionalConfig {
   absenceLimitInstitutional   Int                 @default(28) // Límite institucional de faltas tope por año
   subjectAttendancePercentage Float               @default(0.75) // Porcentaje de asistencia requerido por materia (0.75 = 75%)
   createdAt                   DateTime            @default(now()) // Fecha de configuración
-}
-
-// ===================================================================================
-// PASSWORD RESET TOKENS (Tokens de Restablecimiento de Contraseña)
-// ===================================================================================
-model PasswordResetToken {
-  id        String    @id @default(uuid())
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
 }
 
 // Materia pendiente de aprobación y acreditación (MPAA) de un alumno (E3-RF-01, E3-RF-02)
