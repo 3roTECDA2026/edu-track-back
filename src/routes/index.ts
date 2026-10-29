@@ -12,6 +12,7 @@ import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
+import { intensificationRouter } from '@/routes/intensification.routes'
 
 const router = Router()
 
@@ -30,5 +31,6 @@ router.use('/courses', courseRoutes)
 router.use('/rites', riteRouter)
 // Calendario de períodos de intensificación (CRM-055)
 router.use('/intensification-schedules', intensificationScheduleRouter)
+router.use('/intensifications', intensificationRouter)
 
 export default router
