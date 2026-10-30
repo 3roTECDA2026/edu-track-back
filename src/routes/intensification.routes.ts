@@ -21,14 +21,26 @@ const canEdit = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT)
 
 intensificationRouter.use(verifyToken)
 
-intensificationRouter.get('/', canView, asyncHandler(intensificationController.listIntensifications))
+intensificationRouter.get(
+  '/',
+  canView,
+  asyncHandler(intensificationController.listIntensifications)
+)
 intensificationRouter.get(
   '/candidates',
   canView,
   asyncHandler(intensificationController.listCandidates)
 )
-intensificationRouter.post('/', canEdit, asyncHandler(intensificationController.assignIntensifications))
-intensificationRouter.patch('/:id', canEdit, asyncHandler(intensificationController.updatePlacement))
+intensificationRouter.post(
+  '/',
+  canEdit,
+  asyncHandler(intensificationController.assignIntensifications)
+)
+intensificationRouter.patch(
+  '/:id',
+  canEdit,
+  asyncHandler(intensificationController.updatePlacement)
+)
 intensificationRouter.delete(
   '/:id',
   canEdit,

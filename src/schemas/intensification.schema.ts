@@ -16,7 +16,8 @@ function checkPlacement(
   if (needsLocation && !data.targetClassSectionId) {
     context.addIssue({
       code: 'custom',
-      message: 'En los modelos 2 y 3 hay que indicar el año, la sección y el turno donde intensifica',
+      message:
+        'En los modelos 2 y 3 hay que indicar el año, la sección y el turno donde intensifica',
       path: ['targetClassSectionId'],
     })
   }

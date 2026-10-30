@@ -11,8 +11,12 @@ import {
 import { HttpError } from '@/utils/httpError'
 
 type SectionInfo = { id: string; grade: number; division: string; shift: Shift }
+type TargetSection = { grade: number; shift: Shift }
 
 const studentSelect = { id: true, firstName: true, lastName: true, dni: true } as const
+
+const studentName = (student: { firstName: string; lastName: string }) =>
+  `${student.lastName}, ${student.firstName}`
 
 const intensificationInclude = {
   enrollment: {
@@ -61,29 +65,54 @@ async function findScheduleOrFail(scheduleId: string) {
   return schedule
 }
 
-// Modelo y ubicación (E3-RF-06 y 07): en los modelos 2 y 3, la sección tiene que ser del año de la
-// materia; en el 2, del mismo turno del alumno, y en el 3, de otro turno (contraturno).
-async function assertPlacement(
+// La sección donde intensifica (modelos 2 y 3). Se busca una sola vez, porque es la misma
+// para todos los alumnos que se asignan juntos.
+async function findTargetSection(
   model: IntensificationModel,
-  targetClassSectionId: string | null | undefined,
-  subjectGradeLevel: number,
-  studentShift: Shift | undefined
-) {
-  if (!MODELS_WITH_LOCATION.includes(model) || !targetClassSectionId) return
+  targetClassSectionId: string | null | undefined
+): Promise<TargetSection | null> {
+  if (!MODELS_WITH_LOCATION.includes(model) || !targetClassSectionId) return null
 
   const section = await prisma.classSection.findUnique({
     where: { id: targetClassSectionId },
     select: { grade: true, shift: true },
   })
   if (!section) throw new HttpError(404, 'La sección elegida no existe')
+  return section
+}
+
+// Modelo y ubicación (E3-RF-06 y 07): en los modelos 2 y 3, la sección tiene que ser del año de la
+// materia; en el 2, del mismo turno del alumno, y en el 3, de otro turno (contraturno).
+// Si el alumno no tiene curso en el ciclo activo, no se puede validar el turno: se rechaza.
+function assertPlacement(
+  model: IntensificationModel,
+  section: TargetSection | null,
+  subjectGradeLevel: number,
+  studentShift: Shift | undefined,
+  name: string
+) {
+  if (!section) return
+
   if (section.grade !== subjectGradeLevel) {
-    throw new HttpError(409, `La sección tiene que ser de ${subjectGradeLevel}° año, el año de la materia`)
+    throw new HttpError(
+      409,
+      `${name}: la sección tiene que ser de ${subjectGradeLevel}° año, el año de la materia`
+    )
   }
-  if (studentShift && model === IntensificationModel.MODEL_2 && section.shift !== studentShift) {
-    throw new HttpError(409, 'En el modelo 2 la sección tiene que ser del mismo turno del alumno')
+  if (!studentShift) {
+    throw new HttpError(
+      409,
+      `${name} no tiene curso en el ciclo activo: no se puede validar el turno`
+    )
   }
-  if (studentShift && model === IntensificationModel.MODEL_3 && section.shift === studentShift) {
-    throw new HttpError(409, 'En el modelo 3 la sección tiene que ser de otro turno (contraturno)')
+  if (model === IntensificationModel.MODEL_2 && section.shift !== studentShift) {
+    throw new HttpError(409, `${name}: en el modelo 2 la sección tiene que ser de su mismo turno`)
+  }
+  if (model === IntensificationModel.MODEL_3 && section.shift === studentShift) {
+    throw new HttpError(
+      409,
+      `${name}: en el modelo 3 la sección tiene que ser de otro turno (contraturno)`
+    )
   }
 }
 
@@ -186,6 +215,7 @@ export async function assignIntensifications(input: AssignIntensificationsInput)
       status: true,
       initialPendingKnowledge: true,
       originEnrollmentId: true,
+      student: { select: { firstName: true, lastName: true } },
       originEnrollment: {
         select: {
           originalGradeLevel: true,
@@ -199,46 +229,67 @@ export async function assignIntensifications(input: AssignIntensificationsInput)
     throw new HttpError(404, 'Alguna de las materias pendientes no existe')
   }
 
-  const sections = await currentSections(pendings.map((pending) => pending.studentId))
+  // La sección es la misma para todos: se busca una sola vez, antes de recorrer a los alumnos
+  const [sections, targetSection] = await Promise.all([
+    currentSections(pendings.map((pending) => pending.studentId)),
+    findTargetSection(input.model, input.targetClassSectionId),
+  ])
 
-  // Solo se asigna una materia que el alumno tiene pendiente, y una sola vez por período
+  // Solo se asigna una materia que el alumno tiene pendiente, y una sola vez por período.
+  // Los mensajes dicen de qué alumno se trata, para no tener que probar de a uno.
   for (const pending of pendings) {
+    const name = studentName(pending.student)
     if (pending.subjectId !== input.subjectId) {
-      throw new HttpError(409, 'Alguna de las materias elegidas no corresponde a esta materia')
+      throw new HttpError(
+        409,
+        `${name}: la materia pendiente elegida no corresponde a esta materia`
+      )
     }
     if (pending.status !== PendingSubjectStatus.PENDING) {
-      throw new HttpError(409, 'Alguna de las materias elegidas ya está acreditada')
+      throw new HttpError(409, `${name}: la materia ya está acreditada`)
     }
     if (pending.originEnrollment.intensifications.length > 0) {
-      throw new HttpError(409, 'Algún alumno ya está asignado a este período en esta materia')
+      throw new HttpError(409, `${name} ya está asignado a este período en esta materia`)
     }
     const gradeLevel =
       pending.originEnrollment.originalGradeLevel ?? pending.originEnrollment.subject.gradeLevel
-    await assertPlacement(
+    assertPlacement(
       input.model,
-      input.targetClassSectionId,
+      targetSection,
       gradeLevel,
-      sections.get(pending.studentId)?.shift
+      sections.get(pending.studentId)?.shift,
+      name
     )
   }
 
-  const created = await prisma.$transaction(
-    pendings.map((pending) =>
-      prisma.intensification.create({
-        data: {
-          enrollmentId: pending.originEnrollmentId,
-          scheduleId: schedule.id,
-          period: schedule.period,
-          model: input.model,
-          targetClassSectionId: input.targetClassSectionId ?? null,
-          responsibleTeacherId: scheduleSubject.teacherId,
-          pendingKnowledge: pending.initialPendingKnowledge,
-        },
-      })
+  try {
+    const created = await prisma.$transaction(
+      pendings.map((pending) =>
+        prisma.intensification.create({
+          data: {
+            enrollmentId: pending.originEnrollmentId,
+            scheduleId: schedule.id,
+            period: schedule.period,
+            model: input.model,
+            targetClassSectionId: input.targetClassSectionId ?? null,
+            responsibleTeacherId: scheduleSubject.teacherId,
+            pendingKnowledge: pending.initialPendingKnowledge,
+          },
+        })
+      )
     )
-  )
-
-  return { assigned: created.length }
+    return { assigned: created.length }
+  } catch (err) {
+    // La restricción única de la base (enrollmentId + scheduleId) frena los duplicados que el
+    // chequeo de arriba no puede ver: por ejemplo, un doble clic o dos personas al mismo tiempo
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new HttpError(
+        409,
+        'Algún alumno ya fue asignado a este período mientras se guardaba: actualizá el listado'
+      )
+    }
+    throw err
+  }
 }
 
 async function findIntensificationOrFail(id: string) {
@@ -258,12 +309,16 @@ export async function updatePlacement(id: string, input: UpdatePlacementInput) {
   }
 
   const { student, subject } = intensification.enrollment
-  const sections = await currentSections([student.id])
-  await assertPlacement(
+  const [sections, targetSection] = await Promise.all([
+    currentSections([student.id]),
+    findTargetSection(input.model, input.targetClassSectionId),
+  ])
+  assertPlacement(
     input.model,
-    input.targetClassSectionId,
+    targetSection,
     intensification.enrollment.originalGradeLevel ?? subject.gradeLevel,
-    sections.get(student.id)?.shift
+    sections.get(student.id)?.shift,
+    studentName(student)
   )
 
   const updated = await prisma.intensification.update({
@@ -274,7 +329,8 @@ export async function updatePlacement(id: string, input: UpdatePlacementInput) {
   return toIntensificationResponse(updated, sections)
 }
 
-// Quita una asignación, mientras no tenga resultado cargado
+// Quita una asignación, mientras no tenga resultado cargado.
+// Cuando existan asistencias de intensificación (CRM-059), también se bloqueará si tiene asistencias.
 export async function removeIntensification(id: string) {
   const intensification = await findIntensificationOrFail(id)
   if (intensification.resultCode) {
