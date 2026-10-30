@@ -67,6 +67,9 @@ export async function listGrades(query: ListGradesQuery) {
       subjectStatus: true,
       term1Closed: true,
       term2Closed: true,
+      // Valoración parcial de cada cuatrimestre (CRM-066)
+      preliminaryAssessment1: true,
+      preliminaryAssessment2: true,
     },
   },
 } satisfies Prisma.EnrollmentSelect

@@ -1,9 +1,11 @@
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 
 import {
   AlertSeverity,
   AlertType,
   AttendanceValue,
+  Orientation,
   Prisma,
   PrismaClient,
   Role,
@@ -11,8 +13,10 @@ import {
   StudentStatus,
   UserStatus,
 } from '@prisma/client'
+import bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
+const SALT_ROUNDS = 10
 
 type Scores = (number | null)[]
 
@@ -20,6 +24,9 @@ type Scores = (number | null)[]
 const ids = {
   academicYear: '00000000-0000-0000-0000-000000000001',
   teacher: '00000000-0000-0000-0000-000000000010',
+  teacher2: '00000000-0000-0000-0000-000000000011',
+  schoolManagement: '00000000-0000-0000-0000-000000000012',
+  eoe: '00000000-0000-0000-0000-000000000013',
 
   sections: [
     '00000000-0000-0000-0000-000000000020', // 3° A Mañana
@@ -35,6 +42,15 @@ const ids = {
     '00000000-0000-0000-0000-000000000105',
     '00000000-0000-0000-0000-000000000106',
   ],
+
+  guardians: [
+    '00000000-0000-0000-0000-000000000301',
+    '00000000-0000-0000-0000-000000000302',
+    '00000000-0000-0000-0000-000000000303',
+    '00000000-0000-0000-0000-000000000304',
+    '00000000-0000-0000-0000-000000000305',
+    '00000000-0000-0000-0000-000000000306',
+  ],
 } as const
 
 export async function main() {
@@ -46,17 +62,25 @@ export async function main() {
 
   const academicYear = await prisma.academicYear.upsert({
     where: {
-      id: ids.academicYear,
+      year: 2026,
     },
 
     update: {
       active: true,
+      term1StartDate: new Date('2026-03-02'),
+      term1EndDate: new Date('2026-07-17'),
+      term2StartDate: new Date('2026-08-03'),
+      term2EndDate: new Date('2026-12-18'),
     },
 
     create: {
       id: ids.academicYear,
       year: 2026,
       active: true,
+      term1StartDate: new Date('2026-03-02'),
+      term1EndDate: new Date('2026-07-17'),
+      term2StartDate: new Date('2026-08-03'),
+      term2EndDate: new Date('2026-12-18'),
     },
   })
 
@@ -64,20 +88,128 @@ export async function main() {
   // 2. Docente de prueba
   // ============================================================
 
+  const adminPasswordHash = await bcrypt.hash('Admin1234!', SALT_ROUNDS)
+  const staffPasswordHash = await bcrypt.hash('Docente1234!', SALT_ROUNDS)
+
   const teacher = await prisma.user.upsert({
     where: {
       id: ids.teacher,
     },
 
-    update: {},
+    update: {
+      firstName: 'Carla',
+      lastName: 'Méndez',
+      email: 'docente.prueba@notar.local',
+      role: Role.TEACHER,
+      status: UserStatus.ACTIVE,
+      passwordHash: staffPasswordHash,
+    },
 
     create: {
       id: ids.teacher,
-      firstName: 'Usuario',
-      lastName: 'Prueba',
+      firstName: 'Carla',
+      lastName: 'Méndez',
       email: 'docente.prueba@notar.local',
-      passwordHash: 'hash-de-prueba',
+      passwordHash: staffPasswordHash,
       role: Role.TEACHER,
+      status: UserStatus.ACTIVE,
+    },
+  })
+
+  const teacher2 = await prisma.user.upsert({
+    where: {
+      id: ids.teacher2,
+    },
+
+    update: {
+      firstName: 'Diego',
+      lastName: 'Suárez',
+      email: 'diego.suarez@notar.local',
+      role: Role.TEACHER,
+      status: UserStatus.ACTIVE,
+      passwordHash: staffPasswordHash,
+    },
+
+    create: {
+      id: ids.teacher2,
+      firstName: 'Diego',
+      lastName: 'Suárez',
+      email: 'diego.suarez@notar.local',
+      passwordHash: staffPasswordHash,
+      role: Role.TEACHER,
+      status: UserStatus.ACTIVE,
+    },
+  })
+
+  const schoolManagement = await prisma.user.upsert({
+    where: {
+      id: ids.schoolManagement,
+    },
+
+    update: {
+      firstName: 'Marcela',
+      lastName: 'Quiroga',
+      email: 'direccion@notar.local',
+      role: Role.SCHOOL_MANAGEMENT,
+      status: UserStatus.ACTIVE,
+      passwordHash: staffPasswordHash,
+    },
+
+    create: {
+      id: ids.schoolManagement,
+      firstName: 'Marcela',
+      lastName: 'Quiroga',
+      email: 'direccion@notar.local',
+      passwordHash: staffPasswordHash,
+      role: Role.SCHOOL_MANAGEMENT,
+      status: UserStatus.ACTIVE,
+    },
+  })
+
+  await prisma.user.upsert({
+    where: {
+      id: ids.eoe,
+    },
+
+    update: {
+      firstName: 'Paula',
+      lastName: 'Ríos',
+      email: 'eoe@notar.local',
+      role: Role.EOE_DIRECTIVE,
+      status: UserStatus.ACTIVE,
+      passwordHash: staffPasswordHash,
+    },
+
+    create: {
+      id: ids.eoe,
+      firstName: 'Paula',
+      lastName: 'Ríos',
+      email: 'eoe@notar.local',
+      passwordHash: staffPasswordHash,
+      role: Role.EOE_DIRECTIVE,
+      status: UserStatus.ACTIVE,
+    },
+  })
+
+  await prisma.user.upsert({
+    where: {
+      email: 'admin@notar.local',
+    },
+
+    update: {
+      firstName: 'Admin',
+      lastName: 'Notar',
+      role: Role.ADMINISTRATOR,
+      status: UserStatus.ACTIVE,
+      passwordHash: adminPasswordHash,
+    },
+
+    create: {
+      firstName: 'Admin',
+      lastName: 'Notar',
+      email: 'admin@notar.local',
+      passwordHash: adminPasswordHash,
+      role: Role.ADMINISTRATOR,
       status: UserStatus.ACTIVE,
     },
   })
@@ -120,6 +252,40 @@ export async function main() {
     },
   })
 
+  const historia = await prisma.subject.upsert({
+    where: {
+      code: 'HIS-TEST',
+    },
+
+    update: {},
+
+    create: {
+      id: '00000000-0000-0000-0000-000000000202',
+      name: 'Historia',
+      code: 'HIS-TEST',
+      hoursPerWeek: 3,
+      gradeLevel: 3,
+      area: 'Ciencias Sociales',
+    },
+  })
+
+  const biologia = await prisma.subject.upsert({
+    where: {
+      code: 'BIO-TEST',
+    },
+
+    update: {},
+
+    create: {
+      id: '00000000-0000-0000-0000-000000000203',
+      name: 'Biología',
+      code: 'BIO-TEST',
+      hoursPerWeek: 3,
+      gradeLevel: 4,
+      area: 'Ciencias Naturales',
+    },
+  })
+
   // ============================================================
   // 4. Secciones
   // ============================================================
@@ -130,18 +296,21 @@ export async function main() {
       grade: 3,
       division: 'A',
       shift: Shift.MORNING,
+      orientation: Orientation.ORIENTED,
     },
     {
       id: ids.sections[1],
       grade: 2,
       division: 'B',
       shift: Shift.AFTERNOON,
+      orientation: Orientation.ORIENTED,
     },
     {
       id: ids.sections[2],
       grade: 4,
       division: 'A',
       shift: Shift.MORNING,
+      orientation: Orientation.ORIENTED,
     },
   ]
 
@@ -155,6 +324,7 @@ export async function main() {
         grade: section.grade,
         division: section.division,
         shift: section.shift,
+        orientation: section.orientation,
       },
 
       create: {
@@ -162,6 +332,7 @@ export async function main() {
         grade: section.grade,
         division: section.division,
         shift: section.shift,
+        orientation: section.orientation,
 
         academicYear: {
           connect: {
@@ -192,6 +363,7 @@ export async function main() {
         grade: 1,
         division: 'A',
         shift: Shift.MORNING,
+        orientation: Orientation.ORIENTED,
         academicYearId: academicYear.id,
       },
     })
@@ -208,7 +380,118 @@ export async function main() {
   const section1AId: string = section1A.id
 
   // ============================================================
-  // 5. Alumnos Generales
+  // 5. Calendario Académico e Asignaciones Docentes
+  // ============================================================
+
+  const milestones = [
+    {
+      id: '00000000-0000-0000-0000-000000000401',
+      type: 'Inicio de clases',
+      description:
+        'Comienzo del ciclo lectivo con jornada de bienvenida y presentación de acuerdos de convivencia.',
+      startDate: new Date('2026-03-02'),
+      endDate: null,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000402',
+      type: 'Cierre primer cuatrimestre',
+      description:
+        'Cierre administrativo y pedagógico del primer cuatrimestre con entrega de informes.',
+      startDate: new Date('2026-07-17'),
+      endDate: null,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000403',
+      type: 'Receso invernal',
+      description: 'Receso escolar de invierno.',
+      startDate: new Date('2026-07-20'),
+      endDate: new Date('2026-07-31'),
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000404',
+      type: 'Intensificación diciembre',
+      description:
+        'Bloque institucional para recuperación de saberes pendientes y cierre de trayectorias.',
+      startDate: new Date('2026-12-09'),
+      endDate: new Date('2026-12-18'),
+    },
+  ]
+
+  for (const milestone of milestones) {
+    await prisma.calendarMilestone.upsert({
+      where: {
+        id: milestone.id,
+      },
+
+      update: {
+        type: milestone.type,
+        description: milestone.description,
+        startDate: milestone.startDate,
+        endDate: milestone.endDate,
+        academicYearId: academicYear.id,
+      },
+
+      create: {
+        id: milestone.id,
+        type: milestone.type,
+        description: milestone.description,
+        startDate: milestone.startDate,
+        endDate: milestone.endDate,
+        academicYearId: academicYear.id,
+      },
+    })
+  }
+
+  const teacherAssignments = [
+    {
+      id: '00000000-0000-0000-0000-000000000501',
+      teacherId: teacher.id,
+      subjectId: matematica.id,
+      classSectionId: section1AId,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000502',
+      teacherId: teacher.id,
+      subjectId: lengua.id,
+      classSectionId: section1AId,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000503',
+      teacherId: teacher2.id,
+      subjectId: historia.id,
+      classSectionId: ids.sections[0],
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000504',
+      teacherId: teacher2.id,
+      subjectId: biologia.id,
+      classSectionId: ids.sections[2],
+    },
+  ]
+
+  for (const assignment of teacherAssignments) {
+    await prisma.teacherSubjectCourse.upsert({
+      where: {
+        id: assignment.id,
+      },
+
+      update: {
+        teacherId: assignment.teacherId,
+        subjectId: assignment.subjectId,
+        classSectionId: assignment.classSectionId,
+      },
+
+      create: {
+        id: assignment.id,
+        teacherId: assignment.teacherId,
+        subjectId: assignment.subjectId,
+        classSectionId: assignment.classSectionId,
+      },
+    })
+  }
+
+  // ============================================================
+  // 6. Alumnos Generales
   // ============================================================
 
   const generalStudents = [
@@ -219,6 +502,11 @@ export async function main() {
       firstName: 'Sofía',
       recordNumber: 'LEGAJO-001',
       sectionId: ids.sections[0],
+      placeOfBirth: 'Mar del Plata, Buenos Aires',
+      city: 'Mar del Plata',
+      phone: '223-512-4481',
+      hasPPI: false,
+      status: StudentStatus.ACTIVE,
     },
 
     {
@@ -228,6 +516,11 @@ export async function main() {
       firstName: 'Mateo',
       recordNumber: 'LEGAJO-002',
       sectionId: ids.sections[0],
+      placeOfBirth: 'Mar del Plata, Buenos Aires',
+      city: 'Mar del Plata',
+      phone: '223-598-2210',
+      hasPPI: false,
+      status: StudentStatus.ACTIVE,
     },
 
     {
@@ -237,6 +530,11 @@ export async function main() {
       firstName: 'Camila',
       recordNumber: 'LEGAJO-003',
       sectionId: ids.sections[0],
+      placeOfBirth: 'Balcarce, Buenos Aires',
+      city: 'Mar del Plata',
+      phone: '223-620-0152',
+      hasPPI: true,
+      status: StudentStatus.ACTIVE,
     },
 
     {
@@ -246,6 +544,11 @@ export async function main() {
       firstName: 'Agustina',
       recordNumber: 'LEGAJO-004',
       sectionId: ids.sections[1],
+      placeOfBirth: 'Miramar, Buenos Aires',
+      city: 'Miramar',
+      phone: '2291-54-7731',
+      hasPPI: false,
+      status: StudentStatus.ACTIVE,
     },
 
     {
@@ -255,6 +558,12 @@ export async function main() {
       firstName: 'Tomás',
       recordNumber: 'LEGAJO-005',
       sectionId: ids.sections[1],
+      placeOfBirth: 'Necochea, Buenos Aires',
+      city: 'Miramar',
+      phone: '2262-43-1109',
+      hasPPI: false,
+      status: StudentStatus.CONDITIONAL,
+      conditionalUntil: new Date('2026-11-30'),
     },
 
     {
@@ -264,6 +573,11 @@ export async function main() {
       firstName: 'Valentina',
       recordNumber: 'LEGAJO-006',
       sectionId: ids.sections[2],
+      placeOfBirth: 'Mar del Plata, Buenos Aires',
+      city: 'Mar del Plata',
+      phone: '223-410-2297',
+      hasPPI: false,
+      status: StudentStatus.ACTIVE,
     },
   ]
 
@@ -278,6 +592,12 @@ export async function main() {
         lastName: student.lastName,
         firstName: student.firstName,
         recordNumber: student.recordNumber,
+        placeOfBirth: student.placeOfBirth,
+        city: student.city,
+        phone: student.phone,
+        hasPPI: student.hasPPI,
+        status: student.status,
+        conditionalUntil: student.conditionalUntil ?? null,
       },
 
       create: {
@@ -288,7 +608,12 @@ export async function main() {
         recordNumber: student.recordNumber,
         dateOfBirth: new Date('2010-04-12'),
         address: 'Domicilio de prueba 123',
-        status: StudentStatus.ACTIVE,
+        placeOfBirth: student.placeOfBirth,
+        city: student.city,
+        phone: student.phone,
+        hasPPI: student.hasPPI,
+        status: student.status,
+        conditionalUntil: student.conditionalUntil,
       },
     })
 
@@ -330,6 +655,120 @@ export async function main() {
         },
       },
     })
+  }
+
+  const guardians = [
+    {
+      id: ids.guardians[0],
+      firstName: 'Laura',
+      lastName: 'Pérez',
+      dni: '28655123',
+      phone: '223-512-4490',
+      email: 'laura.perez@familia.local',
+      relationship: 'Madre',
+      links: [
+        { studentId: ids.students[0], isPrimary: true },
+        { studentId: ids.students[1], isPrimary: true },
+      ],
+    },
+    {
+      id: ids.guardians[1],
+      firstName: 'Nicolás',
+      lastName: 'García',
+      dni: '27984330',
+      phone: '223-598-2231',
+      email: 'nicolas.garcia@familia.local',
+      relationship: 'Padre',
+      links: [{ studentId: ids.students[1], isPrimary: false }],
+    },
+    {
+      id: ids.guardians[2],
+      firstName: 'Daniela',
+      lastName: 'Luna',
+      dni: '30122781',
+      phone: '223-620-0144',
+      email: 'daniela.luna@familia.local',
+      relationship: 'Madre',
+      links: [{ studentId: ids.students[2], isPrimary: true }],
+    },
+    {
+      id: ids.guardians[3],
+      firstName: 'Miriam',
+      lastName: 'Romero',
+      dni: '29447612',
+      phone: '2291-54-7714',
+      email: 'miriam.romero@familia.local',
+      relationship: 'Tía tutora',
+      links: [{ studentId: ids.students[3], isPrimary: true }],
+    },
+    {
+      id: ids.guardians[4],
+      firstName: 'Ricardo',
+      lastName: 'Díaz',
+      dni: '27771145',
+      phone: '2262-43-1127',
+      email: 'ricardo.diaz@familia.local',
+      relationship: 'Padre',
+      links: [{ studentId: ids.students[4], isPrimary: true }],
+    },
+    {
+      id: ids.guardians[5],
+      firstName: 'Silvina',
+      lastName: 'Benítez',
+      dni: '28993450',
+      phone: '223-410-2289',
+      email: 'silvina.benitez@familia.local',
+      relationship: 'Madre',
+      links: [{ studentId: ids.students[5], isPrimary: true }],
+    },
+  ]
+
+  for (const guardian of guardians) {
+    await prisma.guardian.upsert({
+      where: {
+        id: guardian.id,
+      },
+
+      update: {
+        firstName: guardian.firstName,
+        lastName: guardian.lastName,
+        dni: guardian.dni,
+        phone: guardian.phone,
+        email: guardian.email,
+        relationship: guardian.relationship,
+      },
+
+      create: {
+        id: guardian.id,
+        firstName: guardian.firstName,
+        lastName: guardian.lastName,
+        dni: guardian.dni,
+        phone: guardian.phone,
+        email: guardian.email,
+        relationship: guardian.relationship,
+      },
+    })
+
+    for (const link of guardian.links) {
+      await prisma.studentGuardian.upsert({
+        where: {
+          studentId_guardianId: {
+            studentId: link.studentId,
+            guardianId: guardian.id,
+          },
+        },
+
+        update: {
+          isPrimary: link.isPrimary,
+        },
+
+        create: {
+          studentId: link.studentId,
+          guardianId: guardian.id,
+          isPrimary: link.isPrimary,
+        },
+      })
+    }
   }
 
   // ============================================================
@@ -389,7 +828,14 @@ export async function main() {
         dni: s.dni,
       },
 
-      update: {},
+      update: {
+        lastName: s.lastName,
+        firstName: s.firstName,
+        placeOfBirth: 'Mar del Plata, Buenos Aires',
+        city: 'Mar del Plata',
+        phone: '223-400-0000',
+        status: StudentStatus.ACTIVE,
+      },
 
       create: {
         dni: s.dni,
@@ -397,12 +843,35 @@ export async function main() {
         firstName: s.firstName,
         dateOfBirth: new Date('2012-03-15'),
         address: 'Calle Falsa 123',
+        placeOfBirth: 'Mar del Plata, Buenos Aires',
+        city: 'Mar del Plata',
+        phone: '223-400-0000',
         recordNumber: `LEG-TEST-${String(idx).padStart(4, '0')}`,
         status: StudentStatus.ACTIVE,
       },
     })
 
     gradeStudentsByDni[s.dni] = student.id
+
+    const gradeHistoryId =
+      `00000000-0000-0000-0000-000000003${String(idx).padStart(3, '0')}`
+
+    await prisma.enrollmentHistory.upsert({
+      where: {
+        id: gradeHistoryId,
+      },
+
+      update: {
+        studentId: student.id,
+        classSectionId: section1AId,
+      },
+
+      create: {
+        id: gradeHistoryId,
+        studentId: student.id,
+        classSectionId: section1AId,
+      },
+    })
 
     idx += 1
   }
@@ -772,7 +1241,61 @@ export async function main() {
   }
 
   // ============================================================
-  // 8. Alertas / Notificaciones
+  // 8. Comunicaciones institucionales
+  // ============================================================
+
+  const messages = [
+    {
+      id: '00000000-0000-0000-0000-000000002801',
+      senderId: schoolManagement.id,
+      studentId: ids.students[0],
+      body:
+        'Se recuerda que la reunión de familias de 3° A será el jueves 24/09 a las 18:00 en el SUM.',
+      readByFamily: true,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000002802',
+      senderId: teacher.id,
+      studentId: ids.students[2],
+      body:
+        'Camila mejoró su participación en clase. Sugerimos sostener rutinas de estudio para el cierre del cuatrimestre.',
+      readByFamily: false,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000002803',
+      senderId: teacher2.id,
+      studentId: ids.students[5],
+      body:
+        'Se envía propuesta de actividades de apoyo para Biología. Traer carpeta y material de laboratorio el próximo martes.',
+      readByFamily: false,
+    },
+  ]
+
+  for (const message of messages) {
+    await prisma.message.upsert({
+      where: {
+        id: message.id,
+      },
+
+      update: {
+        senderId: message.senderId,
+        studentId: message.studentId,
+        body: message.body,
+        readByFamily: message.readByFamily,
+      },
+
+      create: {
+        id: message.id,
+        senderId: message.senderId,
+        studentId: message.studentId,
+        body: message.body,
+        readByFamily: message.readByFamily,
+      },
+    })
+  }
+
+  // ============================================================
+  // 9. Alertas / Notificaciones
   // ============================================================
 
   const alertDefinitions = [
@@ -780,6 +1303,7 @@ export async function main() {
       id: '00000000-0000-0000-0000-000000002001',
       studentId: ids.students[0],
       type: AlertType.HEALTH,
+      read: false,
       message:
         'Se reportó ausencia por enfermedad con certificado médico vigente.',
     },
@@ -788,6 +1312,7 @@ export async function main() {
       id: '00000000-0000-0000-0000-000000002002',
       studentId: ids.students[1],
       type: AlertType.CONDUCT,
+      read: true,
       message:
         'Se registró falta de respeto en clase y se requiere seguimiento de convivencia.',
     },
@@ -796,6 +1321,7 @@ export async function main() {
       id: '00000000-0000-0000-0000-000000002003',
       studentId: ids.students[3],
       type: AlertType.HEALTH,
+      read: false,
       message:
         'El estudiante presenta tratamiento médico y requiere apoyo pedagógico.',
     },
@@ -804,6 +1330,7 @@ export async function main() {
       id: '00000000-0000-0000-0000-000000002004',
       studentId: ids.students[4],
       type: AlertType.CONDUCT,
+      read: false,
       message:
         'Se evidenció conducta disruptiva durante la jornada escolar y se citó a entrevista.',
     },
@@ -813,6 +1340,7 @@ export async function main() {
       studentId: ids.students[2],
       type: AlertType.PENDING_SUBJECTS,
       severity: AlertSeverity.HIGH,
+      read: false,
       message:
         'Rendimiento bajo en Matemática: promedio actual 3,5. Se recomienda acordar actividades de apoyo y revisar avances en el próximo período.',
     },
@@ -822,6 +1350,7 @@ export async function main() {
       studentId: ids.students[5],
       type: AlertType.PENDING_SUBJECTS,
       severity: AlertSeverity.HIGH,
+      read: true,
       message:
         'Presenta calificaciones inferiores a 4 en Matemática y Prácticas del Lenguaje. Requiere seguimiento y acompañamiento pedagógico.',
     },
@@ -838,23 +1367,18 @@ export async function main() {
         severity:
           alert.severity ?? AlertSeverity.MEDIUM,
         message: alert.message,
-        read: false,
+        read: alert.read ?? false,
+        academicYearId: academicYear.id,
       },
 
       create: {
         id: alert.id,
-
-        student: {
-          connect: {
-            id: alert.studentId,
-          },
-        },
-
+        studentId: alert.studentId,
+        academicYearId: academicYear.id,
         type: alert.type,
-        severity:
-          alert.severity ?? AlertSeverity.MEDIUM,
+        severity: alert.severity ?? AlertSeverity.MEDIUM,
         message: alert.message,
-        read: false,
+        read: alert.read ?? false,
       },
     })
   }
@@ -879,7 +1403,7 @@ export async function main() {
   )
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .catch(async (e) => {
       console.error('❌ Error ejecutando el seed:', e)

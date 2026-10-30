@@ -12,7 +12,7 @@ import type { CreateRiteInput, UpdateRiteNotesInput } from '@/schemas/rite.schem
 import { HttpError } from '@/utils/httpError'
 
 // Datos fijos de la institución para el encabezado del RITE.
-// TODO: pasarlos a InstitutionalConfig cuando el modelo tenga estos campos.
+// TODO: pasarlos a InstitutionalConfig cuando el modelo tenga estos campos (CRM-042).
 const INSTITUTION = {
   name: 'Escuela Normal Secundaria',
   number: '10',
@@ -20,6 +20,7 @@ const INSTITUTION = {
 }
 
 // Mismos pesos que usa el módulo de asistencia para calcular inasistencias.
+// El retardo puede ser de ¼ (QUARTER) o de ½ (HALF).
 const ABSENCE_WEIGHT: Record<AttendanceValue, number> = {
   PRESENT: 0,
   ABSENT: 1,
@@ -104,7 +105,7 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
     }),
     client.dailyAttendance.findMany({
       where: { studentId, section: { academicYearId } },
-      select: { date: true, value: true },
+      select: { date: true, value: true, justified: true },
     }),
     // Los tres RITE del ciclo (1° y 2° cuatrimestre y post-intensificación), para las notificaciones.
     client.rite.findMany({
@@ -152,16 +153,40 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
       (a, b) => a.type.localeCompare(b.type) || a.subjectName.localeCompare(b.subjectName, 'es')
     )
 
-  // Inasistencias por cuatrimestre. Los días hábiles son los días con asistencia registrada.
-  const term1 = { schoolDays: 0, absences: 0 }
-  const term2 = { schoolDays: 0, absences: 0 }
+  // Asistencia por cuatrimestre:
+  // - días hábiles: los que cargó la dirección en el modal; si todavía no los cargó, los días con asistencia tomada;
+  // - asistencias: días en que el alumno vino (presente o con retardo);
+  // - inasistencias: faltas en peso (1, ½ y ¼), separadas en justificadas y sin justificar.
+  const emptyTerm = () => ({
+    schoolDays: 0,
+    recordedDays: 0,
+    attendances: 0,
+    absences: 0,
+    justifiedAbsences: 0,
+    unjustifiedAbsences: 0,
+  })
+  const term1 = emptyTerm()
+  const term2 = emptyTerm()
   for (const record of attendances) {
     const recordTerm = getTermOf(record.date, rite.academicYear)
     if (!recordTerm) continue
     const bucket = recordTerm === Term.FIRST ? term1 : term2
-    bucket.schoolDays += 1
-    bucket.absences += ABSENCE_WEIGHT[record.value]
+    bucket.recordedDays += 1
+    if (record.value !== AttendanceValue.ABSENT) bucket.attendances += 1
+    const weight = ABSENCE_WEIGHT[record.value]
+    bucket.absences += weight
+    if (record.justified) bucket.justifiedAbsences += weight
+    else bucket.unjustifiedAbsences += weight
   }
+
+  const configured = rite.academicYear
+  term1.schoolDays = configured.term1SchoolDays ?? term1.recordedDays
+  term2.schoolDays = configured.term2SchoolDays ?? term2.recordedDays
+
+  // En el RITE del 1° cuatrimestre, los totales son solo de ese cuatrimestre
+  const round = (value: number) => Math.round(value * 100) / 100
+  const total = (key: keyof ReturnType<typeof emptyTerm>) =>
+    round(term1[key] + (isFirstTerm ? 0 : term2[key]))
 
   return {
     institution: INSTITUTION,
@@ -174,8 +199,14 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
     attendance: {
       term1,
       term2: isFirstTerm ? null : term2,
-      totalSchoolDays: term1.schoolDays + (isFirstTerm ? 0 : term2.schoolDays),
-      totalAbsences: term1.absences + (isFirstTerm ? 0 : term2.absences),
+      // Días hábiles del ciclo completo: el total cargado en el modal, o la suma de los cuatrimestres
+      totalSchoolDays: isFirstTerm
+        ? term1.schoolDays
+        : (configured.totalSchoolDays ?? term1.schoolDays + term2.schoolDays),
+      totalAttendances: total('attendances'),
+      totalAbsences: total('absences'),
+      totalJustifiedAbsences: total('justifiedAbsences'),
+      totalUnjustifiedAbsences: total('unjustifiedAbsences'),
     },
     generalNotes: rite.generalNotes,
     notifications: yearRites.map((item) => ({
