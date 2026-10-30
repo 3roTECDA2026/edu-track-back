@@ -1,4 +1,12 @@
-import { IntensificationModel, PendingSubjectStatus, Prisma, Shift } from '@prisma/client'
+import {
+  IntensificationModel,
+  IntensificationResultCode,
+  PendingSubjectStatus,
+  Prisma,
+  Role,
+  Shift,
+  SubjectStatus,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import {
@@ -6,6 +14,7 @@ import {
   type AssignIntensificationsInput,
   type CandidatesQuery,
   type ListIntensificationsQuery,
+  type RegisterResultInput,
   type UpdatePlacementInput,
 } from '@/schemas/intensification.schema'
 import { HttpError } from '@/utils/httpError'
@@ -20,7 +29,7 @@ const intensificationInclude = {
       student: { select: studentSelect },
       subject: { select: { id: true, name: true, gradeLevel: true } },
       originalGradeLevel: true,
-      pendingSubject: { select: { id: true } },
+      pendingSubject: { select: { id: true, status: true } },
     },
   },
   targetClassSection: { select: { id: true, grade: true, division: true, shift: true } },
@@ -112,6 +121,9 @@ function toIntensificationResponse(
       : null,
     resultCode: item.resultCode,
     score: item.score,
+    pendingKnowledge: item.pendingKnowledge,
+    knowledgeAtClose: item.knowledgeAtClose,
+    evaluationDate: item.evaluationDate,
   }
 }
 
@@ -282,4 +294,73 @@ export async function removeIntensification(id: string) {
   }
   await prisma.intensification.delete({ where: { id } })
   return { deleted: true }
+}
+
+// Carga del resultado de la intensificación (E3-RF-08).
+// AA con nota de 4 a 10: la materia queda acreditada, sale de las MPAA y se actualiza su
+// calificación final. CCA o CSA: la materia sigue pendiente y continúa intensificando.
+// Puede cargarlo el docente responsable (solo sus alumnos), la dirección o la administración.
+export async function registerResult(
+  id: string,
+  input: RegisterResultInput,
+  user: { userId: string; role: Role }
+) {
+  const intensification = await findIntensificationOrFail(id)
+
+  if (user.role === Role.TEACHER && intensification.responsibleTeacherId !== user.userId) {
+    throw new HttpError(403, 'Solo el docente responsable o la dirección pueden cargar este resultado')
+  }
+  if (intensification.resultCode === IntensificationResultCode.AA) {
+    throw new HttpError(409, 'La materia ya se acreditó con esta intensificación: el resultado no se cambia')
+  }
+  const pending = intensification.enrollment.pendingSubject
+  if (pending?.status === PendingSubjectStatus.ACCREDITED) {
+    throw new HttpError(409, 'La materia ya está acreditada')
+  }
+
+  const approved = input.resultCode === IntensificationResultCode.AA
+  const score = input.score ?? null
+  const now = new Date()
+  const subjectStatus = approved
+    ? SubjectStatus.APPROVED_ACCREDITED
+    : SubjectStatus.CONTINUES_INTENSIFYING
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.intensification.update({
+      where: { id },
+      data: {
+        resultCode: input.resultCode,
+        score,
+        knowledgeAtClose: input.knowledgeAtClose ?? null,
+        // Con CCA o CSA se actualizan los saberes que le quedan; con AA se conservan los del intento
+        ...(!approved && input.pendingKnowledge !== undefined && {
+          pendingKnowledge: input.pendingKnowledge,
+        }),
+        evaluationDate: now,
+      },
+    })
+
+    // La materia aprobada sale de las MPAA, con la nota de la intensificación
+    if (approved && pending) {
+      await tx.pendingSubject.update({
+        where: { id: pending.id },
+        data: { status: PendingSubjectStatus.ACCREDITED, finalScore: score, accreditedAt: now },
+      })
+    }
+
+    // Calificación de la materia: nota final y estado (si no tenía calificación, se crea)
+    await tx.grade.upsert({
+      where: { enrollmentId: intensification.enrollmentId },
+      update: { subjectStatus, ...(approved && { finalScore: score }) },
+      create: {
+        enrollmentId: intensification.enrollmentId,
+        subjectStatus,
+        ...(approved && { finalScore: score }),
+      },
+    })
+  })
+
+  const updated = await findIntensificationOrFail(id)
+  const sections = await currentSections([updated.enrollment.student.id])
+  return toIntensificationResponse(updated, sections)
 }

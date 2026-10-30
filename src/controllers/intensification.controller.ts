@@ -1,10 +1,12 @@
 import type { Request, Response } from 'express'
 
+import { getAuthUser } from '@/middlewares/auth.middleware'
 import {
   assignIntensificationsSchema,
   candidatesQuerySchema,
   intensificationIdParamSchema,
   listIntensificationsQuerySchema,
+  registerResultSchema,
   updatePlacementSchema,
 } from '@/schemas/intensification.schema'
 import * as intensificationService from '@/services/intensification.service'
@@ -33,4 +35,12 @@ export async function updatePlacement(req: Request, res: Response) {
 export async function removeIntensification(req: Request, res: Response) {
   const { id } = intensificationIdParamSchema.parse(req.params)
   res.json(await intensificationService.removeIntensification(id))
+}
+
+// El usuario logueado decide si puede cargar el resultado (docente responsable o dirección)
+export async function registerResult(req: Request, res: Response) {
+  const { id } = intensificationIdParamSchema.parse(req.params)
+  const input = registerResultSchema.parse(req.body)
+  const { userId, role } = getAuthUser(req)
+  res.json(await intensificationService.registerResult(id, input, { userId, role }))
 }

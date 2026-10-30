@@ -19,6 +19,10 @@ const canView = requireRole(
 // Asignar, cambiar el modelo o quitar: dirección o administración
 const canEdit = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT)
 
+// Cargar el resultado: dirección, administración o docentes
+// (un docente solo el de sus alumnos: lo controla el service)
+const canRegisterResult = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER)
+
 intensificationRouter.use(verifyToken)
 
 intensificationRouter.get('/', canView, asyncHandler(intensificationController.listIntensifications))
@@ -28,6 +32,11 @@ intensificationRouter.get(
   asyncHandler(intensificationController.listCandidates)
 )
 intensificationRouter.post('/', canEdit, asyncHandler(intensificationController.assignIntensifications))
+intensificationRouter.patch(
+  '/:id/result',
+  canRegisterResult,
+  asyncHandler(intensificationController.registerResult)
+)
 intensificationRouter.patch('/:id', canEdit, asyncHandler(intensificationController.updatePlacement))
 intensificationRouter.delete(
   '/:id',

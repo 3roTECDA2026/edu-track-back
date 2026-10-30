@@ -1,4 +1,4 @@
-import { IntensificationModel } from '@prisma/client'
+import { IntensificationModel, IntensificationResultCode } from '@prisma/client'
 import { z } from 'zod'
 
 // Modelos que se cursan en otra sección: ahí es obligatorio indicar año, sección y turno (E3-RF-07)
@@ -64,7 +64,39 @@ export const updatePlacementSchema = z
   })
   .superRefine(checkPlacement)
 
+const optionalText = z.string().trim().max(2000).nullable().optional()
+
+// Resultado de la intensificación (E3-RF-08).
+// AA: acreditó y aprobó, con nota de 4 a 10 (obligatoria).
+// CCA o CSA: sigue intensificando; la nota es opcional y, si se carga, va de 1 a 3.
+export const registerResultSchema = z
+  .object({
+    resultCode: z.enum(IntensificationResultCode),
+    score: z.number().int().min(1).max(10).nullable().optional(),
+    knowledgeAtClose: optionalText, // Logros o saberes alcanzados
+    pendingKnowledge: optionalText, // Saberes que le quedan pendientes (CCA o CSA)
+  })
+  .superRefine((data, context) => {
+    const score = data.score ?? null
+    if (data.resultCode === IntensificationResultCode.AA) {
+      if (score === null || score < 4) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Con AA hay que cargar la nota, de 4 a 10',
+          path: ['score'],
+        })
+      }
+    } else if (score !== null && score > 3) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Con CCA o CSA la nota va de 1 a 3, o queda vacía',
+        path: ['score'],
+      })
+    }
+  })
+
 export type ListIntensificationsQuery = z.infer<typeof listIntensificationsQuerySchema>
 export type CandidatesQuery = z.infer<typeof candidatesQuerySchema>
 export type AssignIntensificationsInput = z.infer<typeof assignIntensificationsSchema>
 export type UpdatePlacementInput = z.infer<typeof updatePlacementSchema>
+export type RegisterResultInput = z.infer<typeof registerResultSchema>
