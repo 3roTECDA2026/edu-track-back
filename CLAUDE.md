@@ -304,10 +304,6 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 
 Al tocar estas zonas, seguir las convenciones de arriba en lugar de copiar lo existente:
 
-- **`PasswordResetToken` no tiene migración.** El modelo entró en `schema.prisma` con el
-  PR #40 (que solo debía agregar el rol `PRECEPTOR`), pero ninguna migración crea su tabla.
-  Con `migrate deploy` la tabla no existe. Hay que crearla en una migración propia o sacar el
-  modelo hasta que se use.
 - La migración `20261009230000_add_preceptor_role` tiene una fecha anterior a
   `20261015232426_add_rite_snapshot`, que ya estaba aplicada. Funciona, pero queda fuera de orden.
 - El seed de `develop-sprint3` no trae el arreglo de Windows (`pathToFileURL`) y solo crea un
