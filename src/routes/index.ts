@@ -7,12 +7,12 @@ import courseRoutes from '@/routes/course.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
 import { intensificationScheduleRouter } from '@/routes/intensificationSchedule.routes'
+import { intensificationRouter } from '@/routes/intensification.routes'
 import notificationRoutes from '@/routes/notification.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
-import { intensificationRouter } from '@/routes/intensification.routes'
 
 const router = Router()
 
