@@ -231,7 +231,6 @@ model AcademicYear {
   term2StartDate DateTime?
   term2EndDate   DateTime?
 
-
   // Días hábiles de clase del ciclo, cargados desde el modal de días hábiles.
   // Los usan el resumen de asistencia y el RITE.
   term1SchoolDays Int? // Días hábiles del 1° cuatrimestre
@@ -560,6 +559,7 @@ model Intensification {
   evaluationDate       DateTime? // Fecha de la evaluación/cierre
   createdAt            DateTime                   @default(now()) // Fecha de registro
 
+  @@unique([enrollmentId, scheduleId]) // Un alumno, una vez por período en cada materia (lo garantiza la base)
   @@index([enrollmentId, period]) // Índice para consulta de historial de intensificaciones
   @@index([scheduleId]) // Índice para listar los intentos de un período
 }
