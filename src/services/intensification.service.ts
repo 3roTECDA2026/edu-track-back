@@ -38,6 +38,7 @@ const intensificationInclude = {
   },
   targetClassSection: { select: { id: true, grade: true, division: true, shift: true } },
   responsibleTeacher: { select: { id: true, firstName: true, lastName: true } },
+  schedule: { select: { startDate: true } },
 } satisfies Prisma.IntensificationInclude
 
 type IntensificationWithRelations = Prisma.IntensificationGetPayload<{
@@ -352,9 +353,13 @@ export async function removeIntensification(id: string) {
   return { deleted: true }
 }
 
+const ALREADY_ACCREDITED =
+  'La materia ya se acreditó con esta intensificación: el resultado no se cambia'
+
 // Carga del resultado de la intensificación (E3-RF-08).
 // AA con nota de 4 a 10: la materia queda acreditada, sale de las MPAA y se actualiza su
-// calificación final. CCA o CSA: la materia sigue pendiente y continúa intensificando.
+// calificación final. CCA (continúa con avances) o CSA (continúa sin avances): la materia sigue
+// pendiente y continúa intensificando.
 // Puede cargarlo el docente responsable (solo sus alumnos), la dirección o la administración.
 export async function registerResult(
   id: string,
@@ -369,45 +374,63 @@ export async function registerResult(
       'Solo el docente responsable o la dirección pueden cargar este resultado'
     )
   }
+  // Aviso rápido para el caso normal. La garantía está dentro de la transacción (ver abajo)
   if (intensification.resultCode === IntensificationResultCode.AA) {
-    throw new HttpError(
-      409,
-      'La materia ya se acreditó con esta intensificación: el resultado no se cambia'
-    )
+    throw new HttpError(409, ALREADY_ACCREDITED)
   }
   const pending = intensification.enrollment.pendingSubject
   if (pending?.status === PendingSubjectStatus.ACCREDITED) {
     throw new HttpError(409, 'La materia ya está acreditada')
   }
 
+  // Fecha de evaluación: la que cargó el docente (el día del examen) o, si no viene, la de hoy.
+  // No puede ser anterior al inicio del período: antes de que empiece, no hay resultados para cargar.
+  const evaluationDate = input.evaluationDate
+    ? new Date(`${input.evaluationDate}T12:00:00.000Z`)
+    : new Date()
+  const startDate = intensification.schedule?.startDate
+  if (startDate && evaluationDate < startDate) {
+    throw new HttpError(
+      409,
+      'El período de intensificación todavía no había empezado en esa fecha: no se puede cargar el resultado'
+    )
+  }
+
   const approved = input.resultCode === IntensificationResultCode.AA
   const score = input.score ?? null
-  const now = new Date()
   const subjectStatus = approved
     ? SubjectStatus.APPROVED_ACCREDITED
     : SubjectStatus.CONTINUES_INTENSIFYING
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await tx.intensification.update({
-      where: { id },
+    // Se actualiza solo si todavía no tiene AA: si dos personas cargan a la vez,
+    // la segunda no pisa una acreditación que ya se guardó
+    const updated = await tx.intensification.updateMany({
+      where: {
+        id,
+        OR: [{ resultCode: null }, { resultCode: { not: IntensificationResultCode.AA } }],
+      },
       data: {
         resultCode: input.resultCode,
         score,
-        knowledgeAtClose: input.knowledgeAtClose ?? null,
-        // Con CCA o CSA se actualizan los saberes que le quedan; con AA se conservan los del intento
+        // Los logros y los saberes pendientes se actualizan solo si vienen: si no, se conservan
+        ...(input.knowledgeAtClose !== undefined && { knowledgeAtClose: input.knowledgeAtClose }),
         ...(!approved &&
-          input.pendingKnowledge !== undefined && {
-            pendingKnowledge: input.pendingKnowledge,
-          }),
-        evaluationDate: now,
+          input.pendingKnowledge !== undefined && { pendingKnowledge: input.pendingKnowledge }),
+        evaluationDate,
       },
     })
+    if (updated.count === 0) throw new HttpError(409, ALREADY_ACCREDITED)
 
     // La materia aprobada sale de las MPAA, con la nota de la intensificación
     if (approved && pending) {
       await tx.pendingSubject.update({
         where: { id: pending.id },
-        data: { status: PendingSubjectStatus.ACCREDITED, finalScore: score, accreditedAt: now },
+        data: {
+          status: PendingSubjectStatus.ACCREDITED,
+          finalScore: score,
+          accreditedAt: evaluationDate,
+        },
       })
     }
 
@@ -423,7 +446,7 @@ export async function registerResult(
     })
   })
 
-  const updated = await findIntensificationOrFail(id)
-  const sections = await currentSections([updated.enrollment.student.id])
-  return toIntensificationResponse(updated, sections)
+  const updatedIntensification = await findIntensificationOrFail(id)
+  const sections = await currentSections([updatedIntensification.enrollment.student.id])
+  return toIntensificationResponse(updatedIntensification, sections)
 }

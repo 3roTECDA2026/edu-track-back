@@ -69,13 +69,16 @@ const optionalText = z.string().trim().max(2000).nullable().optional()
 
 // Resultado de la intensificación (E3-RF-08).
 // AA: acreditó y aprobó, con nota de 4 a 10 (obligatoria).
-// CCA o CSA: sigue intensificando; la nota es opcional y, si se carga, va de 1 a 3.
+// CCA (continúa con avances) o CSA (continúa sin avances): sigue intensificando;
+// la nota es opcional y, si se carga, va de 1 a 3.
 export const registerResultSchema = z
   .object({
     resultCode: z.enum(IntensificationResultCode),
     score: z.number().int().min(1).max(10).nullable().optional(),
-    knowledgeAtClose: optionalText, // Logros o saberes alcanzados
+    knowledgeAtClose: optionalText, // Logros o saberes alcanzados (si no viene, se conservan)
     pendingKnowledge: optionalText, // Saberes que le quedan pendientes (CCA o CSA)
+    // Fecha del examen (AAAA-MM-DD). Si no viene, se usa la fecha de carga
+    evaluationDate: z.iso.date().optional(),
   })
   .superRefine((data, context) => {
     const score = data.score ?? null
@@ -92,6 +95,14 @@ export const registerResultSchema = z
         code: 'custom',
         message: 'Con CCA o CSA la nota va de 1 a 3, o queda vacía',
         path: ['score'],
+      })
+    }
+    // La fecha del examen no puede ser futura
+    if (data.evaluationDate && data.evaluationDate > new Date().toISOString().slice(0, 10)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'La fecha de evaluación no puede ser futura',
+        path: ['evaluationDate'],
       })
     }
   })
