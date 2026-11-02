@@ -5,12 +5,12 @@ import { z } from 'zod'
 const dateSchema = z.string().date()
 
 export const scheduleIdParamSchema = z.object({
-  id: z.uuid(),
+  id: z.guid(),
 })
 
 export const scheduleSubjectParamSchema = z.object({
-  id: z.uuid(),
-  entryId: z.uuid(),
+  id: z.guid(),
+  entryId: z.guid(),
 })
 
 export const listSchedulesQuerySchema = z.object({
@@ -41,12 +41,12 @@ export const updateScheduleSchema = z
 
 // Materia que se intensifica en el período, con su docente responsable
 export const addScheduleSubjectSchema = z.object({
-  subjectId: z.uuid(),
-  teacherId: z.uuid().nullable().optional(),
+  subjectId: z.guid(),
+  teacherId: z.guid().nullable().optional(),
 })
 
 export const updateScheduleSubjectSchema = z.object({
-  teacherId: z.uuid().nullable(),
+  teacherId: z.guid().nullable(),
 })
 
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>
