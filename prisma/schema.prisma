@@ -102,8 +102,8 @@ enum IntensificationModel {
 
 enum IntensificationResultCode {
   AA // Acreditó y Aprobó
-  CCA // Continúa Con Actividades de Intensificación
-  CSA // Sin Actividades / No Intensificó
+  CCA // Continúa Con Avances
+  CSA // Continúa Sin Avances
 }
 
 // Estado de una materia pendiente de aprobación y acreditación (MPAA)
