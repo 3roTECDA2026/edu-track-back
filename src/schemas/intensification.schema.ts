@@ -31,29 +31,29 @@ function checkPlacement(
 }
 
 export const intensificationIdParamSchema = z.object({
-  id: z.uuid(),
+  id: z.guid(),
 })
 
 export const listIntensificationsQuerySchema = z.object({
-  scheduleId: z.uuid(),
-  subjectId: z.uuid().optional(),
-  classSectionId: z.uuid().optional(),
+  scheduleId: z.guid(),
+  subjectId: z.guid().optional(),
+  classSectionId: z.guid().optional(),
 })
 
 export const candidatesQuerySchema = z.object({
-  scheduleId: z.uuid(),
-  subjectId: z.uuid(),
-  classSectionId: z.uuid().optional(),
+  scheduleId: z.guid(),
+  subjectId: z.guid(),
+  classSectionId: z.guid().optional(),
 })
 
 // Asignar uno o varios alumnos con esa materia pendiente a un período del calendario (E3-RF-05)
 export const assignIntensificationsSchema = z
   .object({
-    scheduleId: z.uuid(),
-    subjectId: z.uuid(),
-    pendingSubjectIds: z.array(z.uuid()).min(1).max(100),
+    scheduleId: z.guid(),
+    subjectId: z.guid(),
+    pendingSubjectIds: z.array(z.guid()).min(1).max(100),
     model: z.enum(IntensificationModel),
-    targetClassSectionId: z.uuid().nullable().optional(),
+    targetClassSectionId: z.guid().nullable().optional(),
   })
   .superRefine(checkPlacement)
 
@@ -61,7 +61,7 @@ export const assignIntensificationsSchema = z
 export const updatePlacementSchema = z
   .object({
     model: z.enum(IntensificationModel),
-    targetClassSectionId: z.uuid().nullable().optional(),
+    targetClassSectionId: z.guid().nullable().optional(),
   })
   .superRefine(checkPlacement)
 
