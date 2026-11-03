@@ -13,6 +13,7 @@ import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
+import { institutionalConfigRouter } from '@/routes/institutionalConfig.routes';
 
 const router = Router()
 
@@ -25,6 +26,7 @@ router.use('/teacher-assignments', teacherAssignmentRouter)
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
 router.use('/users', userRouter)
+router.use('/institutional-config', institutionalConfigRouter)
 // Las rutas de cursos se montan también en la raíz para que /api/subjects siga funcionando
 router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
