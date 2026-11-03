@@ -200,16 +200,17 @@ model User {
   updatedAt                       DateTime                         @updatedAt // Fecha de última actualización
 
   // Relaciones:
-  teacherAssignments    TeacherSubjectCourse[] // Materias y cursos asignados al docente
-  registeredAttendances DailyAttendance[]      @relation("AttendanceRegistrar")
-  authoredInterventions Intervention[]         @relation("InterventionAuthor") // Intervenciones registradas por el usuario
-  authoredConflicts     LegalConflict[]        @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
-  signedRites           Rite[]                 @relation("SigningAuthority") // RITEs firmados por esta autoridad
-  auditLogs             AuditLog[] // Registros de auditoría generados por el usuario
-  sentMessages          Message[]              @relation("MessageSender") // Mensajes enviados
-  linkedStudent         Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
-  guardian              Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
-  edteMembers           EdteMember[] // Participaciones en reuniones del EDTE
+  teacherAssignments           TeacherSubjectCourse[] // Materias y cursos asignados al docente
+  registeredAttendances        DailyAttendance[]      @relation("AttendanceRegistrar")
+  registeredSubjectAttendances SubjectAttendance[]    @relation("SubjectAttendanceRegistrar") // Asistencias por materia cargadas por el usuario (CRM-059)
+  authoredInterventions        Intervention[]         @relation("InterventionAuthor") // Intervenciones registradas por el usuario
+  authoredConflicts            LegalConflict[]        @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
+  signedRites                  Rite[]                 @relation("SigningAuthority") // RITEs firmados por esta autoridad
+  auditLogs                    AuditLog[] // Registros de auditoría generados por el usuario
+  sentMessages                 Message[]              @relation("MessageSender") // Mensajes enviados
+  linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
+  guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
+  edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -484,18 +485,24 @@ model DailyAttendance {
 }
 
 model SubjectAttendance {
-  id                String      @id @default(uuid()) // Identificador único
-  student           Student     @relation(fields: [studentId], references: [id]) // Estudiante
+  id                String           @id @default(uuid()) // Identificador único
+  student           Student          @relation(fields: [studentId], references: [id]) // Estudiante
   studentId         String // ID del estudiante
-  subject           Subject     @relation(fields: [subjectId], references: [id]) // Materia
+  subject           Subject          @relation(fields: [subjectId], references: [id]) // Materia
   subjectId         String // ID de la materia
-  enrollment        Enrollment? @relation(fields: [enrollmentId], references: [id]) // Cursada asociada
+  enrollment        Enrollment?      @relation(fields: [enrollmentId], references: [id]) // Cursada asociada
   enrollmentId      String? // ID de la inscripción
-  classDate         DateTime    @db.Date // Fecha de la clase
+  classDate         DateTime         @db.Date // Fecha de la clase
   present           Boolean // ¿Presente? (true = Sí, false = No)
-  excused           Boolean     @default(false) // ¿Inasistencia justificada?
-  isIntensification Boolean     @default(false) // ¿Es asistencia a un bloque de intensificación?
+  excused           Boolean          @default(false) // ¿Inasistencia justificada?
+  isIntensification Boolean          @default(false) // ¿Es asistencia a un bloque de intensificación?
+  intensification   Intensification? @relation(fields: [intensificationId], references: [id], onDelete: Restrict) // Intensificación a la que corresponde: no se puede borrar si tiene asistencias (CRM-059)
+  intensificationId String? // ID de la intensificación
+  registeredBy      User?            @relation("SubjectAttendanceRegistrar", fields: [registeredById], references: [id]) // Usuario que la cargó
+  registeredById    String? // ID del usuario registrador
+  createdAt         DateTime         @default(now()) // Fecha de carga en el sistema
 
+  @@unique([intensificationId, classDate]) // Una sola carga por intensificación y día (CRM-059)
   @@index([studentId, subjectId, classDate]) // Índice para cómputo de asistencia por materia
 }
 
@@ -558,6 +565,7 @@ model Intensification {
   evidenceUrl          String? // Link a planillas o evidencias de evaluación digitalizadas
   evaluationDate       DateTime? // Fecha de la evaluación/cierre
   createdAt            DateTime                   @default(now()) // Fecha de registro
+  attendances          SubjectAttendance[] // Asistencias a las clases de intensificación (CRM-059)
 
   @@unique([enrollmentId, scheduleId]) // Un alumno, una vez por período en cada materia (lo garantiza la base)
   @@index([enrollmentId, period]) // Índice para consulta de historial de intensificaciones
