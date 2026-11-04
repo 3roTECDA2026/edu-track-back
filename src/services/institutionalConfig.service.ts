@@ -21,13 +21,6 @@ const MODEL_LABELS: Record<OrganizationalModel, string> = {
   OPTION_D: 'D',
 }
 
-// Fecha en formato dd/mm/aaaa para los mensajes.
-function formatDate(date: Date) {
-  const day = String(date.getDate()).padStart(2, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  return `${day}/${month}/${date.getFullYear()}`
-}
-
 // Convierte un registro a JSON plano (fechas a string) para guardarlo en AuditLog.
 function toJson(value: unknown) {
   return JSON.parse(JSON.stringify(value))
@@ -69,16 +62,14 @@ export async function upsertInstitutionalConfig(
     if (existing && new Date() < existing.minimumExpiryDate) {
       throw new HttpError(
         409,
-        `El modelo ${MODEL_LABELS[existing.organizationalModel]} rige hasta el ${formatDate(
-          existing.minimumExpiryDate
-        )}: no se puede cambiar antes.`
+        `El modelo ${MODEL_LABELS[existing.organizationalModel]} se sostiene hasta el ciclo ${existing.minimumExpiryDate.getFullYear()}: no se puede cambiar antes.`
       )
     }
 
-    // Primera configuracion o cambio ya habilitado: rige desde hoy por 3 ciclos.
     const adoptedAt = new Date()
-    const minimumExpiryDate = new Date(adoptedAt)
-    minimumExpiryDate.setFullYear(minimumExpiryDate.getFullYear() + MINIMUM_CYCLES)
+    // Se sostiene por un minimo de 3 ciclos lectivos (inciso 35): se puede cambiar
+    // recien desde el ciclo (año de adopcion + 3).
+    const minimumExpiryDate = new Date(adoptedAt.getFullYear() + MINIMUM_CYCLES, 0, 1)
 
     const data = {
       organizationalModel: input.organizationalModel,
