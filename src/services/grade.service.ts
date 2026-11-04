@@ -1,7 +1,13 @@
-import { Prisma } from '@prisma/client'
+import { IntensificationPeriod, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { CreateGradeInput, GradeByStudentQuery, GradeRosterQuery, ListGradesQuery, UpdateGradeInput } from '@/schemas/grade.schema'
+import type {
+  CreateGradeInput,
+  GradeByStudentQuery,
+  GradeRosterQuery,
+  ListGradesQuery,
+  UpdateGradeInput,
+} from '@/schemas/grade.schema'
 import { HttpError } from '@/utils/httpError'
 
 const gradeListInclude = {
@@ -52,7 +58,8 @@ export async function listGrades(query: ListGradesQuery) {
     totalPages: Math.ceil(total / query.limit),
   }
 }
-  const gradeRosterSelect = {
+
+const gradeRosterSelect = {
   id: true,
   student: { select: { id: true, dni: true, lastName: true, firstName: true } },
   subject: { select: { id: true, name: true } },
@@ -72,6 +79,14 @@ export async function listGrades(query: ListGradesQuery) {
       preliminaryAssessment2: true,
     },
   },
+  // Intentos de intensificación de diciembre y febrero/marzo, para sus columnas en la grilla (CRM-066).
+  // La nota se guarda con el endpoint de resultados de la CRM-058, no desde acá.
+  intensifications: {
+    where: {
+      period: { in: [IntensificationPeriod.DECEMBER, IntensificationPeriod.FEBRUARY_MARCH] },
+    },
+    select: { id: true, period: true, resultCode: true, score: true, knowledgeAtClose: true },
+  },
 } satisfies Prisma.EnrollmentSelect
 
 // GET /grades/roster: alumnos de una materia/sección/año con su enrollmentId y su nota (si existe).
@@ -86,7 +101,7 @@ export async function getGradeRoster(query: GradeRosterQuery) {
     select: gradeRosterSelect,
     orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
   })
-} 
+}
 
 const gradeByStudentSelect = {
   id: true,
@@ -118,6 +133,7 @@ export async function getGradesByStudent(query: GradeByStudentQuery) {
     orderBy: { subject: { name: 'asc' } },
   })
 }
+
 export async function upsertGrade(input: CreateGradeInput) {
   const { enrollmentId, ...scores } = input
 

@@ -342,12 +342,16 @@ export async function updatePlacement(id: string, input: UpdatePlacementInput) {
   return toIntensificationResponse(updated, sections)
 }
 
-// Quita una asignación, mientras no tenga resultado cargado.
-// Cuando existan asistencias de intensificación (CRM-059), también se bloqueará si tiene asistencias.
+// Quita una asignación, mientras no tenga resultado ni asistencias cargadas (CRM-059).
+// La base también lo impide (onDelete: Restrict); este control da un mensaje claro.
 export async function removeIntensification(id: string) {
   const intensification = await findIntensificationOrFail(id)
   if (intensification.resultCode) {
     throw new HttpError(409, 'La intensificación ya tiene resultado: no se puede quitar')
+  }
+  const attendances = await prisma.subjectAttendance.count({ where: { intensificationId: id } })
+  if (attendances > 0) {
+    throw new HttpError(409, 'La asignación tiene asistencias cargadas: no se puede quitar')
   }
   await prisma.intensification.delete({ where: { id } })
   return { deleted: true }

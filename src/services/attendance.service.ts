@@ -3,9 +3,7 @@ import { AttendanceValue, Prisma, Role } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { PaginationAttendanceFilters, UpdateSchoolDaysInput } from '@/schemas/attendance.schema'
 import { HttpError } from '@/utils/httpError'
-
-// La escuela está en Argentina: "hoy" se calcula con esa hora, no con la del servidor (que puede estar en UTC)
-const SCHOOL_TIME_ZONE = 'America/Argentina/Buenos_Aires'
+import { isWeekend, toDate, toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
 // Motivo que se guarda cuando la falta se marca como justificada (J) en la carga diaria.
 // Sirve para distinguirla de una justificación cargada después (por ejemplo, con certificado).
@@ -13,9 +11,6 @@ const DAILY_JUSTIFICATION = 'Justificada en la carga diaria'
 
 // Pueden corregir la asistencia de días anteriores (por ejemplo, si la preceptoría se equivocó)
 const EDIT_PAST_ROLES: Role[] = [Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR]
-
-const toDate = (value: string) => new Date(`${value}T00:00:00.000Z`)
-const toDay = (value: Date) => value.toISOString().slice(0, 10)
 
 // Peso de cada valor en faltas: el retardo puede ser de ¼ (QUARTER) o de ½ (HALF)
 const WEIGHT: Record<AttendanceValue, number> = {
@@ -30,23 +25,12 @@ const isLateArrival = (value: AttendanceValue) =>
 
 type AttendanceRecordInput = { studentId: string; value: AttendanceValue; justified?: boolean }
 
-// Fecha de hoy (AAAA-MM-DD) según la hora de Argentina
-function todayInSchoolTimeZone() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: SCHOOL_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
 // Reglas de la carga:
 // - nunca sábados, domingos ni días futuros;
 // - el día de hoy lo puede cargar quien toma asistencia;
 // - un día anterior solo lo corrigen preceptoría, dirección o administración, dentro del ciclo activo.
 async function assertCanRegisterAttendance(date: string, role: Role) {
-  const weekDay = toDate(date).getUTCDay()
-  if (weekDay === 0 || weekDay === 6) {
+  if (isWeekend(date)) {
     throw new HttpError(409, 'No se toma asistencia los sábados ni los domingos')
   }
 
