@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { Shift, StudentStatus } from '@prisma/client'
 
+// Los ids se validan con z.guid() (formato 8-4-4-4-12) y no con z.uuid(), que en Zod 4
+// exige un UUID con versión válida y rechaza los ids fijos del seed (00000000-...).
 export const studentIdParamSchema = z.object({
-  id: z.uuid(),
+  id: z.guid(),
 })
 
 export const listStudentsQuerySchema = z.object({
@@ -32,7 +34,7 @@ export const createStudentSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{6,15}$/, 'Teléfono inválido'),
-  classSectionId: z.uuid(),
+  classSectionId: z.guid(),
   guardianName: z.string().trim().min(1).max(150),
   guardianPhone: z
     .string()
