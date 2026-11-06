@@ -22,11 +22,33 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
       skipped++
       continue
     }
+
+    const sourceSection = await prisma.classSection.findUnique({
+      where: { id: e.classSectionId },
+    })
+    if (!sourceSection) {
+      skipped++
+      continue
+    }
+    const targetSection = await prisma.classSection.findFirst({
+      where: {
+        grade: sourceSection.grade,
+        division: sourceSection.division,
+        shift: sourceSection.shift,
+        orientation: sourceSection.orientation,
+        academicYearId: toYearId,
+      },
+    })
+    if (!targetSection) {
+      skipped++
+      continue
+    }
+
     await prisma.enrollment.create({
       data: {
         studentId: e.studentId,
         subjectId: e.subjectId,
-        classSectionId: e.classSectionId,
+        classSectionId: targetSection.id,
         academicYearId: toYearId,
         courseType: 'FIRST_TIME',
       },
