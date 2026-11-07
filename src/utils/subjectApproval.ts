@@ -45,10 +45,10 @@ export function evaluateSubjectApproval(input: SubjectApprovalInput): SubjectApp
     if (passes(term1Score)) {
       return { outcome: 'APPROVED', finalScore: average(term1Score, term2Score) }
     }
-    // Recuperó el 1.º durante el 2.º: esa nota reemplaza a la del 1.º en el promedio.
-    // Pendiente de confirmar con el equipo (punto 3.2.1 del plan).
+    // Recuperó el 1.º durante el 2.º: la nota final es la de esa intensificación (Anexo 5,
+    // inc. 8.b, con el 25.a que la llama período de intensificación; regla RN-008)
     if (passes(term1IntensificationScore)) {
-      return { outcome: 'APPROVED', finalScore: average(term1IntensificationScore, term2Score) }
+      return { outcome: 'APPROVED', finalScore: term1IntensificationScore }
     }
   }
 
