@@ -536,7 +536,7 @@ model Grade {
   term1IntensificationScore Int? // Nota de intensificación del 1° cuatrimestre (E2-RF-04, CRM-042)
 
   // Calificación e informe final:
-  finalScore    Int? // Calificación final cuantitativa
+  finalScore    Float? // Calificación final: promedio de los cuatrimestres, puede tener decimales (7,5)
   subjectStatus SubjectStatus @default(IN_PROGRESS) // Estado final de acreditación de la materia
 
   term1Closed Boolean @default(false) // Cierre administrativo/notas 1° cuatrimestre
