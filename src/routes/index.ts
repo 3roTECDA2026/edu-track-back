@@ -4,6 +4,7 @@ import attendanceRouter from '@/routes/attendance.routes'
 import authRouter from '@/routes/auth.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
+import { cycleClosureRouter } from '@/routes/cycleClosure.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
 import { intensificationScheduleRouter } from '@/routes/intensificationSchedule.routes'
@@ -35,5 +36,7 @@ router.use('/intensification-schedules', intensificationScheduleRouter)
 router.use('/intensifications', intensificationRouter)
 // Asistencia en intensificación (CRM-059)
 router.use('/intensification-attendance', intensificationAttendanceRouter)
+// Cierre del ciclo lectivo y alta de MPAA (CRM-052)
+router.use('/cycle-closure', cycleClosureRouter)
 
 export default router
