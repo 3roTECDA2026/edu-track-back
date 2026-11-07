@@ -188,6 +188,7 @@ model User {
   intensificationScheduleSubjects IntensificationScheduleSubject[] // Materias de intensificación a cargo
   responsibleIntensifications     Intensification[] // Intensificaciones que evalúa
   promotionDecisions              PromotionDecision[] // Ejecuciones del motor de promoción
+  closedAcademicYears             AcademicYear[] // Ciclos lectivos que cerró (CRM-052)
   firstName                       String // Nombre
   lastName                        String // Apellido
   email                           String                           @unique // Correo electrónico (único)
@@ -237,6 +238,11 @@ model AcademicYear {
   term1SchoolDays Int? // Días hábiles del 1° cuatrimestre
   term2SchoolDays Int? // Días hábiles del 2° cuatrimestre
   totalSchoolDays Int? // Días hábiles del ciclo completo
+
+  // Cierre del ciclo (CRM-052): la primera ejecución del cierre lo marca y ya no se cambia
+  closedAt   DateTime? // Fecha y hora del primer cierre del ciclo
+  closedBy   User?     @relation(fields: [closedById], references: [id]) // Quién cerró el ciclo
+  closedById String? // ID de quien cerró el ciclo
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
