@@ -1,6 +1,7 @@
 import {
   IntensificationModel,
   IntensificationResultCode,
+  OrganizationalModel,
   PendingSubjectStatus,
   Prisma,
   Role,
@@ -17,10 +18,39 @@ import {
   type RegisterResultInput,
   type UpdatePlacementInput,
 } from '@/schemas/intensification.schema'
+import { getInstitutionalConfig } from '@/services/institutionalConfig.service'
 import { HttpError } from '@/utils/httpError'
 
 type SectionInfo = { id: string; grade: number; division: string; shift: Shift }
 type TargetSection = { grade: number; shift: Shift }
+// Modelos de intensificación de cada opción organizativa de la escuela (Cuadro 2 del Anexo 5,
+// Res. 1650/24). La opción la guarda la CRM-065; sin opción elegida, se aceptan los 4 modelos.
+const MODELS_BY_OPTION: Record<OrganizationalModel, IntensificationModel[]> = {
+  OPTION_A: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_2],
+  OPTION_B: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_3],
+  OPTION_C: [
+    IntensificationModel.MODEL_1,
+    IntensificationModel.MODEL_2,
+    IntensificationModel.MODEL_3,
+  ],
+  OPTION_D: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_4],
+}
+
+const modelNumber = (model: IntensificationModel) => model.replace('MODEL_', '')
+const optionLetter = (option: OrganizationalModel) => option.replace('OPTION_', '')
+
+// El modelo elegido tiene que estar entre los de la opción organizativa de la escuela
+async function assertModelInSchoolOption(model: IntensificationModel) {
+  const config = await getInstitutionalConfig()
+  if (!config) return
+  const allowed = MODELS_BY_OPTION[config.organizationalModel]
+  if (!allowed.includes(model)) {
+    throw new HttpError(
+      409,
+      `La escuela tiene la opción ${optionLetter(config.organizationalModel)}: el modelo ${modelNumber(model)} no es uno de sus modelos (${allowed.map(modelNumber).join(' y ')})`
+    )
+  }
+}
 
 const studentSelect = { id: true, firstName: true, lastName: true, dni: true } as const
 
@@ -219,6 +249,9 @@ export async function assignIntensifications(input: AssignIntensificationsInput)
     throw new HttpError(409, 'La materia no está en este período del calendario')
   }
 
+  // El modelo tiene que ser uno de los de la opción organizativa de la escuela
+  await assertModelInSchoolOption(input.model)
+
   const pendings = await prisma.pendingSubject.findMany({
     where: { id: { in: input.pendingSubjectIds } },
     select: {
@@ -317,8 +350,10 @@ async function findIntensificationOrFail(id: string) {
 // Cambia el modelo o la ubicación, mientras la intensificación no tenga resultado
 export async function updatePlacement(id: string, input: UpdatePlacementInput) {
   const intensification = await findIntensificationOrFail(id)
-  if (intensification.resultCode) {
-    throw new HttpError(409, 'La intensificación ya tiene resultado: no se puede cambiar el modelo')
+  // Si cambia el modelo, el nuevo tiene que estar en la opción de la escuela. Si se mantiene el
+  // mismo (por ejemplo, para cambiar solo la sección), se acepta aunque haya quedado afuera
+  if (input.model !== intensification.model) {
+    await assertModelInSchoolOption(input.model)
   }
 
   const { student, subject } = intensification.enrollment
