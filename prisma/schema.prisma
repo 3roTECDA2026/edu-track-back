@@ -118,6 +118,14 @@ enum PromotionOutcome {
   REFERRED_TO_EDTE // 5 o más MPAA: no promueve y se deriva al EDTE
 }
 
+// Rol con el que participa cada integrante del EDTE (E4-RF-01)
+enum EdteRole {
+  TEACHER // Docente
+  PRECEPTOR // Preceptor/a
+  COUNSELOR // Orientador/a (EOE)
+  DIRECTIVE // Directivo/a
+}
+
 enum RiteStatus {
   DRAFT // RITE en Borrador
   CLOSED // RITE Cerrado
@@ -211,6 +219,7 @@ model User {
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
+  edteTeamMembership           EdteTeamMember? // Su lugar en el plantel del EDTE (si integra el equipo)
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -629,6 +638,24 @@ model EdteMember {
   signatureHash String? // Firma digital o hash del integrante en el acta
 
   @@unique([edteMeetingId, userId]) // Unicidad de participación por reunión
+}
+
+// Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
+// Es el plantel del equipo: existe aunque no haya reuniones. La participación en cada
+// reunión se registra aparte, en EdteMember (CRM-075).
+// Una sola fila por usuario: la baja es lógica (active = false) y un alta posterior reactiva
+// la misma fila, así un usuario nunca queda dos veces como integrante activo.
+model EdteTeamMember {
+  id        String   @id @default(uuid()) // Identificador único
+  user      User     @relation(fields: [userId], references: [id]) // Usuario integrante
+  userId    String   @unique // ID del usuario (uno solo por usuario)
+  edteRole  EdteRole // Rol con el que participa en el equipo
+  active    Boolean  @default(true) // false = dado de baja (baja lógica)
+  joinedAt  DateTime @default(now()) // Fecha de alta en el equipo
+  createdAt DateTime @default(now()) // Fecha de creación del registro
+  updatedAt DateTime @updatedAt // Última modificación
+
+  @@index([active]) // Para listar solo los integrantes activos
 }
 
 // ============================================================================
