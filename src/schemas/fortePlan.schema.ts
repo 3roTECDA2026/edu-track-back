@@ -1,6 +1,8 @@
 import { FortePlanStatus } from '@prisma/client'
 import { z } from 'zod'
 
+import { todayInSchoolTimeZone } from '@/utils/schoolDate'
+
 // Plan Forte (E4-RF-14, CRM-089)
 
 const goalsText = z.string().trim().min(1, 'Cargá los objetivos pedagógicos').max(2000)
@@ -10,9 +12,10 @@ export const fortePlanIdParamSchema = z.object({
   id: z.guid(),
 })
 
-// Listado: por defecto, solo los planes activos; con studentId, el plan de ese alumno
+// Listado. Sin status: los activos; con studentId y sin status, el plan de ese alumno en
+// cualquier estado (para su ficha)
 export const listFortePlansQuerySchema = z.object({
-  status: z.enum([...Object.values(FortePlanStatus), 'ALL']).default(FortePlanStatus.ACTIVE),
+  status: z.enum([...Object.values(FortePlanStatus), 'ALL']).optional(),
   studentId: z.guid().optional(),
 })
 
@@ -23,12 +26,13 @@ export const createFortePlanSchema = z.object({
   pedagogicalGoals: goalsText,
 })
 
-// Cambiar los objetivos, el responsable o el estado (finalizar o dar de baja)
+// Cambiar los objetivos, el responsable o cerrar el plan (finalizar o dar de baja).
+// Reactivar un plan no se hace acá: se hace con el alta, que valida al alumno y al responsable
 export const updateFortePlanSchema = z
   .object({
     pedagogicalGoals: goalsText.optional(),
     responsibleId: z.guid().optional(),
-    status: z.enum(FortePlanStatus).optional(),
+    status: z.enum([FortePlanStatus.COMPLETED, FortePlanStatus.WITHDRAWN]).optional(),
   })
   .refine((data) => Object.values(data).some((value) => value !== undefined), {
     message: 'No hay cambios para guardar',
@@ -43,7 +47,8 @@ export const createFortePlanReportSchema = z
     date: z.iso.date().optional(),
   })
   .superRefine((data, context) => {
-    if (data.date && data.date > new Date().toISOString().slice(0, 10)) {
+    // "Hoy" según la hora de Argentina (no la de UTC, que de noche ya es el día siguiente)
+    if (data.date && data.date > todayInSchoolTimeZone()) {
       context.addIssue({
         code: 'custom',
         message: 'La fecha del reporte no puede ser futura',

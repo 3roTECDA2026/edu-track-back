@@ -14,6 +14,9 @@ import { HttpError } from '@/utils/httpError'
 
 const personSelect = { select: { id: true, firstName: true, lastName: true } } as const
 
+// Quiénes pueden ser responsables del seguimiento: el personal de la escuela
+const RESPONSIBLE_ROLES: Role[] = [Role.TEACHER, Role.EOE_DIRECTIVE, Role.SCHOOL_MANAGEMENT]
+
 const planInclude = {
   student: { select: { id: true, firstName: true, lastName: true, dni: true } },
   responsible: personSelect,
@@ -47,23 +50,32 @@ async function findPlanOrFail(id: string) {
   return plan
 }
 
-// El responsable tiene que ser un usuario activo del sistema
+// El responsable tiene que ser personal de la escuela (docente, EOE o dirección) y estar activo
 async function assertResponsible(responsibleId: string) {
   const user = await prisma.user.findUnique({
     where: { id: responsibleId },
-    select: { status: true },
+    select: { status: true, role: true },
   })
   if (!user) throw new HttpError(404, 'Responsable no encontrado')
+  if (!RESPONSIBLE_ROLES.includes(user.role)) {
+    throw new HttpError(
+      409,
+      'El responsable tiene que ser personal de la escuela (docente, EOE o dirección)'
+    )
+  }
   if (user.status !== UserStatus.ACTIVE) {
     throw new HttpError(409, 'El responsable tiene que ser un usuario activo')
   }
 }
 
-// Lista los planes: por defecto los activos; con studentId, el plan de ese alumno (para su ficha)
+// Lista los planes. Sin status: con studentId, todos los estados (la ficha muestra también los
+// planes cerrados); sin studentId, solo los activos
 export async function listFortePlans(query: ListFortePlansQuery) {
+  const status = query.status ?? (query.studentId ? 'ALL' : FortePlanStatus.ACTIVE)
+
   const plans = await prisma.fortePlan.findMany({
     where: {
-      ...(query.status !== 'ALL' && { status: query.status }),
+      ...(status !== 'ALL' && { status }),
       ...(query.studentId && { studentId: query.studentId }),
     },
     include: planInclude,
@@ -124,7 +136,8 @@ export async function createFortePlan(input: CreateFortePlanInput) {
   }
 }
 
-// Cambia los objetivos, el responsable o el estado (finalizar o dar de baja)
+// Cambia los objetivos, el responsable o cierra el plan (finalizar o dar de baja).
+// Reactivar no se hace acá: se hace con el alta, que valida al alumno y al responsable
 export async function updateFortePlan(id: string, input: UpdateFortePlanInput) {
   await findPlanOrFail(id)
   if (input.responsibleId) await assertResponsible(input.responsibleId)
@@ -197,10 +210,10 @@ export async function createFortePlanReport(
   }
 }
 
-// Posibles responsables del seguimiento: los docentes activos
+// Posibles responsables del seguimiento: el personal activo de la escuela
 export async function listResponsibleCandidates() {
   const users = await prisma.user.findMany({
-    where: { role: Role.TEACHER, status: UserStatus.ACTIVE },
+    where: { role: { in: RESPONSIBLE_ROLES }, status: UserStatus.ACTIVE },
     select: { id: true, firstName: true, lastName: true },
     orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
   })
