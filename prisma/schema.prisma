@@ -118,6 +118,13 @@ enum PromotionOutcome {
   REFERRED_TO_EDTE // 5 o más MPAA: no promueve y se deriva al EDTE
 }
 
+// Estado del alumno en el programa Plan Forte (E4-RF-14)
+enum FortePlanStatus {
+  ACTIVE // En el programa
+  COMPLETED // Finalizó el programa
+  WITHDRAWN // Dado de baja del programa
+}
+
 enum RiteStatus {
   DRAFT // RITE en Borrador
   CLOSED // RITE Cerrado
@@ -211,6 +218,8 @@ model User {
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
+  fortePlansInCharge           FortePlan[]            @relation("FortePlanResponsible") // Planes Forte a su cargo
+  fortePlanReports             FortePlanReport[]      @relation("FortePlanReportAuthor") // Reportes Forte que cargó
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -711,22 +720,38 @@ model Intervention {
   @@index([studentId, date]) // Índice para cronología de intervenciones del estudiante
 }
 
+// Asignación de un alumno al programa Plan Forte (E4-RF-14, CRM-089).
+// Un plan por alumno: si deja el programa y vuelve, se reactiva el mismo plan.
 model FortePlan {
-  id               String   @id @default(uuid()) // Identificador único
-  student          Student  @relation(fields: [studentId], references: [id]) // Estudiante
-  studentId        String   @unique // ID del estudiante (1 a 1)
+  id               String          @id @default(uuid()) // Identificador único
+  student          Student         @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId        String          @unique // ID del estudiante (1 a 1)
   pedagogicalGoals String // Objetivos pedagógicos prioritarios del programa FORTE
-  assignedAt       DateTime @default(now()) // Fecha de asignación al programa
+  assignedAt       DateTime        @default(now()) // Fecha de asignación (alta) al programa
+  responsible      User?           @relation("FortePlanResponsible", fields: [responsibleId], references: [id]) // Responsable del seguimiento
+  responsibleId    String? // ID del responsable
+  status           FortePlanStatus @default(ACTIVE) // Estado en el programa
+  updatedAt        DateTime        @default(now()) @updatedAt // Última modificación
 
   reports FortePlanReport[] // Informes periódicos de avance en el programa FORTE
+
+  @@index([status]) // Para listar los alumnos activos en el programa
 }
 
+// Reporte de evolución del alumno en el Plan Forte. Va separado del boletín: no aparece
+// en el RITE ni en la grilla de calificaciones (criterio 5 de la CRM-089).
 model FortePlanReport {
-  id          String    @id @default(uuid()) // Identificador único
-  fortePlan   FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
-  fortePlanId String // ID del plan FORTE
-  date        DateTime  @default(now()) // Fecha del informe de avance
-  progress    String // Detalle de saberes alcanzados y nivel de avance
+  id           String    @id @default(uuid()) // Identificador único
+  fortePlan    FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
+  fortePlanId  String // ID del plan FORTE
+  date         DateTime  @default(now()) // Fecha del informe de avance
+  progress     String // Detalle de saberes alcanzados y nivel de avance (evolución)
+  observations String? // Observaciones
+  author       User?     @relation("FortePlanReportAuthor", fields: [authorId], references: [id]) // Quién cargó el reporte
+  authorId     String? // ID del autor
+  createdAt    DateTime  @default(now()) // Fecha de carga
+
+  @@index([fortePlanId, date]) // Para el historial de reportes de un plan
 }
 
 // ============================================================================
