@@ -196,3 +196,13 @@ export async function createFortePlanReport(
     createdAt: report.createdAt,
   }
 }
+
+// Posibles responsables del seguimiento: los docentes activos
+export async function listResponsibleCandidates() {
+  const users = await prisma.user.findMany({
+    where: { role: Role.TEACHER, status: UserStatus.ACTIVE },
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+  })
+  return users.map((user) => ({ id: user.id, name: fullName(user) }))
+}

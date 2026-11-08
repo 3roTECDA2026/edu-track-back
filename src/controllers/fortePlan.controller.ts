@@ -39,3 +39,7 @@ export async function createFortePlanReport(req: Request, res: Response) {
   const { userId, role } = getAuthUser(req)
   res.status(201).json(await fortePlanService.createFortePlanReport(id, input, { userId, role }))
 }
+
+export async function listResponsibleCandidates(_req: Request, res: Response) {
+  res.json(await fortePlanService.listResponsibleCandidates())
+}

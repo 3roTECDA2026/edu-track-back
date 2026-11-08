@@ -21,6 +21,12 @@ const canManage = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.E
 fortePlanRouter.use(verifyToken)
 
 fortePlanRouter.get('/', canView, asyncHandler(fortePlanController.listFortePlans))
+// Docentes que pueden ser responsables del seguimiento (para el diálogo de asignación)
+fortePlanRouter.get(
+  '/responsibles',
+  canManage,
+  asyncHandler(fortePlanController.listResponsibleCandidates)
+)
 fortePlanRouter.post('/', canManage, asyncHandler(fortePlanController.createFortePlan))
 fortePlanRouter.patch('/:id', canManage, asyncHandler(fortePlanController.updateFortePlan))
 fortePlanRouter.get('/:id/reports', canView, asyncHandler(fortePlanController.listFortePlanReports))
