@@ -24,6 +24,9 @@ const canRegister = requireRole(
   Role.PRECEPTOR
 )
 
+// Borrar una nota: dirección, administración y docentes. El preceptor carga y edita, pero no borra
+const canDelete = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER)
+
 gradeRouter.use(verifyToken)
 
 gradeRouter.get('/', canView, asyncHandler(gradeController.listGrades))
