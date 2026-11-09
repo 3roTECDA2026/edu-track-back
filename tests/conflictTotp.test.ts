@@ -2,11 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { authenticator } from 'otplib'
 
-import {
-  generateTotpSecret,
-  generateTotpUri,
-  verifyTotpCode
-} from '../src/utils/conflictTotp'
+import { generateTotpSecret, generateTotpUri, verifyTotpCode } from '../src/utils/conflictTotp'
 
 test('genera un secreto TOTP', () => {
   const secret = generateTotpSecret()

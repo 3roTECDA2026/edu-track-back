@@ -27,21 +27,23 @@ const createFixture = () => {
       id: 'conflicto-1',
       documentUuid: 'documento-1',
       studentId: 'alumno-1',
-      authorId: 'autor-1',
+      authorId: 'usuario-1',
       conflictCode: 'CONFLICTO',
       detailedReport: encryptConflictReport('Informe original'),
       occurrenceDate: null,
       registeredAt: new Date('2026-11-08T12:00:00Z'),
-      editLocked: false,
+      editLocked: true,
       digitalSignHash: null as string | null,
       electronicSignature: null as object | null,
-      attachments: [{
-        id: 'anexo-1',
-        authorId: 'autor-1',
-        content: 'Anexo original',
-        date: new Date('2026-11-08T12:10:00Z'),
-        digitalSignHash: 'hash-anexo',
-      }],
+      attachments: [
+        {
+          id: 'anexo-1',
+          authorId: 'autor-1',
+          content: 'Anexo original',
+          date: new Date('2026-11-08T12:10:00Z'),
+          digitalSignHash: 'hash-anexo',
+        },
+      ],
     },
     signatures: [] as object[],
     audits: [] as object[],
@@ -103,7 +105,7 @@ const createFixture = () => {
   return { state, sign, request }
 }
 
-test('firma un acta, bloquea su edición y registra auditoría', async () => {
+test('firma un acta bloqueada sin modificar el original y registra auditoría', async () => {
   const { state, sign, request } = createFixture()
 
   const result = await sign(request())
@@ -112,7 +114,8 @@ test('firma un acta, bloquea su edición y registra auditoría', async () => {
   assert.equal(state.conflict.editLocked, true)
   assert.equal(state.signatures.length, 1)
   assert.equal(state.audits.length, 1)
-  assert.equal(state.conflict.digitalSignHash, result.documentHash)
+  assert.equal(state.conflict.digitalSignHash, null)
+  assert.equal((state.signatures[0] as { documentHash: string }).documentHash, result.documentHash)
 
   const expectedHash = calculateConflictHash({
     documentUuid: state.conflict.documentUuid,
@@ -122,21 +125,33 @@ test('firma un acta, bloquea su edición y registra auditoría', async () => {
     detailedReport: 'Informe original',
     occurrenceDate: state.conflict.occurrenceDate,
     registeredAt: state.conflict.registeredAt,
-    attachments: state.conflict.attachments,
+    attachments: [],
   })
 
   assert.equal(result.documentHash, expectedHash)
 })
 
+test('rechaza firmar un acta creada por otro usuario', async () => {
+  const { state, sign, request } = createFixture()
+
+  state.conflict.authorId = 'otro-autor'
+
+  await assert.rejects(sign(request()), (error: unknown) => {
+    assert.equal((error as { status?: number }).status, 403)
+    assert.match((error as Error).message, /Solo el autor del acta puede firmarla/)
+    return true
+  })
+
+  assert.equal(state.signatures.length, 0)
+  assert.equal(state.audits.length, 0)
+})
+
 test('rechaza firmar nuevamente un acta ya firmada', async () => {
   const { state, sign, request } = createFixture()
 
-  state.conflict.editLocked = true
+  state.conflict.electronicSignature = { id: 'firma-existente' }
 
-  await assert.rejects(
-    sign(request()),
-    /El acta ya está firmada/
-  )
+  await assert.rejects(sign(request()), /El acta ya está firmada/)
 
   assert.equal(state.signatures.length, 0)
 })
@@ -144,13 +159,9 @@ test('rechaza firmar nuevamente un acta ya firmada', async () => {
 test('rechaza reutilizar un código TOTP', async () => {
   const { state, sign, request } = createFixture()
 
-  state.credential.lastUsedStep =
-    BigInt(Math.floor(Date.now() / 30_000) + 1)
+  state.credential.lastUsedStep = BigInt(Math.floor(Date.now() / 30_000) + 1)
 
-  await assert.rejects(
-    sign(request()),
-    /Este código TOTP ya fue utilizado/
-  )
+  await assert.rejects(sign(request()), /Este código TOTP ya fue utilizado/)
 
   assert.equal(state.signatures.length, 0)
 })
@@ -159,34 +170,25 @@ test('bloquea el autenticador tras cinco códigos incorrectos', async () => {
   const { state, sign, request } = createFixture()
 
   const code = validCode()
-  const invalidCode = String((Number(code) + 500000) % 1000000)
-    .padStart(6, '0')
+  const invalidCode = String((Number(code) + 500000) % 1000000).padStart(6, '0')
 
   for (let attempt = 1; attempt <= 5; attempt++) {
     await assert.rejects(
       sign(request(invalidCode)),
-      attempt === 5
-        ? /Demasiados intentos/
-        : /Código TOTP incorrecto/
+      attempt === 5 ? /Demasiados intentos/ : /Código TOTP incorrecto/
     )
   }
 
   assert.ok(state.credential.lockedUntil instanceof Date)
   assert.equal(state.credential.failedAttempts, 0)
 
-  await assert.rejects(
-    sign(request()),
-    /Autenticador bloqueado temporalmente/
-  )
+  await assert.rejects(sign(request()), /Autenticador bloqueado temporalmente/)
 })
 
 test('rechaza la firma sin aceptación expresa', async () => {
   const { state, sign, request } = createFixture()
 
-  await assert.rejects(
-    sign({ ...request(), accepted: false }),
-    /aceptar expresamente/
-  )
+  await assert.rejects(sign({ ...request(), accepted: false }), /aceptar expresamente/)
 
   assert.equal(state.signatures.length, 0)
 })

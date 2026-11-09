@@ -5,7 +5,7 @@ interface ConflictAttachment {
   authorId: string
   content: string
   date: Date
-  digitalSignHash: string
+  digitalSignHash: string | null
 }
 
 interface ConflictDocument {
@@ -19,9 +19,7 @@ interface ConflictDocument {
   attachments: ConflictAttachment[]
 }
 
-export const calculateConflictHash = (
-  document: ConflictDocument
-): string => {
+export const calculateConflictHash = (document: ConflictDocument): string => {
   const content = JSON.stringify({
     documentUuid: document.documentUuid,
     studentId: document.studentId,
@@ -41,7 +39,5 @@ export const calculateConflictHash = (
       })),
   })
 
-  return createHash('sha256')
-    .update(content, 'utf8')
-    .digest('hex')
+  return createHash('sha256').update(content, 'utf8').digest('hex')
 }

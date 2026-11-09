@@ -1,20 +1,14 @@
-import { authenticator } from 'otplib'
+import { authenticator } from '@/utils/conflictTotp'
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
-import {
-  generateTotpSecret,
-  generateTotpUri,
-} from '@/utils/conflictTotp'
-import {
-  encryptTotpSecret,
-  decryptTotpSecret,
-} from '@/utils/conflictTotpEncryption'
+import { generateTotpSecret, generateTotpUri } from '@/utils/conflictTotp'
+import { encryptTotpSecret, decryptTotpSecret } from '@/utils/conflictTotpEncryption'
 
 const MAX_ATTEMPTS = 5
 const LOCK_MINUTES = 15
 
-export const startTotpEnrollment = async (userId: string) => {
-  const user = await prisma.user.findUnique({
+export const createStartTotpEnrollment = (db: typeof prisma) => async (userId: string) => {
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { email: true },
   })
@@ -23,40 +17,50 @@ export const startTotpEnrollment = async (userId: string) => {
     throw new HttpError(404, 'Usuario no encontrado')
   }
 
-  const existing = await prisma.conflictTotpCredential.findUnique({
-    where: { userId },
-  })
-
-  if (existing) {
-    throw new HttpError(
-      409,
-      existing.verifiedAt
-        ? 'El autenticador ya está vinculado'
-        : 'Ya existe una vinculación pendiente'
-    )
-  }
-
   const secret = generateTotpSecret()
+  const encryptedSecret = encryptTotpSecret(secret)
 
-  try {
-    await prisma.conflictTotpCredential.create({
-      data: {
-        userId,
-        encryptedSecret: encryptTotpSecret(secret),
-      },
+  const result = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "User"
+      WHERE "id" = ${userId}
+      FOR UPDATE
+    `
+
+    const existing = await tx.conflictTotpCredential.findUnique({
+      where: { userId },
     })
-  } catch (error) {
-    // Una solicitud simultánea puede haber creado la credencial.
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === 'P2002'
-    ) {
-      throw new HttpError(409, 'Ya existe una vinculación')
+
+    if (existing?.verifiedAt) {
+      return { ok: false as const }
     }
 
-    throw error
+    if (existing) {
+      await tx.conflictTotpCredential.update({
+        where: { userId },
+        data: {
+          encryptedSecret,
+          verifiedAt: null,
+          lastUsedStep: null,
+          failedAttempts: 0,
+          lockedUntil: null,
+        },
+      })
+    } else {
+      await tx.conflictTotpCredential.create({
+        data: {
+          userId,
+          encryptedSecret,
+        },
+      })
+    }
+
+    return { ok: true as const }
+  })
+
+  if (!result.ok) {
+    throw new HttpError(409, 'El autenticador ya está vinculado')
   }
 
   return {
@@ -65,15 +69,22 @@ export const startTotpEnrollment = async (userId: string) => {
   }
 }
 
-export const confirmTotpEnrollment = async (
-  userId: string,
-  code: string
-) => {
+export const startTotpEnrollment = createStartTotpEnrollment(prisma)
+
+export const confirmTotpEnrollment = async (userId: string, code: string) => {
   if (!/^\d{6}$/.test(code)) {
     throw new HttpError(400, 'El código debe contener seis dígitos')
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    // Mantener el orden: primero usuario, después credencial.
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "User"
+      WHERE "id" = ${userId}
+      FOR UPDATE
+    `
+
     await tx.$queryRaw`
       SELECT "userId"
       FROM "ConflictTotpCredential"
@@ -120,9 +131,7 @@ export const confirmTotpEnrollment = async (
         where: { userId },
         data: {
           failedAttempts: locked ? 0 : attempts,
-          lockedUntil: locked
-            ? new Date(Date.now() + LOCK_MINUTES * 60_000)
-            : null,
+          lockedUntil: locked ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null,
         },
       })
 

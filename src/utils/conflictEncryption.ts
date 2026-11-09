@@ -1,9 +1,4 @@
-
-import {
-  randomBytes,
-  createCipheriv,
-  createDecipheriv
-} from 'node:crypto'
+import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
@@ -12,9 +7,7 @@ const getEncryptionKey = (): Buffer => {
   const key = process.env.CONFLICT_ENCRYPTION_KEY
 
   if (!key || !/^[0-9a-fA-F]{64}$/.test(key)) {
-    throw new Error(
-      'CONFLICT_ENCRYPTION_KEY debe contener 64 caracteres hexadecimales'
-    )
+    throw new Error('CONFLICT_ENCRYPTION_KEY debe contener 64 caracteres hexadecimales')
   }
 
   return Buffer.from(key, 'hex')
@@ -23,30 +16,16 @@ const getEncryptionKey = (): Buffer => {
 export const encryptConflictReport = (report: string): string => {
   const iv = randomBytes(IV_LENGTH)
 
-  const cipher = createCipheriv(
-    ALGORITHM,
-    getEncryptionKey(),
-    iv
-  )
+  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv)
 
-  const encrypted = Buffer.concat([
-    cipher.update(report, 'utf8'),
-    cipher.final()
-  ])
+  const encrypted = Buffer.concat([cipher.update(report, 'utf8'), cipher.final()])
 
   const authTag = cipher.getAuthTag()
 
-  return [
-    'v1',
-    iv.toString('hex'),
-    authTag.toString('hex'),
-    encrypted.toString('hex')
-  ].join(':')
+  return ['v1', iv.toString('hex'), authTag.toString('hex'), encrypted.toString('hex')].join(':')
 }
 
-export const decryptConflictReport = (
-  encryptedReport: string
-): string => {
+export const decryptConflictReport = (encryptedReport: string): string => {
   const parts = encryptedReport.split(':')
 
   if (parts.length !== 4 || parts[0] !== 'v1') {
@@ -57,11 +36,7 @@ export const decryptConflictReport = (
   const authTagHex = parts[2]
   const encryptedHex = parts[3]
 
-  if (
-    ivHex === undefined ||
-    authTagHex === undefined ||
-    encryptedHex === undefined
-  ) {
+  if (ivHex === undefined || authTagHex === undefined || encryptedHex === undefined) {
     throw new Error('Datos de cifrado incompletos')
   }
 
@@ -73,21 +48,13 @@ export const decryptConflictReport = (
     throw new Error('Datos de cifrado inválidos')
   }
 
-  const decipher = createDecipheriv(
-    ALGORITHM,
-    getEncryptionKey(),
-    Buffer.from(ivHex, 'hex')
-  )
+  const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), Buffer.from(ivHex, 'hex'))
 
-  decipher.setAuthTag(
-    Buffer.from(authTagHex, 'hex')
-  )
+  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
 
   const decrypted = Buffer.concat([
-    decipher.update(
-      Buffer.from(encryptedHex, 'hex')
-    ),
-    decipher.final()
+    decipher.update(Buffer.from(encryptedHex, 'hex')),
+    decipher.final(),
   ])
 
   return decrypted.toString('utf8')

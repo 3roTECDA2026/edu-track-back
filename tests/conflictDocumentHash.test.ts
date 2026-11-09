@@ -27,10 +27,7 @@ test('genera un hash SHA-256 de 64 caracteres', () => {
 })
 
 test('el mismo documento produce el mismo hash', () => {
-  assert.equal(
-    calculateConflictHash(document),
-    calculateConflictHash(document)
-  )
+  assert.equal(calculateConflictHash(document), calculateConflictHash(document))
 })
 
 test('modificar el informe cambia el hash', () => {
@@ -39,10 +36,7 @@ test('modificar el informe cambia el hash', () => {
     detailedReport: 'Informe modificado',
   }
 
-  assert.notEqual(
-    calculateConflictHash(document),
-    calculateConflictHash(modified)
-  )
+  assert.notEqual(calculateConflictHash(document), calculateConflictHash(modified))
 })
 
 test('modificar un anexo cambia el hash', () => {
@@ -56,10 +50,7 @@ test('modificar un anexo cambia el hash', () => {
     ],
   }
 
-  assert.notEqual(
-    calculateConflictHash(document),
-    calculateConflictHash(modified)
-  )
+  assert.notEqual(calculateConflictHash(document), calculateConflictHash(modified))
 })
 
 test('el orden de los anexos no cambia el hash', () => {
@@ -78,8 +69,5 @@ test('el orden de los anexos no cambia el hash', () => {
     attachments: [...first.attachments].reverse(),
   }
 
-  assert.equal(
-    calculateConflictHash(first),
-    calculateConflictHash(reversed)
-  )
+  assert.equal(calculateConflictHash(first), calculateConflictHash(reversed))
 })

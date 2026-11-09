@@ -1,8 +1,6 @@
-import { prisma } from '../lib/prisma'
-import {
-  encryptConflictReport,
-  decryptConflictReport,
-} from '../utils/conflictEncryption'
+import { prisma } from '@/lib/prisma'
+import { HttpError } from '@/utils/httpError'
+import { encryptConflictReport, decryptConflictReport } from '@/utils/conflictEncryption'
 
 interface CreateLegalConflictData {
   studentId: string
@@ -12,12 +10,27 @@ interface CreateLegalConflictData {
   occurrenceDate?: Date
 }
 
-export const createLegalConflict = async (
-  data: CreateLegalConflictData
-) => {
-  const encryptedReport = encryptConflictReport(
-    data.detailedReport
-  )
+export const createLegalConflict = async (data: CreateLegalConflictData) => {
+  const [student, conflictCode] = await Promise.all([
+    prisma.student.findUnique({
+      where: { id: data.studentId },
+      select: { id: true },
+    }),
+    prisma.conflictCode.findUnique({
+      where: { code: data.conflictCode },
+      select: { code: true },
+    }),
+  ])
+
+  if (!student) {
+    throw new HttpError(404, 'El alumno indicado no existe')
+  }
+
+  if (!conflictCode) {
+    throw new HttpError(400, 'El código de conflicto no es válido')
+  }
+
+  const encryptedReport = encryptConflictReport(data.detailedReport)
 
   const conflict = await prisma.legalConflict.create({
     data: {
@@ -26,16 +39,14 @@ export const createLegalConflict = async (
       conflictCode: data.conflictCode,
       detailedReport: encryptedReport,
       digitalSignHash: null,
-      editLocked: false,
+      editLocked: true,
       occurrenceDate: data.occurrenceDate,
     },
   })
 
   return {
     ...conflict,
-    detailedReport: decryptConflictReport(
-      conflict.detailedReport
-    ),
+    detailedReport: decryptConflictReport(conflict.detailedReport),
   }
 }
 
@@ -48,15 +59,11 @@ export const getLegalConflictById = async (id: string) => {
 
   return {
     ...conflict,
-    detailedReport: decryptConflictReport(
-      conflict.detailedReport
-    ),
+    detailedReport: decryptConflictReport(conflict.detailedReport),
   }
 }
 
-export const getLegalConflictsByStudent = async (
-  studentId: string
-) => {
+export const getLegalConflictsByStudent = async (studentId: string) => {
   const conflicts = await prisma.legalConflict.findMany({
     where: { studentId },
     orderBy: { registeredAt: 'desc' },
@@ -64,162 +71,6 @@ export const getLegalConflictsByStudent = async (
 
   return conflicts.map((conflict) => ({
     ...conflict,
-    detailedReport: decryptConflictReport(
-      conflict.detailedReport
-    ),
+    detailedReport: decryptConflictReport(conflict.detailedReport),
   }))
 }
-
-// CRM-090: edición y eliminación exclusivamente antes de firmar.
-
-import { Prisma } from '@prisma/client'
-import { HttpError } from '@/utils/httpError'
-
-interface UpdateLegalConflictData {
-  conflictCode?: string
-  detailedReport?: string
-  occurrenceDate?: Date | null
-}
-
-interface ConflictAuditContext {
-  userId: string
-  ipAddress: string
-}
-
-const lockUnsignedConflict = async (
-  tx: Prisma.TransactionClient,
-  id: string
-) => {
-  await tx.$queryRaw`
-    SELECT "id"
-    FROM "LegalConflict"
-    WHERE "id" = ${id}
-    FOR UPDATE
-  `
-
-  const conflict = await tx.legalConflict.findUnique({
-    where: { id },
-    include: { electronicSignature: true },
-  })
-
-  if (!conflict) {
-    throw new HttpError(404, 'Acta de conflicto no encontrada')
-  }
-
-  if (
-    conflict.editLocked ||
-    conflict.digitalSignHash !== null ||
-    conflict.electronicSignature !== null
-  ) {
-    throw new HttpError(409, 'No se puede modificar un acta firmada')
-  }
-
-  return conflict
-}
-
-export const createLegalConflictMutations = (
-  db: Pick<typeof prisma, '$transaction'>
-) => {
-  const updateLegalConflict = async (
-  id: string,
-  data: UpdateLegalConflictData,
-  audit: ConflictAuditContext
-) => {
-  return db.$transaction(
-    async (tx) => {
-      const previous = await lockUnsignedConflict(tx, id)
-
-      const updated = await tx.legalConflict.update({
-        where: { id },
-        data: {
-          ...(data.conflictCode !== undefined && {
-            conflictCode: data.conflictCode,
-          }),
-          ...(data.detailedReport !== undefined && {
-            detailedReport: encryptConflictReport(data.detailedReport),
-          }),
-          ...(data.occurrenceDate !== undefined && {
-            occurrenceDate: data.occurrenceDate,
-          }),
-        },
-      })
-
-      await tx.auditLog.create({
-        data: {
-          userId: audit.userId,
-          action: 'UPDATE',
-          affectedEntity: 'LegalConflict',
-          entityId: id,
-          ipAddress: audit.ipAddress,
-          previousData: {
-            conflictCode: previous.conflictCode,
-            occurrenceDate: previous.occurrenceDate?.toISOString() ?? null,
-            reportChanged: data.detailedReport !== undefined,
-          },
-          newData: {
-            conflictCode: updated.conflictCode,
-            occurrenceDate: updated.occurrenceDate?.toISOString() ?? null,
-            reportChanged: data.detailedReport !== undefined,
-          },
-        },
-      })
-
-      return {
-        ...updated,
-        detailedReport: decryptConflictReport(updated.detailedReport),
-      }
-    },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    }
-  )
-}
-
-const deleteLegalConflict = async (
-  id: string,
-  audit: ConflictAuditContext
-) => {
-  return db.$transaction(
-    async (tx) => {
-      const previous = await lockUnsignedConflict(tx, id)
-
-      // Los anexos dependen del acta y deben eliminarse primero.
-      await tx.legalConflictAttachment.deleteMany({
-        where: { conflictId: id },
-      })
-
-      await tx.legalConflict.delete({
-        where: { id },
-      })
-
-      await tx.auditLog.create({
-        data: {
-          userId: audit.userId,
-          action: 'DELETE',
-          affectedEntity: 'LegalConflict',
-          entityId: id,
-          ipAddress: audit.ipAddress,
-          previousData: {
-            studentId: previous.studentId,
-            authorId: previous.authorId,
-            conflictCode: previous.conflictCode,
-            occurrenceDate: previous.occurrenceDate?.toISOString() ?? null,
-          },
-        },
-      })
-
-      return { deleted: true, id }
-    },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    }
-  )
-}
-
-  return { updateLegalConflict, deleteLegalConflict }
-}
-
-export const {
-  updateLegalConflict,
-  deleteLegalConflict,
-} = createLegalConflictMutations(prisma)

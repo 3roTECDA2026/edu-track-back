@@ -5,18 +5,9 @@ import type { NextFunction, Request, Response } from 'express'
 
 import { requireRole } from '../src/middlewares/auth.middleware'
 
-const allowedRoles = [
-  Role.EOE_DIRECTIVE,
-  Role.SCHOOL_MANAGEMENT
-]
+const allowedRoles = [Role.EOE_DIRECTIVE, Role.SCHOOL_MANAGEMENT]
 
-const deniedRoles = [
-  Role.ADMINISTRATOR,
-  Role.TEACHER,
-  Role.PRECEPTOR,
-  Role.STUDENT,
-  Role.FAMILY
-]
+const deniedRoles = [Role.ADMINISTRATOR, Role.TEACHER, Role.PRECEPTOR, Role.STUDENT, Role.FAMILY]
 
 function checkAccess(role: Role | null) {
   const req = {
@@ -24,9 +15,9 @@ function checkAccess(role: Role | null) {
       ? {
           userId: '00000000-0000-4000-8000-000000000001',
           name: 'Usuario de prueba',
-          role
+          role,
         }
-      : undefined
+      : undefined,
   } as Request
 
   let allowed = false
@@ -45,10 +36,7 @@ function checkAccess(role: Role | null) {
     }
   }
 
-  requireRole(
-    Role.EOE_DIRECTIVE,
-    Role.SCHOOL_MANAGEMENT
-  )(req, {} as Response, next)
+  requireRole(Role.EOE_DIRECTIVE, Role.SCHOOL_MANAGEMENT)(req, {} as Response, next)
 
   return { allowed, errorStatus }
 }
