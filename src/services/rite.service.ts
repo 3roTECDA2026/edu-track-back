@@ -2,6 +2,8 @@ import {
   AttendanceValue,
   CourseType,
   IntensificationPeriod,
+  IntensificationResultCode,
+  PendingSubjectStatus,
   Prisma,
   RiteStatus,
   Term,
@@ -38,6 +40,101 @@ const riteInclude = {
 
 type RiteWithRelations = Prisma.RiteGetPayload<{ include: typeof riteInclude }>
 type DbClient = Prisma.TransactionClient | typeof prisma
+
+// La tabla de MPAA de la plantilla tiene 4 filas: es el máximo de MPAA (Res. 1650/24, Anexo 5, incs. 12 y 13).
+const MAX_PENDING_SUBJECT_ROWS = 4
+
+// Los seis períodos del ciclo, en orden (Res. 1650/24, Anexo 2).
+const PERIOD_ORDER: IntensificationPeriod[] = [
+  IntensificationPeriod.MARCH,
+  IntensificationPeriod.JULY,
+  IntensificationPeriod.AUGUST,
+  IntensificationPeriod.DECEMBER_TERM_CLOSE,
+  IntensificationPeriod.DECEMBER,
+  IntensificationPeriod.FEBRUARY_MARCH,
+]
+
+// Períodos que informa cada RITE (Anexo 2): el del 1.º cuatrimestre llega hasta julio, el del 2.º
+// hasta diciembre 1 y el posterior a la intensificación muestra los seis.
+function periodsShownBy(term: Term, isPostIntensification: boolean) {
+  if (isPostIntensification) return PERIOD_ORDER
+  return PERIOD_ORDER.slice(0, term === Term.FIRST ? 2 : 4)
+}
+
+const pendingSubjectInclude = (year: number) =>
+  ({
+    subject: { select: { name: true, gradeLevel: true } },
+    originAcademicYear: { select: { year: true } },
+    originEnrollment: {
+      select: {
+        originalGradeLevel: true,
+        // Intentos de este ciclo y del anterior: los del anterior dan los saberes iniciales.
+        intensifications: {
+          where: { schedule: { academicYear: { year: { in: [year - 1, year] } } } },
+          select: {
+            period: true,
+            resultCode: true,
+            score: true,
+            pendingKnowledge: true,
+            schedule: { select: { academicYear: { select: { year: true } } } },
+          },
+        },
+      },
+    },
+  }) satisfies Prisma.PendingSubjectInclude
+
+type PendingSubjectForRite = Prisma.PendingSubjectGetPayload<{
+  include: ReturnType<typeof pendingSubjectInclude>
+}>
+type PendingAttempt = PendingSubjectForRite['originEnrollment']['intensifications'][number]
+
+const byPeriod = (a: PendingAttempt, b: PendingAttempt) =>
+  PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+
+// Una fila de la tabla de MPAA de la página 2.
+function toPendingSubjectRow(
+  pending: PendingSubjectForRite,
+  year: number,
+  shown: IntensificationPeriod[]
+) {
+  const attempts = pending.originEnrollment.intensifications
+  const yearOf = (attempt: PendingAttempt) => attempt.schedule?.academicYear.year
+  const current = attempts
+    .filter((attempt) => yearOf(attempt) === year && shown.includes(attempt.period))
+    .sort(byPeriod)
+
+  // Saberes iniciales: los que se guardaron al alta de la MPAA (CRM-052) si se originó en el ciclo
+  // anterior; si viene de antes, los que quedaron pendientes en el último intento del ciclo anterior.
+  const previousLast = attempts
+    .filter((attempt) => yearOf(attempt) === year - 1)
+    .sort(byPeriod)
+    .at(-1)
+  const initialPendingKnowledge =
+    pending.originAcademicYear.year === year - 1
+      ? (pending.initialPendingKnowledge ?? previousLast?.pendingKnowledge ?? null)
+      : (previousLast?.pendingKnowledge ?? pending.initialPendingKnowledge ?? null)
+
+  // Resultado de cada período; después del AA los períodos quedan vacíos.
+  const accredited = current.find((attempt) => attempt.resultCode === IntensificationResultCode.AA)
+  const lastIndex = accredited ? PERIOD_ORDER.indexOf(accredited.period) : PERIOD_ORDER.length
+  const results = Object.fromEntries(
+    PERIOD_ORDER.map((period, index) => {
+      const attempt = current.find((item) => item.period === period)
+      return [period, attempt && index <= lastIndex ? attempt.resultCode : null]
+    })
+  ) as Record<IntensificationPeriod, IntensificationResultCode | null>
+
+  return {
+    subjectName: pending.subject.name,
+    gradeLevel: pending.originEnrollment.originalGradeLevel ?? pending.subject.gradeLevel,
+    originYear: pending.originAcademicYear.year,
+    initialPendingKnowledge,
+    results,
+    // Con AA en este ciclo, la nota final es la de ese intento (4 a 10).
+    finalScore: accredited?.score ?? null,
+    closingPendingKnowledge: null as string | null,
+  }
+}
 
 type TermDates = {
   term1StartDate: Date | null
@@ -89,7 +186,9 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
   // El RITE post-intensificación se guarda como del 2° cuatrimestre, así que muestra el año completo.
   const isFirstTerm = term === Term.FIRST
 
-  const [enrollmentRecord, enrollments, attendances, yearRites] = await Promise.all([
+  const year = rite.academicYear.year
+
+  const [enrollmentRecord, enrollments, attendances, yearRites, pendingSubjects] = await Promise.all([
     client.enrollmentHistory.findFirst({
       where: { studentId, classSection: { academicYearId } },
       orderBy: { startDate: 'desc' },
@@ -117,7 +216,32 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
       include: { signingAuthority: { select: { firstName: true, lastName: true } } },
       orderBy: [{ term: 'asc' }, { isPostIntensification: 'asc' }],
     }),
+    // MPAA de ciclos anteriores que siguen pendientes o que se acreditaron en este ciclo.
+    // Las acreditadas en un ciclo anterior ya no van.
+    client.pendingSubject.findMany({
+      where: {
+        studentId,
+        originAcademicYear: { year: { lt: year } },
+        OR: [
+          { status: PendingSubjectStatus.PENDING },
+          {
+            originEnrollment: {
+              intensifications: {
+                some: { resultCode: IntensificationResultCode.AA, schedule: { academicYearId } },
+              },
+            },
+          },
+        ],
+      },
+      include: pendingSubjectInclude(year),
+      orderBy: [{ originAcademicYear: { year: 'asc' } }, { subject: { name: 'asc' } }],
+    }),
   ])
+
+  const shownPeriods = periodsShownBy(term, rite.isPostIntensification)
+  const pendingSubjectRows = pendingSubjects.map((pending) =>
+    toPendingSubjectRow(pending, year, shownPeriods)
+  )
 
   // El formulario lista primero las materias cursadas por primera vez (C) y después las recursadas (R).
   const subjects = enrollments
@@ -205,6 +329,9 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
     student: rite.student,
     section: enrollmentRecord?.classSection ?? null,
     subjects,
+    // Tabla de MPAA de la página 2: como máximo 4 filas. pendingSubjectsTotal avisa si hay más.
+    pendingSubjects: pendingSubjectRows.slice(0, MAX_PENDING_SUBJECT_ROWS),
+    pendingSubjectsTotal: pendingSubjectRows.length,
     attendance: {
       term1,
       term2: isFirstTerm ? null : term2,
