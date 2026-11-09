@@ -91,11 +91,29 @@ type PendingAttempt = PendingSubjectForRite['originEnrollment']['intensification
 const byPeriod = (a: PendingAttempt, b: PendingAttempt) =>
   PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
 
+// Nota y saberes al cierre de una MPAA que sigue pendiente (Anexo 5, inc. 8.d): los del último
+// intento del ciclo. Se calculan desde los intentos y no se guardan en PendingSubject, porque una
+// MPAA puede durar más de un ciclo y cada RITE tiene que mostrar los de su ciclo (decisión 2.2.1,
+// opción B, confirmada por el equipo).
+// El ciclo del intento sale del período del calendario al que pertenece (schedule.academicYear),
+// no de la fecha: febrero/marzo de 2026 cierra el ciclo 2025.
+// Sin intentos en el ciclo: la nota con la que nació la MPAA (PendingSubject.finalScore, la que
+// guarda el cierre de CRM-052) y los saberes vacíos.
+function closingValues(currentAttempts: PendingAttempt[], originScore: number | null) {
+  const last = currentAttempts.at(-1)
+  if (!last) return { finalScore: originScore, closingPendingKnowledge: null }
+  return {
+    finalScore: last.score ?? null,
+    closingPendingKnowledge: last.pendingKnowledge ?? null,
+  }
+}
+
 // Una fila de la tabla de MPAA de la página 2.
 function toPendingSubjectRow(
   pending: PendingSubjectForRite,
   year: number,
-  shown: IntensificationPeriod[]
+  shown: IntensificationPeriod[],
+  isClosing: boolean
 ) {
   const attempts = pending.originEnrollment.intensifications
   const yearOf = (attempt: PendingAttempt) => attempt.schedule?.academicYear.year
@@ -124,15 +142,21 @@ function toPendingSubjectRow(
     })
   ) as Record<IntensificationPeriod, IntensificationResultCode | null>
 
+  // Con AA en este ciclo, la nota final es la de ese intento (4 a 10). Si sigue pendiente, la nota
+  // (1 a 3) y los saberes al cierre van solo cuando el ciclo ya cerró; antes quedan vacíos.
+  const closing = accredited
+    ? { finalScore: accredited.score, closingPendingKnowledge: null }
+    : isClosing
+      ? closingValues(current, pending.finalScore)
+      : { finalScore: null, closingPendingKnowledge: null }
+
   return {
     subjectName: pending.subject.name,
     gradeLevel: pending.originEnrollment.originalGradeLevel ?? pending.subject.gradeLevel,
     originYear: pending.originAcademicYear.year,
     initialPendingKnowledge,
     results,
-    // Con AA en este ciclo, la nota final es la de ese intento (4 a 10).
-    finalScore: accredited?.score ?? null,
-    closingPendingKnowledge: null as string | null,
+    ...closing,
   }
 }
 
@@ -239,8 +263,10 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
   ])
 
   const shownPeriods = periodsShownBy(term, rite.isPostIntensification)
+  // El ciclo cerró (CRM-052) o es el RITE posterior a la intensificación: van los valores al cierre.
+  const isClosing = rite.isPostIntensification || rite.academicYear.closedAt !== null
   const pendingSubjectRows = pendingSubjects.map((pending) =>
-    toPendingSubjectRow(pending, year, shownPeriods)
+    toPendingSubjectRow(pending, year, shownPeriods, isClosing)
   )
 
   // El formulario lista primero las materias cursadas por primera vez (C) y después las recursadas (R).
