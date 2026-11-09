@@ -22,6 +22,12 @@ legalConflictRouter.get(
   asyncHandler(legalConflictController.listByStudent)
 )
 
+// Consultar catálogo de códigos normalizados
+legalConflictRouter.get(
+  '/codes',
+  asyncHandler(legalConflictController.listCodes)
+)
+
 // Consultar un conflicto legal por ID
 legalConflictRouter.get(
   '/:id',

@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/prisma'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { getAuthUser } from '@/middlewares/auth.middleware'
@@ -116,5 +117,28 @@ export const remove = async (
   res.status(200).json({
     success: true,
     message: 'Acta de conflicto eliminada correctamente',
+  })
+}
+
+
+// CRM-090 / CRM-091: catálogo de códigos normalizados
+export const listCodes = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  const codes = await prisma.conflictCode.findMany({
+    select: {
+      code: true,
+      description: true,
+    },
+    orderBy: {
+      code: 'asc',
+    },
+  })
+
+  res.setHeader('Cache-Control', 'no-store')
+  res.status(200).json({
+    success: true,
+    data: codes,
   })
 }
