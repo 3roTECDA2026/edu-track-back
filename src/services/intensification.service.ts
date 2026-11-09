@@ -350,6 +350,10 @@ async function findIntensificationOrFail(id: string) {
 // Cambia el modelo o la ubicación, mientras la intensificación no tenga resultado
 export async function updatePlacement(id: string, input: UpdatePlacementInput) {
   const intensification = await findIntensificationOrFail(id)
+  if (intensification.resultCode) {
+    throw new HttpError(409, 'La intensificación ya tiene resultado: no se puede cambiar el modelo')
+  }
+
   // Si cambia el modelo, el nuevo tiene que estar en la opción de la escuela. Si se mantiene el
   // mismo (por ejemplo, para cambiar solo la sección), se acepta aunque haya quedado afuera
   if (input.model !== intensification.model) {
