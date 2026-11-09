@@ -35,6 +35,11 @@ const ids = {
     december: '00000000-0000-0000-0000-000000005101',
     februaryMarch: '00000000-0000-0000-0000-000000005102',
   },
+  // Marzo y julio de 2026, para las MPAA de 2025 en el RITE 2026 (CRM-044)
+  mpaaSchedules2026: {
+    march: '00000000-0000-0000-0000-000000005103',
+    july: '00000000-0000-0000-0000-000000005104',
+  },
   closableEnrollments: [
     '00000000-0000-0000-0000-000000005201', // Matemática: aprobada (7 y 8)
     '00000000-0000-0000-0000-000000005202', // Lengua: desaprobada
@@ -1603,6 +1608,84 @@ export async function main() {
         },
       })
     }
+  }
+
+  // ============================================================
+  // 11. MPAA de 2025 intensificadas en 2026, para la tabla del RITE (CRM-044)
+  // ============================================================
+  // Después de cerrar el ciclo 2025, Lengua y Biología quedan como MPAA de Sofía. Los intentos de
+  // 2026 cuelgan de la cursada de 2025, igual que los que carga la asignación (CRM-056).
+  // El RITE 2026 de Sofía muestra Lengua acreditada en julio y Biología pendiente.
+  // Atajo del seed: el AA de Lengua no pasa por la carga de resultados (CRM-058), así que la MPAA
+  // sigue en estado PENDING; el RITE la muestra igual como acreditada en este ciclo.
+
+  const mpaaSchedules2026 = [
+    {
+      id: ids.mpaaSchedules2026.march,
+      period: IntensificationPeriod.MARCH,
+      startDate: new Date('2026-03-09T00:00:00.000Z'),
+      endDate: new Date('2026-03-20T00:00:00.000Z'),
+    },
+    {
+      id: ids.mpaaSchedules2026.july,
+      period: IntensificationPeriod.JULY,
+      startDate: new Date('2026-07-06T00:00:00.000Z'),
+      endDate: new Date('2026-07-17T00:00:00.000Z'),
+    },
+  ]
+
+  for (const schedule of mpaaSchedules2026) {
+    await prisma.intensificationSchedule.upsert({
+      where: {
+        academicYearId_period: { academicYearId: academicYear.id, period: schedule.period },
+      },
+      update: {},
+      create: { ...schedule, academicYearId: academicYear.id },
+    })
+  }
+
+  const mpaaAttempts2026 = [
+    {
+      enrollmentId: ids.closableEnrollments[1], // Lengua
+      scheduleId: ids.mpaaSchedules2026.march,
+      period: IntensificationPeriod.MARCH,
+      resultCode: IntensificationResultCode.CSA,
+      score: null,
+      pendingKnowledge: 'Uso de conectores en textos argumentativos.',
+    },
+    {
+      enrollmentId: ids.closableEnrollments[1], // Lengua
+      scheduleId: ids.mpaaSchedules2026.july,
+      period: IntensificationPeriod.JULY,
+      resultCode: IntensificationResultCode.AA,
+      score: 6,
+      pendingKnowledge: null,
+    },
+    {
+      enrollmentId: ids.closableEnrollments[3], // Biología
+      scheduleId: ids.mpaaSchedules2026.march,
+      period: IntensificationPeriod.MARCH,
+      resultCode: IntensificationResultCode.CCA,
+      score: 2,
+      pendingKnowledge: 'Funciones de nutrición y relación.',
+    },
+  ]
+
+  for (const attempt of mpaaAttempts2026) {
+    await prisma.intensification.upsert({
+      where: {
+        enrollmentId_scheduleId: {
+          enrollmentId: attempt.enrollmentId,
+          scheduleId: attempt.scheduleId,
+        },
+      },
+      update: {},
+      create: {
+        ...attempt,
+        model: IntensificationModel.MODEL_1,
+        responsibleTeacherId: teacher.id,
+      },
+    })
   }
 
   // ============================================================
