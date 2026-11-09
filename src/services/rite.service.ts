@@ -100,7 +100,11 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
       include: {
         subject: { select: { name: true, gradeLevel: true } },
         grade: true,
-        intensifications: { select: { period: true, score: true } },
+        // Solo los intentos de este ciclo: los de la MPAA en ciclos siguientes cuelgan de la misma cursada.
+        intensifications: {
+          where: { schedule: { academicYearId } },
+          select: { period: true, score: true, resultCode: true },
+        },
       },
     }),
     client.dailyAttendance.findMany({
@@ -119,8 +123,11 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
   const subjects = enrollments
     .map((enrollment) => {
       const grade = enrollment.grade
-      const intensificationScore = (period: IntensificationPeriod) =>
-        enrollment.intensifications.find((item) => item.period === period)?.score ?? null
+      // Con AA va la nota; con CCA o CSA, el código (Res. 1650/24, Anexo 5).
+      const intensificationResult = (period: IntensificationPeriod) => {
+        const attempt = enrollment.intensifications.find((item) => item.period === period)
+        return { score: attempt?.score ?? null, resultCode: attempt?.resultCode ?? null }
+      }
 
       return {
         enrollmentId: enrollment.id,
@@ -143,9 +150,11 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
         intensification: isFirstTerm
           ? null
           : {
-              december: intensificationScore(IntensificationPeriod.DECEMBER),
-              february: intensificationScore(IntensificationPeriod.FEBRUARY_MARCH),
+              december: intensificationResult(IntensificationPeriod.DECEMBER),
+              february: intensificationResult(IntensificationPeriod.FEBRUARY_MARCH),
             },
+        // Nota con la que recuperó el 1.º cuatrimestre durante el 2.º (columna "Intensificación 1.º cuatrimestre").
+        term1IntensificationScore: isFirstTerm ? null : (grade?.term1IntensificationScore ?? null),
         finalScore: isFirstTerm ? null : (grade?.finalScore ?? null),
       }
     })
