@@ -85,6 +85,25 @@ function initialPendingKnowledge(enrollment: EnrollmentForClosure) {
   )
 }
 
+// Nota final de una MPAA al cierre del ciclo (Anexo 5, inc. 8.d; RITE, nota 4): la del último
+// período de intensificación en que participó (febrero/marzo, si no diciembre). Como se aprueba
+// con 4, es una nota de 1 a 3. Si el docente no la cargó, queda vacía
+function closingFinalScore(enrollment: EnrollmentForClosure) {
+  const lastAttempt =
+    enrollment.intensifications.find((a) => a.period === IntensificationPeriod.FEBRUARY_MARCH) ??
+    enrollment.intensifications.find((a) => a.period === IntensificationPeriod.DECEMBER)
+  return lastAttempt?.score ?? null
+}
+
+// Agrupa las cursadas por nota final: una consulta por nota, no una por alumno
+function groupByFinalScore(items: Array<{ id: string; finalScore: number | null }>) {
+  const groups = new Map<number | null, string[]>()
+  for (const { id, finalScore } of items) {
+    groups.set(finalScore, [...(groups.get(finalScore) ?? []), id])
+  }
+  return groups
+}
+
 // Valida que el ciclo se pueda cerrar: existe, terminó su período de febrero/marzo y no quedan
 // intentos de diciembre o febrero/marzo sin resultado
 async function findClosableCycle(academicYearId: string) {
@@ -204,12 +223,15 @@ export async function closeCycle(
   }
 
   const notApprovedIds = notApproved.map((e) => e.id)
-
-  // Aprobadas agrupadas por nota final: una consulta por nota, no una por alumno
-  const approvedByScore = new Map<number | null, string[]>()
-  for (const { enrollment, finalScore } of approved) {
-    approvedByScore.set(finalScore, [...(approvedByScore.get(finalScore) ?? []), enrollment.id])
-  }
+  const approvedByScore = groupByFinalScore(
+    approved.map(({ enrollment, finalScore }) => ({ id: enrollment.id, finalScore }))
+  )
+  const mpaaByScore = groupByFinalScore(
+    notApproved.map((enrollment) => ({
+      id: enrollment.id,
+      finalScore: closingFinalScore(enrollment),
+    }))
+  )
 
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // El @unique de originEnrollmentId evita duplicar aunque haya dos ejecuciones a la vez
@@ -221,19 +243,22 @@ export async function closeCycle(
         originAcademicYearId: academicYearId,
         status: PendingSubjectStatus.PENDING,
         initialPendingKnowledge: initialPendingKnowledge(enrollment),
+        finalScore: closingFinalScore(enrollment),
       })),
       skipDuplicates: true,
     })
 
-    // No aprobadas: pasan a MPAA y la nota final queda vacía (decisión 9)
+    // No aprobadas: pasan a MPAA, con la nota del último intento como nota final (decisión 9)
     await tx.enrollment.updateMany({
       where: { id: { in: notApprovedIds } },
       data: { subjectStatus: SubjectStatus.MPAA },
     })
-    await tx.grade.updateMany({
-      where: { enrollmentId: { in: notApprovedIds } },
-      data: { subjectStatus: SubjectStatus.MPAA, finalScore: null },
-    })
+    for (const [finalScore, ids] of mpaaByScore) {
+      await tx.grade.updateMany({
+        where: { enrollmentId: { in: ids } },
+        data: { subjectStatus: SubjectStatus.MPAA, finalScore },
+      })
+    }
 
     // Aprobadas: nota final y estado, en Grade y en Enrollment
     for (const [finalScore, ids] of approvedByScore) {
