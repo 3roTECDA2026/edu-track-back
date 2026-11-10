@@ -19,7 +19,7 @@ import type {
   UpdateEdteMeetingInput,
 } from '@/schemas/edteMeeting.schema'
 import { HttpError } from '@/utils/httpError'
-import { toDate, toDay } from '@/utils/schoolDate'
+import { toDate, toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
 // Reuniones del EDTE (E4-RF-03, CRM-075): fecha, período, integrantes convocados, alumnos
 // tratados y consideraciones. Se editan solo en borrador.
@@ -498,4 +498,42 @@ export async function getEdteMeetingCandidates(query: EdteMeetingCandidatesQuery
     .sort((a, b) =>
       `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es')
     )
+}
+
+// Marca la reunión como firmada: deja de poder editarse. Exige el acta cargada y que la reunión
+// ya haya ocurrido. La firma digital de cada presente es otro requerimiento (E4-RF-04).
+export async function signEdteMeeting(id: string, actor: Actor) {
+  const meeting = await findMeetingOrFail(id)
+  if (meeting.status !== EdteMeetingStatus.DRAFT) {
+    throw new HttpError(409, 'La reunión ya está firmada')
+  }
+  if (!meeting.minutesUrl) {
+    throw new HttpError(409, 'Para marcarla como firmada, cargá primero el enlace al acta')
+  }
+  if (toDay(meeting.date) > todayInSchoolTimeZone()) {
+    throw new HttpError(409, 'La reunión todavía no ocurrió: no se puede marcar como firmada')
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const signedAt = new Date()
+    // Solo si sigue en borrador (por si dos personas la firman a la vez)
+    const { count } = await tx.edteMeeting.updateMany({
+      where: { id, status: EdteMeetingStatus.DRAFT },
+      data: { status: EdteMeetingStatus.SIGNED, signedAt, signedById: actor.userId },
+    })
+    if (count === 0) throw new HttpError(409, 'La reunión ya está firmada')
+
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: AuditActionType.SIGN,
+        affectedEntity: 'EdteMeeting',
+        entityId: id,
+        newData: { status: EdteMeetingStatus.SIGNED, signedAt: signedAt.toISOString() },
+        ipAddress: actor.ipAddress,
+      },
+    })
+  })
+
+  return getEdteMeeting(id)
 }
