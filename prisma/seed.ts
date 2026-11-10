@@ -1377,6 +1377,9 @@ export async function main() {
     return id
   }
 
+  // El PATE es del ciclo en que se aplica: 2026 (`academicYear`), no del 2025 (`pateYear2025`),
+  // que es donde las MPAA quedaron pendientes. El servicio exige que las MPAA sean de un ciclo
+  // anterior al del PATE, y la unicidad (alumno, ciclo) es por el ciclo de aplicación.
   await prisma.pate.upsert({
     where: {
       studentId_academicYearId: { studentId: pateStudentId, academicYearId: academicYear.id },

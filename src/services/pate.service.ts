@@ -302,6 +302,8 @@ async function findPateOrFail(id: string, db: DbClient = prisma) {
 // Provisorio: CRM-075 tiene la misma función (getReferredStudentIds en edteMeeting.service) y
 // CRM-073 la reemplaza por su listado de derivación. Cuando estén en develop, se unifica.
 async function getReferredStudentIds(closedYear: number, studentIds: string[]) {
+  // groupBy con `having` sobre el conteo: sintaxis soportada por Prisma (probada con 4 y con 5
+  // MPAA: con 4 no devuelve al alumno, con 5 sí)
   const groups = await prisma.pendingSubject.groupBy({
     by: ['studentId'],
     where: {
