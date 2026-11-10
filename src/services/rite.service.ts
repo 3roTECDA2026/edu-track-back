@@ -12,6 +12,12 @@ import {
 import { prisma } from '@/lib/prisma'
 import type { CreateRiteInput, UpdateRiteNotesInput } from '@/schemas/rite.schema'
 import { HttpError } from '@/utils/httpError'
+import {
+  MAX_PENDING_SUBJECT_ROWS,
+  intensificationResultOf,
+  periodsShownBy,
+  toPendingSubjectRow,
+} from '@/utils/ritePendingSubjects'
 
 // Datos fijos de la institución para el encabezado del RITE.
 // TODO: pasarlos a InstitutionalConfig cuando el modelo tenga estos campos (CRM-042).
@@ -41,26 +47,6 @@ const riteInclude = {
 type RiteWithRelations = Prisma.RiteGetPayload<{ include: typeof riteInclude }>
 type DbClient = Prisma.TransactionClient | typeof prisma
 
-// La tabla de MPAA de la plantilla tiene 4 filas: es el máximo de MPAA (Res. 1650/24, Anexo 5, incs. 12 y 13).
-const MAX_PENDING_SUBJECT_ROWS = 4
-
-// Los seis períodos del ciclo, en orden (Res. 1650/24, Anexo 2).
-const PERIOD_ORDER: IntensificationPeriod[] = [
-  IntensificationPeriod.MARCH,
-  IntensificationPeriod.JULY,
-  IntensificationPeriod.AUGUST,
-  IntensificationPeriod.DECEMBER_TERM_CLOSE,
-  IntensificationPeriod.DECEMBER,
-  IntensificationPeriod.FEBRUARY_MARCH,
-]
-
-// Períodos que informa cada RITE (Anexo 2): el del 1.º cuatrimestre llega hasta julio, el del 2.º
-// hasta diciembre 1 y el posterior a la intensificación muestra los seis.
-function periodsShownBy(term: Term, isPostIntensification: boolean) {
-  if (isPostIntensification) return PERIOD_ORDER
-  return PERIOD_ORDER.slice(0, term === Term.FIRST ? 2 : 4)
-}
-
 const pendingSubjectInclude = (year: number) =>
   ({
     subject: { select: { name: true, gradeLevel: true } },
@@ -87,78 +73,6 @@ type PendingSubjectForRite = Prisma.PendingSubjectGetPayload<{
   include: ReturnType<typeof pendingSubjectInclude>
 }>
 type PendingAttempt = PendingSubjectForRite['originEnrollment']['intensifications'][number]
-
-const byPeriod = (a: PendingAttempt, b: PendingAttempt) =>
-  PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
-
-// Nota y saberes al cierre de una MPAA que sigue pendiente (Anexo 5, inc. 8.d): los del último
-// intento del ciclo. Se calculan desde los intentos y no se guardan en PendingSubject, porque una
-// MPAA puede durar más de un ciclo y cada RITE tiene que mostrar los de su ciclo (decisión 2.2.1,
-// opción B, confirmada por el equipo).
-// El ciclo del intento sale del período del calendario al que pertenece (schedule.academicYear),
-// no de la fecha: febrero/marzo de 2026 cierra el ciclo 2025.
-// Sin intentos en el ciclo: la nota con la que nació la MPAA (PendingSubject.finalScore, la que
-// guarda el cierre de CRM-052) y los saberes vacíos.
-function closingValues(currentAttempts: PendingAttempt[], originScore: number | null) {
-  const last = currentAttempts.at(-1)
-  if (!last) return { finalScore: originScore, closingPendingKnowledge: null }
-  return {
-    finalScore: last.score ?? null,
-    closingPendingKnowledge: last.pendingKnowledge ?? null,
-  }
-}
-
-// Una fila de la tabla de MPAA de la página 2.
-function toPendingSubjectRow(
-  pending: PendingSubjectForRite,
-  year: number,
-  shown: IntensificationPeriod[],
-  isClosing: boolean
-) {
-  const attempts = pending.originEnrollment.intensifications
-  const yearOf = (attempt: PendingAttempt) => attempt.schedule?.academicYear.year
-  const current = attempts
-    .filter((attempt) => yearOf(attempt) === year && shown.includes(attempt.period))
-    .sort(byPeriod)
-
-  // Saberes iniciales: los que se guardaron al alta de la MPAA (CRM-052) si se originó en el ciclo
-  // anterior; si viene de antes, los que quedaron pendientes en el último intento del ciclo anterior.
-  const previousLast = attempts
-    .filter((attempt) => yearOf(attempt) === year - 1)
-    .sort(byPeriod)
-    .at(-1)
-  const initialPendingKnowledge =
-    pending.originAcademicYear.year === year - 1
-      ? (pending.initialPendingKnowledge ?? previousLast?.pendingKnowledge ?? null)
-      : (previousLast?.pendingKnowledge ?? pending.initialPendingKnowledge ?? null)
-
-  // Resultado de cada período; después del AA los períodos quedan vacíos.
-  const accredited = current.find((attempt) => attempt.resultCode === IntensificationResultCode.AA)
-  const lastIndex = accredited ? PERIOD_ORDER.indexOf(accredited.period) : PERIOD_ORDER.length
-  const results = Object.fromEntries(
-    PERIOD_ORDER.map((period, index) => {
-      const attempt = current.find((item) => item.period === period)
-      return [period, attempt && index <= lastIndex ? attempt.resultCode : null]
-    })
-  ) as Record<IntensificationPeriod, IntensificationResultCode | null>
-
-  // Con AA en este ciclo, la nota final es la de ese intento (4 a 10). Si sigue pendiente, la nota
-  // (1 a 3) y los saberes al cierre van solo cuando el ciclo ya cerró; antes quedan vacíos.
-  const closing = accredited
-    ? { finalScore: accredited.score, closingPendingKnowledge: null }
-    : isClosing
-      ? closingValues(current, pending.finalScore)
-      : { finalScore: null, closingPendingKnowledge: null }
-
-  return {
-    subjectName: pending.subject.name,
-    gradeLevel: pending.originEnrollment.originalGradeLevel ?? pending.subject.gradeLevel,
-    originYear: pending.originAcademicYear.year,
-    initialPendingKnowledge,
-    results,
-    ...closing,
-  }
-}
 
 type TermDates = {
   term1StartDate: Date | null
@@ -273,11 +187,8 @@ async function buildRiteDocument(client: DbClient, rite: RiteWithRelations) {
   const subjects = enrollments
     .map((enrollment) => {
       const grade = enrollment.grade
-      // Con AA va la nota; con CCA o CSA, el código (Res. 1650/24, Anexo 5).
-      const intensificationResult = (period: IntensificationPeriod) => {
-        const attempt = enrollment.intensifications.find((item) => item.period === period)
-        return { score: attempt?.score ?? null, resultCode: attempt?.resultCode ?? null }
-      }
+      const intensificationResult = (period: IntensificationPeriod) =>
+        intensificationResultOf(enrollment.intensifications, period)
 
       return {
         enrollmentId: enrollment.id,
