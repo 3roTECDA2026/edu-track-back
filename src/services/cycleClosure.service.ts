@@ -9,6 +9,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
 import { toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
+import { closingFinalScore, initialPendingKnowledge } from '@/utils/cycleClosureRules'
 import { evaluateSubjectApproval } from '@/utils/subjectApproval'
 
 // Cierre del ciclo lectivo (CRM-052, E3-RF-01): las materias no aprobadas pasan a MPAA.
@@ -70,30 +71,6 @@ export interface CycleClosureSummary {
 
 // AAAA-MM-DD → DD/MM/AAAA, para los mensajes
 const formatDay = (day: string) => day.split('-').reverse().join('/')
-
-const blankToNull = (value: string | null | undefined) => value?.trim() || null
-
-// Saberes pendientes al inicio del ciclo siguiente (decisión 5): los del último intento
-// (febrero/marzo, si no diciembre); si no hay, la fundamentación del 2.º cuatrimestre
-function initialPendingKnowledge(enrollment: EnrollmentForClosure) {
-  const byPeriod = (period: IntensificationPeriod) =>
-    blankToNull(enrollment.intensifications.find((a) => a.period === period)?.pendingKnowledge)
-  return (
-    byPeriod(IntensificationPeriod.FEBRUARY_MARCH) ??
-    byPeriod(IntensificationPeriod.DECEMBER) ??
-    blankToNull(enrollment.grade?.rationale2)
-  )
-}
-
-// Nota final de una MPAA al cierre del ciclo (Anexo 5, inc. 8.d; RITE, nota 4): la del último
-// período de intensificación en que participó (febrero/marzo, si no diciembre). Como se aprueba
-// con 4, es una nota de 1 a 3. Si el docente no la cargó, queda vacía
-function closingFinalScore(enrollment: EnrollmentForClosure) {
-  const lastAttempt =
-    enrollment.intensifications.find((a) => a.period === IntensificationPeriod.FEBRUARY_MARCH) ??
-    enrollment.intensifications.find((a) => a.period === IntensificationPeriod.DECEMBER)
-  return lastAttempt?.score ?? null
-}
 
 // Agrupa las cursadas por nota final: una consulta por nota, no una por alumno
 function groupByFinalScore(items: Array<{ id: string; finalScore: number | null }>) {
