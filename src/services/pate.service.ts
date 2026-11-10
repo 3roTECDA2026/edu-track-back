@@ -613,3 +613,77 @@ export async function getPateOptions(query: PateOptionsQuery) {
     maxSubjectsToIntensify: MAX_SUBJECTS_TO_INTENSIFY,
   }
 }
+
+// ============================================================
+// Cambio de estado
+// ============================================================
+
+// Transiciones posibles: borrador → en curso (confirmar) y en curso → cerrado
+const NEXT_STATUS: Partial<Record<PateStatus, PateStatus>> = {
+  [PateStatus.DRAFT]: PateStatus.IN_PROGRESS,
+  [PateStatus.IN_PROGRESS]: PateStatus.CLOSED,
+}
+
+const STATUS_LABELS: Record<PateStatus, string> = {
+  DRAFT: 'borrador',
+  IN_PROGRESS: 'en curso',
+  CLOSED: 'cerrado',
+}
+
+// Confirmar: se vuelven a validar todas las materias dentro de la transacción, con la fila del
+// alumno bloqueada, para que dos pedidos a la vez no pasen el límite de 12.
+// Cerrar: solo cambia el estado.
+export async function changePateStatus(id: string, status: PateStatus, actor: Actor) {
+  const pate = await findPateOrFail(id)
+  if (NEXT_STATUS[pate.status] !== status) {
+    throw new HttpError(
+      409,
+      `El PATE está ${STATUS_LABELS[pate.status]}: no puede pasar a ${STATUS_LABELS[status]}`
+    )
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (status === PateStatus.IN_PROGRESS) {
+      await tx.$queryRaw`SELECT "id" FROM "Student" WHERE "id" = ${pate.studentId} FOR UPDATE`
+      throwIfErrors(
+        await validatePateSubjects(tx, {
+          studentId: pate.studentId,
+          academicYear: pate.academicYear,
+          subjectsToIntensify: pate.subjectsToIntensify.map((item) => ({
+            pendingSubjectId: item.pendingSubjectId,
+            model: item.model,
+            targetClassSectionId: item.targetClassSectionId,
+          })),
+          subjectsToRepeat: pate.subjectsToRepeat.map((item) => ({
+            pendingSubjectId: item.pendingSubjectId,
+            classSectionId: item.classSectionId,
+          })),
+        })
+      )
+      // CRM-082: acá se crean las inscripciones REPEAT de subjectsToRepeat (con
+      // createSubjectRepeat) y se guarda cada una en repeatEnrollmentId, en esta misma
+      // transacción: si alguna falla, no se confirma el PATE.
+    }
+
+    // Solo si no cambió de estado mientras tanto (dos pedidos a la vez)
+    const { count } = await tx.pate.updateMany({
+      where: { id, status: pate.status },
+      data: { status },
+    })
+    if (count === 0) throw new HttpError(409, 'El PATE cambió de estado mientras tanto')
+
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: status === PateStatus.CLOSED ? AuditActionType.CLOSE : AuditActionType.UPDATE,
+        affectedEntity: 'Pate',
+        entityId: id,
+        previousData: { status: pate.status },
+        newData: { status },
+        ipAddress: actor.ipAddress,
+      },
+    })
+  })
+
+  return getPate(id)
+}
