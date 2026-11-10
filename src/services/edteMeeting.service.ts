@@ -537,3 +537,14 @@ export async function signEdteMeeting(id: string, actor: Actor) {
 
   return getEdteMeeting(id)
 }
+
+// Personal que se puede convocar a una reunión, para el checklist del formulario.
+// Provisorio hasta CRM-071: entonces devuelve los integrantes activos del plantel del EDTE.
+export async function getEdteMeetingMemberOptions() {
+  const users = await prisma.user.findMany({
+    where: { status: UserStatus.ACTIVE, role: { in: EDTE_STAFF_ROLES } },
+    select: { id: true, firstName: true, lastName: true, role: true },
+    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+  })
+  return users.map((user) => ({ userId: user.id, name: fullName(user), role: user.role }))
+}

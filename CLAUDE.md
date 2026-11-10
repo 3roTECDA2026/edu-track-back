@@ -252,7 +252,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/teacher-assignments` | asignación de materias a docentes | ninguna |
 | `/grades` | notas, `/roster`, `/by-student` | ninguna |
 | `/attendance` | asistencia, `/batch`, `/summary`, `/:id/justify` | ninguna |
-| `/edte-meetings` | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/edte-meetings` | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/member-options`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/notifications` | alertas de estudiantes | ninguna |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 

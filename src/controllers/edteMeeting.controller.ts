@@ -27,6 +27,10 @@ export async function getEdteMeetingCandidates(req: Request, res: Response) {
   res.json(await edteMeetingService.getEdteMeetingCandidates(query))
 }
 
+export async function getEdteMeetingMemberOptions(_req: Request, res: Response) {
+  res.json(await edteMeetingService.getEdteMeetingMemberOptions())
+}
+
 export async function getEdteMeeting(req: Request, res: Response) {
   const { id } = edteMeetingIdParamSchema.parse(req.params)
   res.json(await edteMeetingService.getEdteMeeting(id))

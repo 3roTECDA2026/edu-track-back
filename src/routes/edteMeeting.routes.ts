@@ -28,6 +28,12 @@ edteMeetingRouter.get(
   canManage,
   asyncHandler(edteMeetingController.getEdteMeetingCandidates)
 )
+// Personal que se puede convocar (checklist del formulario)
+edteMeetingRouter.get(
+  '/member-options',
+  canManage,
+  asyncHandler(edteMeetingController.getEdteMeetingMemberOptions)
+)
 edteMeetingRouter.get('/:id', canView, asyncHandler(edteMeetingController.getEdteMeeting))
 edteMeetingRouter.post('/', canManage, asyncHandler(edteMeetingController.createEdteMeeting))
 edteMeetingRouter.patch('/:id', canManage, asyncHandler(edteMeetingController.updateEdteMeeting))
