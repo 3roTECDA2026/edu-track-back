@@ -1,14 +1,27 @@
 import {
+  AuditActionType,
   IntensificationModel,
   type OrganizationalModel,
+  PateStatus,
   PendingSubjectStatus,
   Prisma,
   type Shift,
+  StudentStatus,
 } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
-import type { PateSubjectToIntensify, PateSubjectToRepeat } from '@/schemas/pate.schema'
+import {
+  MAX_SUBJECTS_TO_INTENSIFY,
+  type CreatePateInput,
+  type ListPatesQuery,
+  type PateOptionsQuery,
+  type PateSubjectToIntensify,
+  type PateSubjectToRepeat,
+  type UpdatePateInput,
+} from '@/schemas/pate.schema'
+import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
+import { toDay } from '@/utils/schoolDate'
 
 // PATE (E4-RF-06, RN-012 y RN-013, CRM-078)
 
@@ -199,4 +212,404 @@ export async function validatePateSubjects(db: DbClient, input: PateSubjectsInpu
   }
 
   return errors
+}
+
+// ============================================================
+// Alta, edición, listado y detalle
+// ============================================================
+
+// Quién hace el cambio (del token) y desde qué IP, para la auditoría
+interface Actor {
+  userId: string
+  ipAddress: string
+}
+
+const ENROLLED_STATUSES: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.CONDITIONAL]
+const MIN_PENDING_TO_REFER = 5 // RN-012: 5 o más MPAA
+
+const sectionSelect = { select: { id: true, grade: true, division: true, shift: true } } as const
+const pendingSelect = {
+  select: {
+    id: true,
+    subject: { select: { id: true, name: true, gradeLevel: true } },
+    originAcademicYear: { select: { year: true } },
+    originEnrollment: { select: { originalGradeLevel: true } },
+  },
+} as const
+
+const pateInclude = {
+  academicYear: { select: { id: true, year: true } },
+  student: { select: { id: true, firstName: true, lastName: true, dni: true } },
+  edteMeeting: { select: { id: true, date: true, period: true } },
+  createdBy: { select: { id: true, firstName: true, lastName: true } },
+  subjectsToIntensify: {
+    include: { pendingSubject: pendingSelect, targetClassSection: sectionSelect },
+  },
+  subjectsToRepeat: { include: { pendingSubject: pendingSelect, classSection: sectionSelect } },
+} satisfies Prisma.PateInclude
+
+type PateWithRelations = Prisma.PateGetPayload<{ include: typeof pateInclude }>
+type PendingInfo = PateWithRelations['subjectsToIntensify'][number]['pendingSubject']
+
+const fullName = (person: { firstName: string; lastName: string }) =>
+  `${person.lastName}, ${person.firstName}`
+
+const toPendingInfo = (pending: PendingInfo) => ({
+  pendingSubjectId: pending.id,
+  subjectId: pending.subject.id,
+  subjectName: pending.subject.name,
+  gradeLevel: pending.originEnrollment.originalGradeLevel ?? pending.subject.gradeLevel,
+  originYear: pending.originAcademicYear.year,
+})
+
+const bySubjectName = (a: { subjectName: string }, b: { subjectName: string }) =>
+  a.subjectName.localeCompare(b.subjectName, 'es')
+
+function toPateResponse(pate: PateWithRelations) {
+  return {
+    id: pate.id,
+    year: pate.academicYear.year,
+    status: pate.status,
+    student: pate.student,
+    edteMeeting: pate.edteMeeting
+      ? {
+          id: pate.edteMeeting.id,
+          date: toDay(pate.edteMeeting.date),
+          period: pate.edteMeeting.period,
+        }
+      : null,
+    diagnosis: pate.diagnosis,
+    supportStrategies: pate.supportStrategies,
+    schedule: pate.schedule,
+    notificationUrl: pate.notificationUrl,
+    createdBy: pate.createdBy ? { id: pate.createdBy.id, name: fullName(pate.createdBy) } : null,
+    createdAt: pate.createdAt,
+    updatedAt: pate.updatedAt,
+    subjectsToIntensify: pate.subjectsToIntensify
+      .map((item) => ({
+        id: item.id,
+        ...toPendingInfo(item.pendingSubject),
+        model: item.model,
+        targetClassSection: item.targetClassSection,
+      }))
+      .sort(bySubjectName),
+    subjectsToRepeat: pate.subjectsToRepeat
+      .map((item) => ({
+        id: item.id,
+        ...toPendingInfo(item.pendingSubject),
+        classSection: item.classSection,
+        repeatEnrollmentId: item.repeatEnrollmentId,
+      }))
+      .sort(bySubjectName),
+  }
+}
+
+async function findPateOrFail(id: string, db: DbClient = prisma) {
+  const pate = await db.pate.findUnique({ where: { id }, include: pateInclude })
+  if (!pate) throw new HttpError(404, 'PATE no encontrado')
+  return pate
+}
+
+// Alumnos derivados al EDTE al cierre del ciclo anterior: 5 o más MPAA pendientes (RN-012).
+// Provisorio: CRM-075 tiene la misma función (getReferredStudentIds en edteMeeting.service) y
+// CRM-073 la reemplaza por su listado de derivación. Cuando estén en develop, se unifica.
+async function getReferredStudentIds(closedYear: number, studentIds: string[]) {
+  const groups = await prisma.pendingSubject.groupBy({
+    by: ['studentId'],
+    where: {
+      studentId: { in: studentIds },
+      status: PendingSubjectStatus.PENDING,
+      originAcademicYear: { year: { lte: closedYear } },
+    },
+    _count: { _all: true },
+    having: { studentId: { _count: { gte: MIN_PENDING_TO_REFER } } },
+  })
+  return groups.map((group) => group.studentId)
+}
+
+// Ciclo del PATE: el de la reunión del EDTE, si viene; si no, el ciclo activo
+async function resolvePateCycle(edteMeetingId: string | null | undefined) {
+  if (edteMeetingId) {
+    const meeting = await prisma.edteMeeting.findUnique({
+      where: { id: edteMeetingId },
+      select: { id: true, academicYear: { select: { id: true, year: true } } },
+    })
+    if (!meeting) throw new HttpError(404, 'Reunión del EDTE no encontrada')
+    return { meetingId: meeting.id, academicYear: meeting.academicYear }
+  }
+  const active = await prisma.academicYear.findFirst({
+    where: { active: true },
+    orderBy: { year: 'desc' },
+    select: { id: true, year: true },
+  })
+  if (!active) throw new HttpError(409, 'No hay un ciclo lectivo activo')
+  return { meetingId: null, academicYear: active }
+}
+
+// Si hay errores en las materias, se devuelven todos juntos (en details.errors)
+function throwIfErrors(errors: string[]) {
+  if (errors.length > 0) {
+    throw new HttpError(409, 'Revisá las materias del PATE', { errors })
+  }
+}
+
+// El alumno tiene que estar derivado al EDTE al cierre del ciclo anterior (RN-012)
+async function assertReferred(studentId: string, year: number, studentName: string) {
+  const referred = await getReferredStudentIds(year - 1, [studentId])
+  if (!referred.includes(studentId)) {
+    throw new HttpError(
+      409,
+      `${studentName} no está derivado al EDTE: hacen falta ${MIN_PENDING_TO_REFER} o más materias pendientes`
+    )
+  }
+}
+
+// Resumen de las materias para la auditoría
+const auditSubjects = (data: {
+  subjectsToIntensify: { pendingSubjectId: string; model: IntensificationModel }[]
+  subjectsToRepeat: { pendingSubjectId: string }[]
+}) => ({
+  subjectsToIntensify: data.subjectsToIntensify.map((item) => ({
+    pendingSubjectId: item.pendingSubjectId,
+    model: item.model,
+  })),
+  subjectsToRepeat: data.subjectsToRepeat.map((item) => item.pendingSubjectId),
+})
+
+// Listado: por alumno, ciclo o estado
+export async function listPates(query: ListPatesQuery) {
+  const pates = await prisma.pate.findMany({
+    where: {
+      ...(query.studentId && { studentId: query.studentId }),
+      ...(query.year !== undefined && { academicYear: { year: query.year } }),
+      ...(query.status && { status: query.status }),
+    },
+    include: pateInclude,
+    orderBy: [{ academicYear: { year: 'desc' } }, { student: { lastName: 'asc' } }],
+  })
+  return pates.map(toPateResponse)
+}
+
+export async function getPate(id: string) {
+  return toPateResponse(await findPateOrFail(id))
+}
+
+// Alta en borrador. El ciclo es el de la reunión del EDTE, si viene; si no, el ciclo activo.
+// Cuando esté CRM-075, la reunión pasa a ser obligatoria y se valida que el alumno esté entre
+// sus alumnos tratados.
+export async function createPate(input: CreatePateInput, actor: Actor) {
+  const [student, cycle] = await Promise.all([
+    prisma.student.findUnique({
+      where: { id: input.studentId },
+      select: { id: true, firstName: true, lastName: true, status: true },
+    }),
+    resolvePateCycle(input.edteMeetingId),
+  ])
+  if (!student) throw new HttpError(404, 'Estudiante no encontrado')
+  const studentName = fullName(student)
+  if (!ENROLLED_STATUSES.includes(student.status)) {
+    throw new HttpError(409, `${studentName} no está activo`)
+  }
+  const { academicYear, meetingId } = cycle
+  await assertReferred(student.id, academicYear.year, studentName)
+
+  const existing = await prisma.pate.findUnique({
+    where: { studentId_academicYearId: { studentId: student.id, academicYearId: academicYear.id } },
+    select: { id: true },
+  })
+  if (existing) {
+    throw new HttpError(409, `${studentName} ya tiene un PATE en el ciclo ${academicYear.year}`)
+  }
+
+  throwIfErrors(
+    await validatePateSubjects(prisma, {
+      studentId: student.id,
+      academicYear,
+      subjectsToIntensify: input.subjectsToIntensify,
+      subjectsToRepeat: input.subjectsToRepeat,
+    })
+  )
+
+  try {
+    const id = await prisma.$transaction(async (tx) => {
+      const pate = await tx.pate.create({
+        data: {
+          studentId: student.id,
+          academicYearId: academicYear.id,
+          edteMeetingId: meetingId,
+          diagnosis: input.diagnosis,
+          supportStrategies: input.supportStrategies,
+          schedule: input.schedule || null,
+          createdById: actor.userId,
+          subjectsToIntensify: {
+            create: input.subjectsToIntensify.map((item) => ({
+              pendingSubjectId: item.pendingSubjectId,
+              model: item.model,
+              targetClassSectionId: item.targetClassSectionId ?? null,
+            })),
+          },
+          subjectsToRepeat: {
+            create: input.subjectsToRepeat.map((item) => ({
+              pendingSubjectId: item.pendingSubjectId,
+              classSectionId: item.classSectionId,
+            })),
+          },
+        },
+        select: { id: true },
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: actor.userId,
+          action: AuditActionType.CREATE,
+          affectedEntity: 'Pate',
+          entityId: pate.id,
+          newData: {
+            studentId: student.id,
+            year: academicYear.year,
+            edteMeetingId: meetingId,
+            ...auditSubjects(input),
+          },
+          ipAddress: actor.ipAddress,
+        },
+      })
+      return pate.id
+    })
+    return getPate(id)
+  } catch (err) {
+    // Dos altas a la vez para el mismo alumno y ciclo
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new HttpError(409, `${studentName} ya tiene un PATE en el ciclo ${academicYear.year}`)
+    }
+    throw err
+  }
+}
+
+// Edición: solo en borrador. Las listas que vienen reemplazan a las anteriores, y se vuelven a
+// validar todas las materias (pueden haber cambiado las MPAA o las inscripciones).
+export async function updatePate(id: string, input: UpdatePateInput, actor: Actor) {
+  const pate = await findPateOrFail(id)
+  if (pate.status !== PateStatus.DRAFT) {
+    throw new HttpError(409, 'El PATE ya está confirmado: no se puede modificar')
+  }
+
+  const subjectsToIntensify =
+    input.subjectsToIntensify ??
+    pate.subjectsToIntensify.map((item) => ({
+      pendingSubjectId: item.pendingSubjectId,
+      model: item.model,
+      targetClassSectionId: item.targetClassSectionId,
+    }))
+  const subjectsToRepeat =
+    input.subjectsToRepeat ??
+    pate.subjectsToRepeat.map((item) => ({
+      pendingSubjectId: item.pendingSubjectId,
+      classSectionId: item.classSectionId,
+    }))
+
+  throwIfErrors(
+    await validatePateSubjects(prisma, {
+      studentId: pate.studentId,
+      academicYear: pate.academicYear,
+      subjectsToIntensify,
+      subjectsToRepeat,
+    })
+  )
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pate.update({
+      where: { id },
+      data: {
+        ...(input.diagnosis !== undefined && { diagnosis: input.diagnosis }),
+        ...(input.supportStrategies !== undefined && {
+          supportStrategies: input.supportStrategies,
+        }),
+        ...(input.schedule !== undefined && { schedule: input.schedule || null }),
+      },
+    })
+    if (input.subjectsToIntensify) {
+      await tx.pateSubjectIntensify.deleteMany({ where: { pateId: id } })
+      await tx.pateSubjectIntensify.createMany({
+        data: input.subjectsToIntensify.map((item) => ({
+          pateId: id,
+          pendingSubjectId: item.pendingSubjectId,
+          model: item.model,
+          targetClassSectionId: item.targetClassSectionId ?? null,
+        })),
+      })
+    }
+    if (input.subjectsToRepeat) {
+      await tx.pateSubjectRepeat.deleteMany({ where: { pateId: id } })
+      await tx.pateSubjectRepeat.createMany({
+        data: input.subjectsToRepeat.map((item) => ({
+          pateId: id,
+          pendingSubjectId: item.pendingSubjectId,
+          classSectionId: item.classSectionId,
+        })),
+      })
+    }
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: AuditActionType.UPDATE,
+        affectedEntity: 'Pate',
+        entityId: id,
+        previousData: auditSubjects(pate),
+        newData: {
+          ...auditSubjects({ subjectsToIntensify, subjectsToRepeat }),
+          textChanged: [input.diagnosis, input.supportStrategies, input.schedule].some(
+            (value) => value !== undefined
+          ),
+        },
+        ipAddress: actor.ipAddress,
+      },
+    })
+  })
+
+  return getPate(id)
+}
+
+// Datos para armar el formulario del PATE de un alumno (en el ciclo de la reunión, si viene)
+export async function getPateOptions(query: PateOptionsQuery) {
+  const { academicYear } = await resolvePateCycle(query.edteMeetingId)
+
+  const [pendings, sections, models, shift, currentSubjects, referred, existing] =
+    await Promise.all([
+      prisma.pendingSubject.findMany({
+        where: {
+          studentId: query.studentId,
+          status: PendingSubjectStatus.PENDING,
+          originAcademicYear: { year: { lt: academicYear.year } },
+        },
+        ...pendingSelect,
+      }),
+      prisma.classSection.findMany({
+        where: { academicYearId: academicYear.id },
+        orderBy: [{ grade: 'asc' }, { division: 'asc' }, { shift: 'asc' }],
+        ...sectionSelect,
+      }),
+      allowedModels(),
+      studentShiftInCycle(prisma, query.studentId, academicYear.id),
+      countSubjectsInCycle(prisma, query.studentId, academicYear.id),
+      getReferredStudentIds(academicYear.year - 1, [query.studentId]),
+      prisma.pate.findUnique({
+        where: {
+          studentId_academicYearId: { studentId: query.studentId, academicYearId: academicYear.id },
+        },
+        select: { id: true, status: true },
+      }),
+    ])
+
+  return {
+    year: academicYear.year,
+    referred: referred.includes(query.studentId),
+    existingPate: existing,
+    pendingSubjects: pendings.map(toPendingInfo).sort(bySubjectName),
+    sections,
+    organizationalOption: models.option,
+    allowedModels: models.models,
+    studentShift: shift ?? null,
+    currentSubjectsCount: currentSubjects,
+    maxSubjectsPerCycle: MAX_SUBJECTS_PER_CYCLE,
+    maxSubjectsToIntensify: MAX_SUBJECTS_TO_INTENSIFY,
+  }
 }
