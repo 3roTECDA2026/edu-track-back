@@ -8,6 +8,15 @@ import {
 
 import { prisma } from '@/lib/prisma'
 import type { EdteDashboardQuery } from '@/schemas/edteDashboard.schema'
+import {
+  EDTE_RISK_THRESHOLDS,
+  isComplexTrajectory,
+  isEarlyWarning,
+  isReferred,
+  RISK_LEVEL_ORDER,
+  riskLevel,
+  worstAssessment,
+} from '@/utils/edteRisk'
 import { HttpError } from '@/utils/httpError'
 import { currentTerm } from '@/utils/schoolTerm'
 
@@ -16,34 +25,8 @@ import { currentTerm } from '@/utils/schoolTerm'
 // MPAA salen de la normativa (A5, inc. 13: con 5 o más se deriva al EDTE).
 
 const ENROLLED_STATUSES: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.CONDITIONAL]
-const EARLY_WARNING_PENDING = 4 // Una MPAA más y se deriva
-const REFERRED_PENDING = 5 // RN-012
-
-// Peor valoración primero: TED (discontinua) > TEP (en proceso) > TEA (avanzada)
-const ASSESSMENT_SEVERITY: PreliminaryAssessment[] = [
-  PreliminaryAssessment.TED,
-  PreliminaryAssessment.TEP,
-  PreliminaryAssessment.TEA,
-]
-
-export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW'
-const LEVEL_ORDER: RiskLevel[] = ['HIGH', 'MEDIUM', 'LOW']
-
 type SectionInfo = { id: string; grade: number; division: string; shift: Shift }
 type PateInfo = { id: string; status: string }
-
-// Semáforo de cada alumno (propuesta del equipo; la normativa solo fija el 5 de las MPAA):
-// rojo con 5 o más MPAA o 2 o más TED; ámbar con 4 MPAA, 1 TED o valoración TEP; verde el resto.
-function riskLevel(
-  pendingCount: number,
-  tedCount: number,
-  assessment: PreliminaryAssessment | null
-) {
-  if (pendingCount >= REFERRED_PENDING || tedCount >= 2) return 'HIGH'
-  if (pendingCount === EARLY_WARNING_PENDING || tedCount === 1) return 'MEDIUM'
-  if (assessment === PreliminaryAssessment.TEP) return 'MEDIUM'
-  return 'LOW'
-}
 
 // Alumnos con PATE en curso en el ciclo.
 // Provisorio hasta CRM-078: en develop el PATE todavía no tiene ciclo ni el estado IN_PROGRESS,
@@ -126,7 +109,7 @@ export async function getEdteDashboard(query: EdteDashboardQuery) {
       const { student, section } = students.get(id)!
       const assessments = assessmentsByStudent.get(id) ?? []
       // La peor valoración de sus materias en el cuatrimestre (o null si no tiene ninguna)
-      const assessment = ASSESSMENT_SEVERITY.find((value) => assessments.includes(value)) ?? null
+      const assessment = worstAssessment(assessments)
       const tedCount = assessments.filter((value) => value === PreliminaryAssessment.TED).length
       const pendingSubjectsCount = pendingByStudent.get(id) ?? 0
       const pate = pates.get(id) ?? null
@@ -139,10 +122,10 @@ export async function getEdteDashboard(query: EdteDashboardQuery) {
         assessment,
         tedCount,
         pendingSubjectsCount,
-        level: riskLevel(pendingSubjectsCount, tedCount, assessment) as RiskLevel,
+        level: riskLevel(pendingSubjectsCount, tedCount, assessment),
         pate,
         // Trayectoria compleja: 4 o más MPAA, alguna TED en el cuatrimestre o PATE en curso
-        complex: pendingSubjectsCount >= EARLY_WARNING_PENDING || tedCount > 0 || pate !== null,
+        complex: isComplexTrajectory(pendingSubjectsCount, tedCount, pate !== null),
       }
     })
     // Filtro por valoración: se aplica a las tarjetas y al listado
@@ -154,6 +137,8 @@ export async function getEdteDashboard(query: EdteDashboardQuery) {
   return {
     academicYear: cycle.year,
     term,
+    // Los umbrales del semáforo, para que el front arme sus textos sin repetir los números
+    thresholds: EDTE_RISK_THRESHOLDS,
     indicators: {
       totalStudents: rows.length,
       studentsByAssessment: {
@@ -162,8 +147,8 @@ export async function getEdteDashboard(query: EdteDashboardQuery) {
         TED: count(PreliminaryAssessment.TED),
         NONE: count(null),
       },
-      earlyWarning: rows.filter((row) => row.pendingSubjectsCount === EARLY_WARNING_PENDING).length,
-      referred: rows.filter((row) => row.pendingSubjectsCount >= REFERRED_PENDING).length,
+      earlyWarning: rows.filter((row) => isEarlyWarning(row.pendingSubjectsCount)).length,
+      referred: rows.filter((row) => isReferred(row.pendingSubjectsCount)).length,
       // Es el único indicador que cuenta materias, no alumnos
       tedAssessments: rows.reduce((total, row) => total + row.tedCount, 0),
     },
@@ -172,7 +157,7 @@ export async function getEdteDashboard(query: EdteDashboardQuery) {
       .filter((row) => row.complex)
       .sort(
         (a, b) =>
-          LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level) ||
+          RISK_LEVEL_ORDER.indexOf(a.level) - RISK_LEVEL_ORDER.indexOf(b.level) ||
           `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es')
       )
       .map(({ complex: _complex, ...row }) => row),

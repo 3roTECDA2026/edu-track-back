@@ -172,8 +172,13 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
   - **Reglas del dashboard:** ciclo activo y cuatrimestre en curso (`?term` para otro). La
     valoración de cada alumno es la peor de sus materias (TED > TEP > TEA). 4 MPAA = alerta
     temprana; 5 o más = derivados (A5, inc. 13). Trayectoria compleja: 4 o más MPAA, alguna TED
-    o PATE en curso. Semáforo (propuesta del equipo): rojo con 5 o más MPAA o 2 o más TED; ámbar
-    con 4 MPAA, 1 TED o TEP; verde el resto. Los filtros se aplican a indicadores y listado.
+    o PATE en curso. Semáforo: rojo con 5 o más MPAA o 2 o más TED; ámbar con 4 MPAA, 1 TED o TEP;
+    verde el resto. Los filtros se aplican a indicadores y listado.
+  - **Dónde se cambian los umbrales:** en `EDTE_RISK_THRESHOLDS` de `utils/edteRisk.ts`, y nada
+    más: el endpoint los informa (`thresholds`) y el front arma sus textos con eso. 4 MPAA (alerta
+    temprana) y 5 (derivados) salen de E6-RF-02; una TED como alerta, de E6-RF-03; "2 o más TED =
+    rojo" es una propuesta del equipo, no de un requerimiento. Las reglas tienen tests
+    (`utils/edteRisk.test.ts`).
   - **Provisorio:** el PATE en curso (`getActivePates`) devuelve vacío hasta CRM-078.
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
   TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
