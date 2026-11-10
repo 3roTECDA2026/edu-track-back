@@ -7,7 +7,7 @@ export const createClassSectionSchema = z.object({
   division: z.string().min(1),
   shift: z.nativeEnum(Shift),
   orientation: z.nativeEnum(Orientation).optional().nullable(),
-  academicYearId: z.string().uuid(),
+  academicYearId: z.guid(),
 })
 
 export const updateClassSectionSchema = createClassSectionSchema.partial()

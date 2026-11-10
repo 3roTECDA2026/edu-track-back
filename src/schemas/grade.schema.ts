@@ -12,11 +12,11 @@ const termScoresSchema = z
   .length(4, 'Deben ser 4 notas (usá null para las vacías)')
 
 export const gradeIdParamSchema = z.object({
-  id: z.uuid(),
+  id: z.guid(),
 })
 
 export const createGradeSchema = z.object({
-  enrollmentId: z.uuid(),
+  enrollmentId: z.guid(),
   preliminaryAssessment1: z.enum(PreliminaryAssessment).optional(),
   rationale1: z.string().trim().optional(),
   term1Score: scoreSchema.optional(),
@@ -39,20 +39,20 @@ export const listGradesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   // z.guid() acepta también los ids fijos del seed (00000000-...), que z.uuid() rechaza.
   studentId: z.guid().optional(), // filtrar notas por alumno
-  classSectionId: z.uuid().optional(),
-  subjectId: z.uuid().optional(),
+  classSectionId: z.guid().optional(),
+  subjectId: z.guid().optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   subjectStatus: z.enum(SubjectStatus).optional(),
 })
 
 export const gradeRosterQuerySchema = z.object({
-  classSectionId: z.uuid(),
-  subjectId: z.uuid(),
+  classSectionId: z.guid(),
+  subjectId: z.guid(),
   year: z.coerce.number().int().min(2000).max(2100),
 })
 
 export const gradeByStudentQuerySchema = z.object({
-  studentId: z.uuid(),
+  studentId: z.guid(),
   year: z.coerce.number().int().min(2000).max(2100),
 })
 
