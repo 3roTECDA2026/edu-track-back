@@ -130,6 +130,21 @@ enum InterventionEventType {
   CONDUCT // Intervención de Convivencia / Conducta
 }
 
+// Momento del ciclo en que se reúne el EDTE (DA7, 2.3; Res. 1650/24, Anexo 2, incs. 23 y 25):
+// al terminar los períodos de febrero/marzo, agosto y diciembre, y en reuniones adicionales.
+enum EdteMeetingPeriod {
+  FEBRUARY_MARCH // Después del período de febrero/marzo: se arman los PATE
+  AUGUST // Después del período de agosto: seguimiento de los PATE
+  DECEMBER // Después del período de diciembre: seguimiento de los PATE
+  ADDITIONAL // Reunión adicional
+}
+
+// Estado del registro de la reunión: en borrador se puede editar; firmada, no
+enum EdteMeetingStatus {
+  DRAFT // Borrador
+  SIGNED // Acta firmada
+}
+
 enum PateStatus {
   ACTIVE // PATE Activo
   UNDER_FOLLOW_UP // PATE en Seguimiento
@@ -211,6 +226,8 @@ model User {
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
+  edteMeetingsCreated          EdteMeeting[]          @relation("EdteMeetingCreator") // Reuniones del EDTE que cargó
+  edteMeetingsSigned           EdteMeeting[]          @relation("EdteMeetingSigner") // Reuniones del EDTE que marcó como firmadas
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -372,6 +389,7 @@ model Student {
   interventions        Intervention[] // Intervenciones pedagógicas/de orientación
   legalConflicts       LegalConflict[] // Actas de conflicto o situaciones complejas
   pates                Pate[] // Planes PATE asignados
+  edteMeetingStudents  EdteMeetingStudent[] // Reuniones del EDTE en que se trató
   documents            RecordDocument[] // Documentación física digitalizada del legajo
   transfers            InstitutionalTransfer[] @relation("TransferStudent") // Historial de pases
   equivalencies        Equivalency[] // Trámites de equivalencias
@@ -603,19 +621,45 @@ model Rite {
 // EDTE — Equipo de Definición de Trayectorias Educativas
 // ============================================================================
 
+// Reunión del EDTE (E4-RF-03, CRM-075). Pertenece al ciclo en que se aplican sus decisiones:
+// la de febrero/marzo de 2026 analiza el cierre de 2025, pero arma los PATE de 2026.
 model EdteMeeting {
-  id             String                @id @default(uuid()) // Identificador único
+  id             String            @id @default(uuid()) // Identificador único
   date           DateTime // Fecha de reunión del equipo EDTE
-  period         IntensificationPeriod // Período de análisis
-  academicYear   AcademicYear          @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  period         EdteMeetingPeriod // Febrero/marzo, agosto, diciembre o adicional
+  shift          Shift? // Turno del EDTE (hay un EDTE por turno, Anexo 2, inc. 22)
+  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
   academicYearId String // ID del ciclo lectivo
   considerations String? // Consideraciones pedagógicas y acuerdos colectivos
   minutesUrl     String? // Enlace al acta de reunión digitalizada
-  minutesSigned  Boolean               @default(false) // ¿Acta consolidada y firmada?
-  createdAt      DateTime              @default(now()) // Fecha de registro
+  status         EdteMeetingStatus @default(DRAFT) // Borrador o acta firmada
+  signedAt       DateTime? // Cuándo se marcó como firmada
+  signedBy       User?             @relation("EdteMeetingSigner", fields: [signedById], references: [id]) // Quién la marcó como firmada
+  signedById     String? // ID de ese usuario
+  createdBy      User?             @relation("EdteMeetingCreator", fields: [createdById], references: [id]) // Quién la cargó
+  createdById    String? // ID de ese usuario (vacío en reuniones anteriores a CRM-075)
+  createdAt      DateTime          @default(now()) // Fecha de registro
+  updatedAt      DateTime          @default(now()) @updatedAt // Última modificación
 
-  members EdteMember[] // Integrantes participantes de la reunión
-  pates   Pate[] // Planes PATE diseñados en esta reunión
+  members  EdteMember[] // Integrantes convocados (presentes y ausentes)
+  students EdteMeetingStudent[] // Alumnos tratados en la reunión
+  pates    Pate[] // Planes PATE diseñados en esta reunión
+
+  @@index([academicYearId, period]) // Para el listado filtrado por ciclo y período
+}
+
+// Alumno tratado en una reunión del EDTE (CRM-075). Puede tratarse sin PATE (seguimiento o
+// reunión adicional), por eso va aparte de Pate.edteMeetingId.
+model EdteMeetingStudent {
+  id            String      @id @default(uuid()) // Identificador único
+  edteMeeting   EdteMeeting @relation(fields: [edteMeetingId], references: [id]) // Reunión
+  edteMeetingId String // ID de la reunión
+  student       Student     @relation(fields: [studentId], references: [id]) // Alumno tratado
+  studentId     String // ID del alumno
+  notes         String? // Consideraciones sobre este alumno
+
+  @@unique([edteMeetingId, studentId]) // Un alumno, una vez por reunión
+  @@index([studentId]) // Para ver en qué reuniones se trató a un alumno
 }
 
 model EdteMember {
