@@ -10,7 +10,7 @@ import { isWeekend, toDate, toDay, todayInSchoolTimeZone } from '@/utils/schoolD
 const DAILY_JUSTIFICATION = 'Justificada en la carga diaria'
 
 // Pueden corregir la asistencia de días anteriores (por ejemplo, si la preceptoría se equivocó)
-const EDIT_PAST_ROLES: Role[] = [Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR]
+const EDIT_PAST_ROLES: Role[] = [Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR, Role.PRECEPTOR]
 
 // Peso de cada valor en faltas: el retardo puede ser de ¼ (QUARTER) o de ½ (HALF)
 const WEIGHT: Record<AttendanceValue, number> = {
@@ -41,7 +41,7 @@ async function assertCanRegisterAttendance(date: string, role: Role) {
     if (!EDIT_PAST_ROLES.includes(role)) {
       throw new HttpError(
         403,       
- 'Solo la dirección o la administración pueden corregir la asistencia de días anteriores'
+ 'Solo la preceptoría, la dirección o la administración pueden corregir la asistencia de días anteriores'
       )
     }
     const academicYear = await prisma.academicYear.findFirst({
