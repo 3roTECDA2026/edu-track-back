@@ -246,7 +246,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/auth` | login | — |
 | `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
 | `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
-| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela (el docente, solo los de sus alumnos); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/enrollments` | inscripciones | ninguna |
 | `/class-sections` | listado de cursos/divisiones | ninguna |
 | `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
@@ -273,6 +273,13 @@ de distintos recursos y puede pisar otras.
   pueden pasar de 12 en el ciclo.
 - Las validaciones devuelven todos los errores juntos (409 con `details.errors`) y se repiten al
   confirmar, con la fila del alumno bloqueada. CRM-082 crea las recursadas en ese momento.
+- **Quién ve cada PATE** (decisión del equipo; es parte del legajo pedagógico):
+  - dirección, EOE/directivos y administración: todos, completos (`view: 'FULL'`);
+  - docente: solo los de sus alumnos (da clase en la sección del alumno o donde intensifica o
+    recursa) y en versión curricular (`view: 'CURRICULAR'`: sin diagnóstico, estrategias,
+    cronograma ni notificación). Si no es de sus alumnos, `GET /:id` responde 404;
+  - preceptor: la versión curricular de todos (no hay vínculo entre preceptor y sección);
+  - cuando esté CRM-071, los integrantes del plantel del EDTE ven todo.
 - **Provisorio:**
   - la reunión del EDTE es opcional hasta que esté CRM-075; después pasa a ser obligatoria y se
     valida que el alumno esté entre sus tratados;
