@@ -14,7 +14,7 @@ import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
-import matriculationRouter from '@/routes/matriculation.routes'
+import { matriculationRouter } from '@/routes/matriculation.routes'
 
 const router = Router()
 

@@ -11,4 +11,5 @@ const canRun = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT)
 router.use(verifyToken)
 
 router.post('/run', canRun, asyncHandler(matriculationController.run))
+export const matriculationRouter = router
 export default router
