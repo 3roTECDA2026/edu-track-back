@@ -13,5 +13,6 @@ router.post(
   asyncHandler(promotionController.run)
 )
 
+export const promotionRouter = router
 export default router
 

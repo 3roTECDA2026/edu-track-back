@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import {
   PendingSubjectStatus,
   PromotionOutcome,
@@ -50,41 +51,52 @@ export async function runPromotion(academicYearId: string, executedById: string)
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
 
-    await tx.promotionDecision.deleteMany({
-      where: { academicYearId },
-    })
+    // Conservamos el historial de auditoría: no se eliminan las decisiones previas
 
-    const decisions = []
-
-    for (const student of students) {
+    const executedAt = new Date()
+    const decisionsData = students.map((student) => {
       const pendingCount = student.pendingSubjects.length
       const outcome =
         pendingCount >= 5
           ? PromotionOutcome.REFERRED_TO_EDTE
           : PromotionOutcome.PROMOTED
 
-      const decision = await tx.promotionDecision.create({
-        data: {
-          studentId: student.id,
-          academicYearId,
-          pendingCount,
-          outcome,
-          executedById,
-        },
-        include: {
-          student: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
-      })
+      return {
+        id: crypto.randomUUID(),
+        studentId: student.id,
+        academicYearId,
+        pendingCount,
+        outcome,
+        executedById,
+        executedAt,
+      }
+    })
 
-      decisions.push(decision)
+    if (decisionsData.length > 0) {
+      await tx.promotionDecision.createMany({
+        data: decisionsData,
+      })
     }
 
-    return decisions
+    const decisionIds = decisionsData.map((d) => d.id)
+
+    return tx.promotionDecision.findMany({
+      where: {
+        id: { in: decisionIds },
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: [
+        { student: { lastName: 'asc' } },
+        { student: { firstName: 'asc' } },
+      ],
+    })
   })
 }
