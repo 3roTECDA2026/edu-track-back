@@ -166,6 +166,15 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
   - `getAuthUser(req)`: devuelve `req.user` o lanza 401.
 - `requireActiveCycle` (`src/middlewares/requireActiveCycle.ts`): 409 si no hay ciclo lectivo
   activo; deja el ciclo en `req.activeCycle`.
+- `requireEdteAccess` (`src/middlewares/requireEdteAccess.ts`, CRM-077): acceso al dashboard del
+  EDTE para `EOE_DIRECTIVE` y `SCHOOL_MANAGEMENT`. Va después de `verifyToken`. Cuando esté
+  CRM-071, también deja pasar a los integrantes activos del plantel del EDTE.
+  - **Reglas del dashboard:** ciclo activo y cuatrimestre en curso (`?term` para otro). La
+    valoración de cada alumno es la peor de sus materias (TED > TEP > TEA). 4 MPAA = alerta
+    temprana; 5 o más = derivados (A5, inc. 13). Trayectoria compleja: 4 o más MPAA, alguna TED
+    o PATE en curso. Semáforo (propuesta del equipo): rojo con 5 o más MPAA o 2 o más TED; ámbar
+    con 4 MPAA, 1 TED o TEP; verde el resto. Los filtros se aplican a indicadores y listado.
+  - **Provisorio:** el PATE en curso (`getActivePates`) devuelve vacío hasta CRM-078.
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
   TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
   usa todavía en `requireRole`, así que un preceptor puede iniciar sesión pero no accede a
@@ -253,6 +262,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/grades` | notas, `/roster`, `/by-student` | ninguna |
 | `/attendance` | asistencia, `/batch`, `/summary`, `/:id/justify` | ninguna |
 | `/notifications` | alertas de estudiantes | ninguna |
+| `/edte-dashboard` | dashboard del EDTE: indicadores y alumnos con trayectorias complejas (`?term`, `?assessment`, `?grade`, `?classSectionId`) | `requireEdteAccess`: `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT` |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
