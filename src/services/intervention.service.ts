@@ -70,7 +70,18 @@ export async function createIntervention(input: CreateInterventionInput, actor: 
       throw new HttpError(403, 'Solo podés registrar intervenciones en tus propios cursos')
     }
   }
-
+  // El alumno debe pertenecer a la sección indicada 
+  // evita que, con el curso de un docente y el id de cualquier alumno, se cree la intervención.
+  const belongsToSection = await prisma.enrollmentHistory.findFirst({
+    where: {
+      studentId: input.studentId,
+      classSectionId: input.classSectionId,
+    },
+    select: { id: true },
+  })
+  if (!belongsToSection) {
+    throw new HttpError(400, 'El alumno no pertenece al curso indicado')
+  }
   return prisma.$transaction(async (tx) => {
     const created = await tx.intervention.create({
       data: {
@@ -97,9 +108,11 @@ export async function listInterventions(query: ListInterventionsQuery, actor: Ac
   if (query.classSectionId) where.classSectionId = query.classSectionId
   if (query.eventType) where.eventType = query.eventType
   if (query.from || query.to) {
+  const startOfDay = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000-03:00`)
+  const endOfDay = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T23:59:59.999-03:00`)
     where.date = {
-      ...(query.from ? { gte: query.from } : {}),
-      ...(query.to ? { lte: query.to } : {}),
+      ...(query.from ? { gte: startOfDay(query.from) } : {}),
+      ...(query.to ? { lte: endOfDay(query.to) } : {}),
     }
   }
 
