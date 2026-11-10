@@ -955,6 +955,7 @@ model ConductAgreement {
 
 model InstitutionalConfig {
   id                          String              @id @default(uuid()) // Identificador único
+  singleton                   Boolean             @unique @default(true) // Fuerza una unica fila de configuracion (singleton)
   institutionName             String? // Nombre de la institución (encabezado del RITE, CRM-042)
   institutionNumber           String? // Número de la institución
   district                    String? // Distrito

@@ -6,6 +6,7 @@ import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
+import { institutionalConfigRouter } from '@/routes/institutionalConfig.routes'
 import { intensificationScheduleRouter } from '@/routes/intensificationSchedule.routes'
 import { intensificationRouter } from '@/routes/intensification.routes'
 import { intensificationAttendanceRouter } from '@/routes/intensificationAttendance.routes'
@@ -27,6 +28,7 @@ router.use('/teacher-assignments', teacherAssignmentRouter)
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
 router.use('/users', userRouter)
+router.use('/institutional-config', institutionalConfigRouter)
 // Las rutas de cursos se montan también en la raíz para que /api/subjects siga funcionando
 router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
