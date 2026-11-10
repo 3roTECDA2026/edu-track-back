@@ -2,6 +2,7 @@ import {
   AuditActionType,
   EdteMeetingPeriod,
   EdteMeetingStatus,
+  PateStatus,
   PendingSubjectStatus,
   Prisma,
   Role,
@@ -13,6 +14,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import type {
   CreateEdteMeetingInput,
+  EdteMeetingCandidatesQuery,
   ListEdteMeetingsQuery,
   UpdateEdteMeetingInput,
 } from '@/schemas/edteMeeting.schema'
@@ -409,4 +411,91 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
   })
 
   return getEdteMeeting(id)
+}
+
+// Alumnos derivados al EDTE al cierre del ciclo anterior: 5 o más MPAA pendientes (RN-012).
+// Provisorio hasta que se fusione CRM-073: entonces se reemplaza por su listado de derivación
+// (listEdteReferrals con year = el ciclo que cerró), que lee las decisiones del motor de
+// promoción en lugar de contar las MPAA.
+async function getReferredStudentIds(closedYear: number) {
+  const groups = await prisma.pendingSubject.groupBy({
+    by: ['studentId'],
+    where: {
+      status: PendingSubjectStatus.PENDING,
+      originAcademicYear: { year: { lte: closedYear } },
+      student: { status: { in: ENROLLED_STATUSES } },
+    },
+    _count: { _all: true },
+    having: { studentId: { _count: { gte: 5 } } },
+  })
+  return groups.map((group) => group.studentId)
+}
+
+// Alumnos con PATE en curso en el ciclo, para las reuniones de seguimiento (agosto y diciembre).
+// Cuando se fusione CRM-078, el PATE tiene su propio ciclo y el estado pasa a IN_PROGRESS.
+async function getStudentsWithActivePate(academicYearId: string) {
+  const pates = await prisma.pate.findMany({
+    where: {
+      // Con el enum actual, "en curso" son ACTIVE y UNDER_FOLLOW_UP
+      status: { in: [PateStatus.ACTIVE, PateStatus.UNDER_FOLLOW_UP] },
+      edteMeeting: { academicYearId },
+      student: { status: { in: ENROLLED_STATUSES } },
+    },
+    select: { id: true, studentId: true, status: true },
+  })
+  return new Map(pates.map((pate) => [pate.studentId, { id: pate.id, status: pate.status }]))
+}
+
+// Alumnos para tratar en una reunión, según su período (DA7, 2.3):
+// - febrero/marzo: los derivados al cierre del ciclo anterior, para armar su PATE;
+// - agosto y diciembre: los que tienen PATE en curso, para el seguimiento;
+// - adicional: los dos grupos.
+// El selector del front ofrece estos alumnos; el alta acepta cualquier alumno activo.
+export async function getEdteMeetingCandidates(query: EdteMeetingCandidatesQuery) {
+  const academicYear = await prisma.academicYear.findUnique({
+    where: { year: query.year },
+    select: { id: true },
+  })
+  if (!academicYear) throw new HttpError(404, 'Ciclo lectivo no encontrado')
+
+  const wantsReferred =
+    query.period === EdteMeetingPeriod.FEBRUARY_MARCH ||
+    query.period === EdteMeetingPeriod.ADDITIONAL
+  const wantsFollowUp = query.period !== EdteMeetingPeriod.FEBRUARY_MARCH
+
+  const [referredIds, activePates] = await Promise.all([
+    wantsReferred ? getReferredStudentIds(query.year - 1) : Promise.resolve([]),
+    wantsFollowUp
+      ? getStudentsWithActivePate(academicYear.id)
+      : Promise.resolve(new Map<string, { id: string; status: PateStatus }>()),
+  ])
+
+  const referred = new Set(referredIds)
+  const studentIds = [...new Set([...referredIds, ...activePates.keys()])]
+  if (studentIds.length === 0) return []
+
+  const [students, sections, pendingCounts] = await Promise.all([
+    prisma.student.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, firstName: true, lastName: true, dni: true },
+    }),
+    currentSectionsByStudent(studentIds, academicYear.id),
+    pendingCountByStudent(studentIds),
+  ])
+
+  return students
+    .map((student) => ({
+      studentId: student.id,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      dni: student.dni,
+      section: sections.get(student.id) ?? null,
+      pendingSubjectsCount: pendingCounts.get(student.id) ?? 0,
+      // Por qué aparece: derivado al EDTE o seguimiento de su PATE
+      referred: referred.has(student.id),
+      pate: activePates.get(student.id) ?? null,
+    }))
+    .sort((a, b) =>
+      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es')
+    )
 }
