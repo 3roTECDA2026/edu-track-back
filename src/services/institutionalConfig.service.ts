@@ -1,0 +1,101 @@
+import { AuditActionType, type InstitutionalConfig, type OrganizationalModel } from '@prisma/client'
+
+import { prisma } from '@/lib/prisma'
+import type { UpdateInstitutionalConfigInput } from '@/schemas/institutionalConfig.schema'
+import { HttpError } from '@/utils/httpError'
+
+// El modelo organizativo adoptado se sostiene por un minimo de 3 ciclos lectivos.
+const MINIMUM_CYCLES = 3
+
+// Datos del usuario que hace el cambio, para la auditoria.
+interface AuditActor {
+  userId: string
+  ipAddress: string
+}
+
+// Etiqueta corta de cada opcion, para los mensajes al usuario.
+const MODEL_LABELS: Record<OrganizationalModel, string> = {
+  OPTION_A: 'A',
+  OPTION_B: 'B',
+  OPTION_C: 'C',
+  OPTION_D: 'D',
+}
+
+// Convierte un registro a JSON plano (fechas a string) para guardarlo en AuditLog.
+function toJson(value: unknown) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+// Agrega el flag calculado: ¿ya se cumplio el plazo minimo? (hoy >= minimumExpiryDate)
+function withAlert(config: InstitutionalConfig | null) {
+  if (!config) return null
+  return {
+    ...config,
+    minimumPeriodMet: new Date() >= config.minimumExpiryDate,
+  }
+}
+
+// GET: devuelve la configuracion vigente (singleton) o null si todavia no se configuro.
+export async function getInstitutionalConfig() {
+  const config = await prisma.institutionalConfig.findUnique({
+    where: { singleton: true },
+  })
+  return withAlert(config)
+}
+
+// PUT: setea o actualiza el modelo organizativo, respetando el plazo minimo de 3 ciclos.
+export async function upsertInstitutionalConfig(
+  input: UpdateInstitutionalConfigInput,
+  actor: AuditActor
+) {
+  const config = await prisma.$transaction(async (tx) => {
+    const existing = await tx.institutionalConfig.findUnique({
+      where: { singleton: true },
+    })
+
+    // Mismo modelo: no se reinician las fechas de vigencia (operacion idempotente).
+    if (existing && input.organizationalModel === existing.organizationalModel) {
+      return existing
+    }
+
+    // Cambio de modelo con el plazo minimo todavia vigente: no se permite.
+    if (existing && new Date() < existing.minimumExpiryDate) {
+      throw new HttpError(
+        409,
+        `El modelo ${MODEL_LABELS[existing.organizationalModel]} se sostiene hasta el ciclo ${existing.minimumExpiryDate.getFullYear()}: no se puede cambiar antes.`
+      )
+    }
+
+    const adoptedAt = new Date()
+    // Se sostiene por un minimo de 3 ciclos lectivos (inciso 35): se puede cambiar
+    // recien desde el ciclo (año de adopcion + 3).
+    const minimumExpiryDate = new Date(adoptedAt.getFullYear() + MINIMUM_CYCLES, 0, 1)
+
+    const data = {
+      organizationalModel: input.organizationalModel,
+      adoptedAt,
+      minimumExpiryDate,
+    }
+
+    const saved = existing
+      ? await tx.institutionalConfig.update({ where: { id: existing.id }, data })
+      : await tx.institutionalConfig.create({ data })
+
+    // Trazabilidad del cambio de modelo (CRM-065).
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: existing ? AuditActionType.UPDATE : AuditActionType.CREATE,
+        affectedEntity: 'InstitutionalConfig',
+        entityId: saved.id,
+        previousData: existing ? toJson(existing) : undefined,
+        newData: toJson(saved),
+        ipAddress: actor.ipAddress,
+      },
+    })
+
+    return saved
+  })
+
+  return withAlert(config)
+}

@@ -8,11 +8,11 @@ import { asyncHandler } from '@/utils/asyncHandler'
 const router = Router()
 
 // Ver la asistencia: personal de la escuela. Estudiantes y familias tendrán su propio acceso (etapa 7).
-const canView = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE, Role.TEACHER)
+const canView = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE, Role.TEACHER, Role.PRECEPTOR)
 
 // Cargar y justificar: quienes toman asistencia y la dirección.
 // Corregir días anteriores queda limitado a preceptoría, dirección y administración (en el service).
-const canRegister = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER)
+const canRegister = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER, Role.PRECEPTOR)
 
 // Días hábiles del ciclo: los define la dirección
 const canManageSchoolDays = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT)

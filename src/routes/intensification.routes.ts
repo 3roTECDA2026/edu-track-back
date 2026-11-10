@@ -21,7 +21,7 @@ const canEdit = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT)
 
 // Cargar el resultado: dirección, administración o docentes
 // (un docente solo el de sus alumnos: lo controla el service)
-const canRegisterResult = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER)
+const canRegisterResult = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER, Role.PRECEPTOR)
 
 intensificationRouter.use(verifyToken)
 

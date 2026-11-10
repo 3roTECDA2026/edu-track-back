@@ -193,6 +193,29 @@ export async function main() {
 
   await prisma.user.upsert({
     where: {
+      email: 'preceptor@notar.local',
+    },
+
+    update: {
+      firstName: 'Lucía',
+      lastName: 'Fernández',
+      role: Role.PRECEPTOR,
+      status: UserStatus.ACTIVE,
+      passwordHash: staffPasswordHash,
+    },
+
+    create: {
+      firstName: 'Lucía',
+      lastName: 'Fernández',
+      email: 'preceptor@notar.local',
+      passwordHash: staffPasswordHash,
+      role: Role.PRECEPTOR,
+      status: UserStatus.ACTIVE,
+    },
+  })
+
+  await prisma.user.upsert({
+    where: {
       email: 'admin@notar.local',
     },
 
