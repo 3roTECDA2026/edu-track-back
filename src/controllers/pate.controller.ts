@@ -20,7 +20,8 @@ function getActor(req: Request) {
 
 export async function listPates(req: Request, res: Response) {
   const query = listPatesQuerySchema.parse(req.query)
-  res.json(await pateService.listPates(query))
+  const { userId, role } = getAuthUser(req)
+  res.json(await pateService.listPates(query, { userId, role }))
 }
 
 export async function getPateOptions(req: Request, res: Response) {
@@ -30,7 +31,8 @@ export async function getPateOptions(req: Request, res: Response) {
 
 export async function getPate(req: Request, res: Response) {
   const { id } = pateIdParamSchema.parse(req.params)
-  res.json(await pateService.getPate(id))
+  const { userId, role } = getAuthUser(req)
+  res.json(await pateService.getPateForViewer(id, { userId, role }))
 }
 
 export async function createPate(req: Request, res: Response) {

@@ -5,6 +5,7 @@ import {
   PateStatus,
   PendingSubjectStatus,
   Prisma,
+  Role,
   type Shift,
   StudentStatus,
 } from '@prisma/client'
@@ -377,9 +378,68 @@ const auditSubjects = (data: {
 })
 
 // Listado: por alumno, ciclo o estado
-export async function listPates(query: ListPatesQuery) {
+// ============================================================
+// Quién ve qué (decisión del equipo; el PATE es parte del legajo pedagógico)
+// ============================================================
+// - Dirección, EOE/directivos y administración: todos los PATE, completos.
+// - Docente: solo los PATE de sus alumnos (da clase en la sección del alumno o en una sección
+//   donde el alumno intensifica o recursa), y solo la parte curricular: materias, modelo y
+//   sección, sin diagnóstico, estrategias ni cronograma.
+// - Preceptor: la parte curricular de todos (todavía no hay un vínculo entre preceptor y sección).
+// Cuando esté CRM-071, los integrantes del plantel del EDTE ven todo, como la dirección.
+
+interface Viewer {
+  userId: string
+  role: Role
+}
+
+const FULL_ACCESS_ROLES: Role[] = [Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE]
+
+const hasFullAccess = (viewer: Viewer) => FULL_ACCESS_ROLES.includes(viewer.role)
+
+// Parte curricular: sin los datos pedagógicos reservados del EDTE
+function toCurricularView(pate: ReturnType<typeof toPateResponse>) {
+  return {
+    ...pate,
+    view: 'CURRICULAR' as const,
+    diagnosis: null,
+    supportStrategies: null,
+    schedule: null,
+    notificationUrl: null,
+  }
+}
+
+function forViewer(pate: PateWithRelations, viewer: Viewer) {
+  const response = toPateResponse(pate)
+  return hasFullAccess(viewer) ? { ...response, view: 'FULL' as const } : toCurricularView(response)
+}
+
+// Filtro de los PATE que ve un docente: los de sus alumnos
+async function teacherScope(teacherId: string): Promise<Prisma.PateWhereInput> {
+  const assignments = await prisma.teacherSubjectCourse.findMany({
+    where: { teacherId },
+    select: { classSectionId: true },
+  })
+  const sectionIds = [...new Set(assignments.map((item) => item.classSectionId))]
+  return {
+    OR: [
+      {
+        student: {
+          enrollmentHistory: { some: { endDate: null, classSectionId: { in: sectionIds } } },
+        },
+      },
+      { subjectsToIntensify: { some: { targetClassSectionId: { in: sectionIds } } } },
+      { subjectsToRepeat: { some: { classSectionId: { in: sectionIds } } } },
+    ],
+  }
+}
+
+// Listado: por alumno, ciclo o estado, según lo que puede ver quien consulta
+export async function listPates(query: ListPatesQuery, viewer: Viewer) {
+  const scope = viewer.role === Role.TEACHER ? await teacherScope(viewer.userId) : {}
   const pates = await prisma.pate.findMany({
     where: {
+      ...scope,
       ...(query.studentId && { studentId: query.studentId }),
       ...(query.year !== undefined && { academicYear: { year: query.year } }),
       ...(query.status && { status: query.status }),
@@ -387,11 +447,27 @@ export async function listPates(query: ListPatesQuery) {
     include: pateInclude,
     orderBy: [{ academicYear: { year: 'desc' } }, { student: { lastName: 'asc' } }],
   })
-  return pates.map(toPateResponse)
+  return pates.map((pate) => forViewer(pate, viewer))
 }
 
+// Detalle para quien consulta (con los mismos permisos que el listado)
+export async function getPateForViewer(id: string, viewer: Viewer) {
+  if (viewer.role === Role.TEACHER) {
+    const visible = await prisma.pate.findFirst({
+      where: { id, ...(await teacherScope(viewer.userId)) },
+      select: { id: true },
+    })
+    if (!visible) {
+      // Mismo mensaje si no existe o no es de sus alumnos: no se revela que existe
+      throw new HttpError(404, 'PATE no encontrado')
+    }
+  }
+  return forViewer(await findPateOrFail(id), viewer)
+}
+
+// Detalle completo, para las acciones de gestión (alta, edición y cambio de estado)
 export async function getPate(id: string) {
-  return toPateResponse(await findPateOrFail(id))
+  return { ...toPateResponse(await findPateOrFail(id)), view: 'FULL' as const }
 }
 
 // Alta en borrador. El ciclo es el de la reunión del EDTE, si viene; si no, el ciclo activo.
