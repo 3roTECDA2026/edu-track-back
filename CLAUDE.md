@@ -246,6 +246,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/auth` | login | — |
 | `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
 | `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
+| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/enrollments` | inscripciones | ninguna |
 | `/class-sections` | listado de cursos/divisiones | ninguna |
 | `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
@@ -259,6 +260,26 @@ Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
 Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque mezcla rutas
 de distintos recursos y puede pisar otras.
+
+**PATE (CRM-078, E4-RF-06, RN-012 y RN-013):**
+- Uno por alumno y ciclo, para alumnos derivados al EDTE (5 o más MPAA). El ciclo es el de la
+  reunión del EDTE si viene; si no, el ciclo activo.
+- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED`.
+- Las materias son MPAA pendientes del alumno, de ciclos anteriores. Hasta 4 a intensificar, con
+  modelo (y sección en los modelos 2 y 3, con las mismas reglas que la asignación de CRM-056); el
+  resto, a recursar con la sección donde cursa (del año de la materia; el turno puede ser otro).
+  Una MPAA va una sola vez.
+- El modelo tiene que estar en la opción organizativa de la escuela, y cursadas + recursadas no
+  pueden pasar de 12 en el ciclo.
+- Las validaciones devuelven todos los errores juntos (409 con `details.errors`) y se repiten al
+  confirmar, con la fila del alumno bloqueada. CRM-082 crea las recursadas en ese momento.
+- **Provisorio:**
+  - la reunión del EDTE es opcional hasta que esté CRM-075; después pasa a ser obligatoria y se
+    valida que el alumno esté entre sus tratados;
+  - los derivados se calculan como "5 o más MPAA" (`getReferredStudentIds` en
+    `pate.service.ts`) hasta CRM-073;
+  - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57) y la tabla de modelos por
+    opción (`MODELS_BY_OPTION`) hasta el PR #60.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
