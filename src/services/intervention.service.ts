@@ -8,7 +8,7 @@ import type {
 } from '@/schemas/intervention.schema'
 import { HttpError } from '@/utils/httpError'
 
-// Ventana durante la cual el autor puede editar su intervención (criterio 4).
+// Ventana durante la cual el autor puede editar su intervención 
 const EDIT_WINDOW_HOURS = 48
 
 // Datos del usuario que realiza la acción (para permisos y auditoría).
@@ -39,7 +39,7 @@ function toJson(value: unknown) {
   return JSON.parse(JSON.stringify(value))
 }
 
-// Registra el alta/modificación en AuditLog (criterio 5), dentro de la misma transacción.
+// Registra el alta/modificación en AuditLog dentro de la misma transacción.
 async function writeAudit(
   tx: Prisma.TransactionClient,
   actor: Actor,
@@ -108,15 +108,19 @@ export async function listInterventions(query: ListInterventionsQuery, actor: Ac
   if (query.classSectionId) where.classSectionId = query.classSectionId
   if (query.eventType) where.eventType = query.eventType
   if (query.from || query.to) {
-  const startOfDay = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000-03:00`)
-  const endOfDay = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T23:59:59.999-03:00`)
+    const startOfDay = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000-03:00`)
+    const startOfNextDay = (d: Date) => {
+      const next = new Date(d)
+      next.setUTCDate(next.getUTCDate() + 1)
+      return new Date(`${next.toISOString().slice(0, 10)}T00:00:00.000-03:00`)
+    }
     where.date = {
       ...(query.from ? { gte: startOfDay(query.from) } : {}),
-      ...(query.to ? { lte: endOfDay(query.to) } : {}),
+      ...(query.to ? { lt: startOfNextDay(query.to) } : {}),
     }
   }
 
-  // Docente: restringido a sus cursos (criterio 3).
+  // Docente: restringido a sus cursos 
   if (actor.role === Role.TEACHER) {
     const sectionIds = await getTeacherSectionIds(actor.userId)
     if (query.classSectionId && !sectionIds.includes(query.classSectionId)) {
