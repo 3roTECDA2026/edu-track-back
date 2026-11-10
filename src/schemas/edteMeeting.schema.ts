@@ -57,7 +57,16 @@ const meetingFields = {
   period: z.enum(EdteMeetingPeriod),
   shift: z.enum(Shift).nullable().optional(),
   considerations: optionalText(5000),
-  minutesUrl: z.url('La URL del acta no es válida').max(500).nullable().optional(),
+  // Solo http y https: el enlace se abre desde el detalle, y otros protocolos (como javascript: o
+  // data:) permitirían ejecutar código en el navegador de quien haga clic
+  minutesUrl: z
+    .url({
+      protocol: /^https?$/,
+      error: 'El enlace al acta tiene que ser una dirección web que empiece con http:// o https://',
+    })
+    .max(500)
+    .nullable()
+    .optional(),
   members: membersSchema,
   students: studentsSchema,
 }
