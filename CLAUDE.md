@@ -285,8 +285,9 @@ de distintos recursos y puede pisar otras.
     valida que el alumno esté entre sus tratados;
   - los derivados se calculan como "5 o más MPAA" (`getReferredStudentIds` en
     `pate.service.ts`) hasta CRM-073;
-  - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57) y la tabla de modelos por
-    opción (`MODELS_BY_OPTION`) hasta el PR #60.
+  - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57).
+- Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
+  la misma tabla que usa la asignación de CRM-056.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 

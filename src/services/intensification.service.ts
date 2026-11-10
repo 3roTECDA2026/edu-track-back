@@ -25,7 +25,8 @@ import { assertPlacement, type TargetSection } from '@/utils/intensificationPlac
 type SectionInfo = { id: string; grade: number; division: string; shift: Shift }
 // Modelos de intensificación de cada opción organizativa de la escuela (Cuadro 2 del Anexo 5,
 // Res. 1650/24). La opción la guarda la CRM-065; sin opción elegida, se aceptan los 4 modelos.
-const MODELS_BY_OPTION: Record<OrganizationalModel, IntensificationModel[]> = {
+// También la usa el PATE (CRM-078) para validar sus materias a intensificar.
+export const MODELS_BY_OPTION: Record<OrganizationalModel, IntensificationModel[]> = {
   OPTION_A: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_2],
   OPTION_B: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_3],
   OPTION_C: [

@@ -1,7 +1,6 @@
 import {
   AuditActionType,
   IntensificationModel,
-  type OrganizationalModel,
   PateStatus,
   PendingSubjectStatus,
   Prisma,
@@ -20,6 +19,7 @@ import {
   type PateSubjectToRepeat,
   type UpdatePateInput,
 } from '@/schemas/pate.schema'
+import { MODELS_BY_OPTION } from '@/services/intensification.service'
 import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
 import { toDay } from '@/utils/schoolDate'
@@ -31,19 +31,6 @@ type DbClient = Prisma.TransactionClient | typeof prisma
 // Máximo de materias por ciclo, cursadas y recursadas (A5, incs. 14 a 16; RN-013).
 // Provisorio hasta que se fusione CRM-061 (PR #57): entonces se usa su assertSubjectLimit.
 const MAX_SUBJECTS_PER_CYCLE = 12
-
-// Modelos de intensificación de cada opción organizativa (A5, Cuadro 2).
-// Provisorio hasta que se fusione el PR #60: entonces se usa su MODELS_BY_OPTION.
-const MODELS_BY_OPTION: Record<OrganizationalModel, IntensificationModel[]> = {
-  OPTION_A: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_2],
-  OPTION_B: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_3],
-  OPTION_C: [
-    IntensificationModel.MODEL_1,
-    IntensificationModel.MODEL_2,
-    IntensificationModel.MODEL_3,
-  ],
-  OPTION_D: [IntensificationModel.MODEL_1, IntensificationModel.MODEL_4],
-}
 
 const modelNumber = (model: IntensificationModel) => model.replace('MODEL_', '')
 
