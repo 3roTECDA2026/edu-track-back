@@ -13,6 +13,7 @@ import { intensificationAttendanceRouter } from '@/routes/intensificationAttenda
 import notificationRoutes from '@/routes/notification.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
+import { pateRouter } from '@/routes/pate.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
 
@@ -27,6 +28,8 @@ router.use('/teacher-assignments', teacherAssignmentRouter)
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
 router.use('/users', userRouter)
+// PATE (CRM-078)
+router.use('/pates', pateRouter)
 router.use('/institutional-config', institutionalConfigRouter)
 // Las rutas de cursos se montan también en la raíz para que /api/subjects siga funcionando
 router.use('/', courseRoutes)
