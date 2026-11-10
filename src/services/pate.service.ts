@@ -10,6 +10,7 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import PDFDocument from 'pdfkit'
 import {
   MAX_SUBJECTS_TO_INTENSIFY,
   type CreatePateInput,
@@ -733,4 +734,43 @@ export async function changePateStatus(id: string, status: PateStatus, actor: Ac
   })
 
   return getPate(id)
+}
+export async function generatePatePdf(id: string): Promise<Buffer> {
+  const pate = toPateResponse(await findPateOrFail(id))
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50 })
+    const chunks: Buffer[] = []
+    doc.on('data', (c: Buffer) => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    doc.fontSize(16).text('Notificación a familia - Plan de Acompañamiento (PATE)', { align: 'center' })
+    doc.moveDown()
+    doc.fontSize(11).text(`Alumno: ${pate.student.lastName}, ${pate.student.firstName} (DNI ${pate.student.dni})`)
+    doc.text(`Ciclo lectivo: ${pate.year}`)
+    doc.text(`Estado: ${pate.status}`)
+    if (pate.diagnosis) { doc.moveDown(); doc.text('Diagnóstico:', { underline: true }); doc.text(pate.diagnosis) }
+    if (pate.supportStrategies) { doc.moveDown(); doc.text('Estrategias de acompañamiento:', { underline: true }); doc.text(pate.supportStrategies) }
+    if (pate.schedule) { doc.moveDown(); doc.text('Cronograma:', { underline: true }); doc.text(pate.schedule) }
+
+    doc.moveDown()
+    doc.text('Materias a intensificar:', { underline: true })
+    for (const s of pate.subjectsToIntensify) {
+      doc.text(`- ${s.subjectName} (MPAA: materia pendiente de acreditación y aprobación) - Modelo ${s.model.replace('MODEL_', '')}${s.targetClassSection ? ` - ${s.targetClassSection.grade}° ${s.targetClassSection.division} (${s.targetClassSection.shift})` : ''}`)
+    }
+    doc.moveDown()
+    doc.text('Materias a recursar:', { underline: true })
+    for (const s of pate.subjectsToRepeat) {
+      doc.text(`- ${s.subjectName}${s.classSection ? ` - ${s.classSection.grade}° ${s.classSection.division} (${s.classSection.shift})` : ''}`)
+    }
+
+    doc.moveDown(2)
+    doc.text('Firma adulto responsable: ____________________   Aclaración: ____________________')
+    doc.moveDown()
+    doc.text('Firma autoridad: ____________________   Aclaración: ____________________')
+    doc.moveDown()
+    doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`)
+
+    doc.end()
+  })
 }
