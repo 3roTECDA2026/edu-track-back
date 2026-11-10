@@ -1689,6 +1689,117 @@ export async function main() {
   }
 
   // ============================================================
+  // 12. RITE firmado con el formato anterior (CRM-044)
+  // ============================================================
+  // Sirve para ver en pantalla cómo se muestra un RITE firmado antes de CRM-044: su copia fija
+  // no tiene `pendingSubjects`, ni la nota de recuperación del 1.° cuatrimestre, y guarda
+  // diciembre y febrero como un número suelto (no como { score, resultCode }). Tampoco tiene
+  // `isPostIntensification` ni los campos opcionales de asistencia.
+  // Es el RITE del 2.° cuatrimestre de 2025 de Sofía Pérez. Si ya existe uno, no se pisa.
+
+  const legacyRiteSnapshot = {
+    institution: { name: 'Escuela Normal Secundaria', number: '10', district: 'Tandil' },
+    academicYear: 2025,
+    term: 'SECOND',
+    student: {
+      id: closableStudentId,
+      firstName: 'Sofía',
+      lastName: 'Pérez',
+      dni: '45111222',
+      recordNumber: 'LEG-0001',
+    },
+    section: { grade: 2, division: 'A', shift: 'MORNING' },
+    subjects: [
+      {
+        enrollmentId: ids.closableEnrollments[0],
+        type: 'C',
+        subjectName: 'Matemática',
+        gradeLevel: 1,
+        term1: { preliminaryAssessment: 'TEA', score: 7, observations: null },
+        term2: { preliminaryAssessment: 'TEA', score: 8, observations: null },
+        intensification: { december: null, february: null },
+        finalScore: 8,
+      },
+      {
+        enrollmentId: ids.closableEnrollments[1],
+        type: 'C',
+        subjectName: 'Lengua',
+        gradeLevel: 1,
+        term1: { preliminaryAssessment: 'TEP', score: 6, observations: null },
+        term2: {
+          preliminaryAssessment: 'TEP',
+          score: 5,
+          observations: 'Producción de textos argumentativos.',
+        },
+        intensification: { december: 4, february: null },
+        finalScore: null,
+      },
+      {
+        enrollmentId: ids.closableEnrollments[2],
+        type: 'C',
+        subjectName: 'Historia',
+        gradeLevel: 3,
+        term1: { preliminaryAssessment: 'TEP', score: 5, observations: null },
+        term2: { preliminaryAssessment: 'TEP', score: 6, observations: null },
+        intensification: { december: null, february: 6 },
+        finalScore: 6,
+      },
+      {
+        enrollmentId: ids.closableEnrollments[3],
+        type: 'R',
+        subjectName: 'Biología',
+        gradeLevel: 4,
+        term1: { preliminaryAssessment: 'TED', score: 4, observations: null },
+        term2: { preliminaryAssessment: 'TED', score: 3, observations: null },
+        intensification: { december: null, february: null },
+        finalScore: null,
+      },
+    ],
+    attendance: {
+      term1: { schoolDays: 90, absences: 3 },
+      term2: { schoolDays: 88, absences: 2 },
+      totalSchoolDays: 178,
+      totalAbsences: 5,
+    },
+    generalNotes: 'RITE firmado con el formato anterior a CRM-044 (para pruebas).',
+    notifications: [
+      {
+        term: 'SECOND',
+        status: 'SIGNED',
+        signedAt: '2025-12-10T12:00:00.000Z',
+        signedBy: 'Marcela Quiroga',
+      },
+    ],
+  }
+
+  await prisma.rite.upsert({
+    where: {
+      studentId_academicYearId_term_isPostIntensification: {
+        studentId: closableStudentId,
+        academicYearId: closableYear.id,
+        term: 'SECOND',
+        isPostIntensification: false,
+      },
+    },
+    update: {},
+    create: {
+      studentId: closableStudentId,
+      academicYearId: closableYear.id,
+      term: 'SECOND',
+      isPostIntensification: false,
+      status: 'SIGNED',
+      generalNotes: legacyRiteSnapshot.generalNotes,
+      signedAt: new Date('2025-12-10T12:00:00.000Z'),
+      signingAuthorityId: ids.schoolManagement,
+      snapshot: legacyRiteSnapshot as Prisma.InputJsonValue,
+    },
+  })
+
+  console.log(
+    '👉 RITE firmado con el formato anterior (CRM-044): Sofía Pérez → RITE → ciclo 2025, 2° cuatrimestre',
+  )
+
+  // ============================================================
   // Finalización
   // ============================================================
 
