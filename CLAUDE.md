@@ -252,6 +252,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/teacher-assignments` | asignación de materias a docentes | ninguna |
 | `/grades` | notas, `/roster`, `/by-student` | ninguna |
 | `/attendance` | asistencia, `/batch`, `/summary`, `/:id/justify` | ninguna |
+| `/edte-meetings` | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/notifications` | alertas de estudiantes | ninguna |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 
@@ -261,6 +262,20 @@ Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque
 de distintos recursos y puede pisar otras.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
+
+**Reuniones del EDTE (CRM-075, E4-RF-03):**
+- Períodos propios (`EdteMeetingPeriod`): febrero/marzo, agosto, diciembre y adicional.
+- La reunión pertenece al ciclo en que se aplican sus decisiones: la de febrero/marzo de 2026
+  analiza el cierre de 2025, pero arma los PATE de 2026. Su fecha tiene que ser de febrero o
+  marzo; las demás, del año del ciclo.
+- Se edita solo en borrador. Para marcarla como firmada hace falta el enlace al acta y que la
+  fecha ya haya pasado. La firma digital de cada presente es E4-RF-04.
+- Los convocados se guardan presentes o ausentes, con el rol que tenían al cargar la reunión.
+- `/candidates`: en febrero/marzo, los derivados al cierre del ciclo anterior; en agosto y
+  diciembre, los alumnos con PATE en curso; en las adicionales, los dos grupos.
+- **Provisorio:** los convocados se validan contra el personal activo hasta que entre CRM-071
+  (plantel), y los derivados se calculan como "5 o más MPAA" hasta que entre CRM-073 (listado
+  de derivación). Están aislados en `getEligibleMembers` y `getReferredStudentIds`.
 
 ## 10. Git y Pull Requests
 
