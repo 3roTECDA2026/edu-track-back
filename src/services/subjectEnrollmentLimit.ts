@@ -28,10 +28,13 @@ export async function assertSubjectLimit(
 
   const current = await db.enrollment.count({ where: { studentId, academicYearId } })
 
-  if (current + toAdd > MAX_SUBJECTS_PER_CYCLE) {
+    const total = current + toAdd
+
+  if (total > MAX_SUBJECTS_PER_CYCLE) {
+    const nuevas = toAdd === 1 ? 'la nueva' : `las ${toAdd} nuevas`
     throw new HttpError(
       409,
-      `El alumno ya tiene ${current} materias en este ciclo lectivo y el máximo permitido es ${MAX_SUBJECTS_PER_CYCLE}.`
+      `El alumno tiene ${current} materias en este ciclo lectivo; con ${nuevas} serían ${total} y el máximo permitido es ${MAX_SUBJECTS_PER_CYCLE}.`
     )
   }
 }
