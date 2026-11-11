@@ -7,6 +7,14 @@ const scoreSchema = z
   .min(1, 'La nota mínima es 1')
   .max(10, 'La nota máxima es 10')
 
+// Nota final: puede tener decimales porque es el promedio de los dos cuatrimestres
+// (7 y 8 → 7,5; Res. 1650/24, Anexo 5, inc. 8.a). El promedio de dos enteros termina en ,0 o ,5.
+const finalScoreSchema = z
+  .number()
+  .min(1, 'La nota mínima es 1')
+  .max(10, 'La nota máxima es 10')
+  .multipleOf(0.5, 'La nota final solo puede terminar en ,0 o ,5')
+
 const termScoresSchema = z
   .array(scoreSchema.nullable())
   .length(4, 'Deben ser 4 notas (usá null para las vacías)')
@@ -26,7 +34,7 @@ export const createGradeSchema = z.object({
   term2Score: scoreSchema.optional(),
   term2Scores: termScoresSchema.optional(),
   recoveryIn2ndTerm: z.boolean().optional(),
-  finalScore: scoreSchema.optional(),
+  finalScore: finalScoreSchema.optional(),
   subjectStatus: z.enum(SubjectStatus).optional(),
   term1Closed: z.boolean().optional(),
   term2Closed: z.boolean().optional(),
