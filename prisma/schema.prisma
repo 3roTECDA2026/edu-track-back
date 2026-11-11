@@ -700,8 +700,8 @@ model Intervention {
   studentId            String // ID del estudiante
   author               User                  @relation("InterventionAuthor", fields: [authorId], references: [id]) // Profesional/Docente actuante
   authorId             String // ID del autor de la intervención
-  classSection   ClassSection? @relation(fields: [classSectionId], references: [id]) // Curso/división donde ocurrió 
-  classSectionId String? // ID del curso/división
+  classSection         ClassSection?         @relation(fields: [classSectionId], references: [id]) // Curso/división donde ocurrió 
+  classSectionId       String? // ID del curso/división
   eventType            InterventionEventType // Tipo de intervención (Pedagógica, Salud, Convivencia)
   involvedActors       String? // Actores intervinientes (Ej: "EOE, Equipo Directivo, Madre")
   description          String // Descripción detallada de la situación observada

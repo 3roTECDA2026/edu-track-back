@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { InterventionEventType } from '@prisma/client'
-
+import { todayInSchoolTimeZone } from '@/utils/schoolDate'
 // IDs con z.guid(): acepta también los ids fijos del seed (00000000-...), que z.uuid() rechaza en Zod 4.
 
 export const interventionIdParamSchema = z.object({
@@ -16,7 +16,10 @@ export const createInterventionSchema = z.object({
   description: z.string().trim().min(1, 'La situación detectada es obligatoria'),
   interventionProposal: z.string().trim().optional(),
   involvedActors: z.string().trim().optional(),
-  date: z.coerce.date().optional(), // fecha del suceso; si no viene, se usa hoy
+  date: z.iso
+    .date()
+    .refine((d) => d <= todayInSchoolTimeZone(), 'La fecha no puede ser futura')
+    .optional(), // fecha del suceso (AAAA-MM-DD); si no viene, se usa hoy
 })
 
 export type CreateInterventionInput = z.infer<typeof createInterventionSchema>
@@ -25,18 +28,25 @@ export type CreateInterventionInput = z.infer<typeof createInterventionSchema>
 export const updateInterventionSchema = createInterventionSchema
   .omit({ studentId: true, classSectionId: true })
   .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'Hay que enviar al menos un campo para actualizar',
+  })
 
 export type UpdateInterventionInput = z.infer<typeof updateInterventionSchema>
 
 // Listar con filtros (por alumno, por curso, por tipo y rango de fechas) + paginación.
-export const listInterventionsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
-  studentId: z.guid().optional(),
-  classSectionId: z.guid().optional(),
-  eventType: z.enum(InterventionEventType).optional(),
-  from: z.coerce.date().optional(), // fecha desde (filtra por el campo date)
-  to: z.coerce.date().optional(), // fecha hasta
-})
-
+export const listInterventionsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+    studentId: z.guid().optional(),
+    classSectionId: z.guid().optional(),
+    eventType: z.enum(InterventionEventType).optional(),
+    from: z.iso.date().optional(), // fecha desde (AAAA-MM-DD), inclusive
+    to: z.iso.date().optional(), // fecha hasta (AAAA-MM-DD), inclusive
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'La fecha "desde" no puede ser posterior a "hasta"',
+    path: ['from'],
+  })
 export type ListInterventionsQuery = z.infer<typeof listInterventionsQuerySchema>

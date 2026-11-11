@@ -1,5 +1,5 @@
 import { AuditActionType, Role, type Prisma } from '@prisma/client'
-
+import { todayInSchoolTimeZone } from '@/utils/schoolDate'
 import { prisma } from '@/lib/prisma'
 import type {
   CreateInterventionInput,
@@ -8,8 +8,18 @@ import type {
 } from '@/schemas/intervention.schema'
 import { HttpError } from '@/utils/httpError'
 
-// Ventana durante la cual el autor puede editar su intervención 
+// Ventana durante la cual el autor puede editar su intervención
 const EDIT_WINDOW_HOURS = 48
+// Las intervenciones manejan la fecha como día de calendario en hora Argentina (-03:00),
+// para que el alta y el filtro coincidan.
+function schoolDayStart(day: string) {
+  return new Date(`${day}T00:00:00.000-03:00`)
+}
+function schoolDayAfter(day: string) {
+  const start = schoolDayStart(day)
+  start.setUTCDate(start.getUTCDate() + 1)
+  return start
+}
 
 // Datos del usuario que realiza la acción (para permisos y auditoría).
 interface Actor {
@@ -63,19 +73,28 @@ async function writeAudit(
 
 // Crear una intervención.
 export async function createIntervention(input: CreateInterventionInput, actor: Actor) {
-  // Docente: solo puede registrar en cursos que tiene asignados (criterio 3).
+  // Validar que el alumno y el curso existan, para devolver un 404 claro
+  // (en vez del 409 genérico de Prisma por clave foránea).
+  const [studentExists, sectionExists] = await Promise.all([
+    prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true } }),
+    prisma.classSection.findUnique({ where: { id: input.classSectionId }, select: { id: true } }),
+  ])
+  if (!studentExists) throw new HttpError(404, 'El alumno indicado no existe')
+  if (!sectionExists) throw new HttpError(404, 'El curso indicado no existe')
+  // Docente: solo puede registrar en cursos que tiene asignados.
   if (actor.role === Role.TEACHER) {
     const sectionIds = await getTeacherSectionIds(actor.userId)
     if (!sectionIds.includes(input.classSectionId)) {
       throw new HttpError(403, 'Solo podés registrar intervenciones en tus propios cursos')
     }
   }
-  // El alumno debe pertenecer a la sección indicada 
+  // El alumno debe pertenecer a la sección indicada
   // evita que, con el curso de un docente y el id de cualquier alumno, se cree la intervención.
   const belongsToSection = await prisma.enrollmentHistory.findFirst({
     where: {
       studentId: input.studentId,
       classSectionId: input.classSectionId,
+      endDate: null,
     },
     select: { id: true },
   })
@@ -92,7 +111,7 @@ export async function createIntervention(input: CreateInterventionInput, actor: 
         description: input.description,
         interventionProposal: input.interventionProposal,
         involvedActors: input.involvedActors,
-        date: input.date ?? new Date(),
+        date: schoolDayStart(input.date ?? todayInSchoolTimeZone()),
       },
       include: interventionInclude,
     })
@@ -108,19 +127,13 @@ export async function listInterventions(query: ListInterventionsQuery, actor: Ac
   if (query.classSectionId) where.classSectionId = query.classSectionId
   if (query.eventType) where.eventType = query.eventType
   if (query.from || query.to) {
-    const startOfDay = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000-03:00`)
-    const startOfNextDay = (d: Date) => {
-      const next = new Date(d)
-      next.setUTCDate(next.getUTCDate() + 1)
-      return new Date(`${next.toISOString().slice(0, 10)}T00:00:00.000-03:00`)
-    }
     where.date = {
-      ...(query.from ? { gte: startOfDay(query.from) } : {}),
-      ...(query.to ? { lt: startOfNextDay(query.to) } : {}),
+      ...(query.from ? { gte: schoolDayStart(query.from) } : {}),
+      ...(query.to ? { lt: schoolDayAfter(query.to) } : {}),
     }
   }
 
-  // Docente: restringido a sus cursos 
+  // Docente: restringido a sus cursos
   if (actor.role === Role.TEACHER) {
     const sectionIds = await getTeacherSectionIds(actor.userId)
     if (query.classSectionId && !sectionIds.includes(query.classSectionId)) {
@@ -169,12 +182,11 @@ export async function getInterventionById(id: string, actor: Actor) {
 }
 
 // Editar: solo el autor y solo dentro de la ventana de 48 hs (criterio 4).
-export async function updateIntervention(
-  id: string,
-  input: UpdateInterventionInput,
-  actor: Actor
-) {
-  const existing = await prisma.intervention.findUnique({ where: { id } })
+export async function updateIntervention(id: string, input: UpdateInterventionInput, actor: Actor) {
+  const existing = await prisma.intervention.findUnique({
+    where: { id },
+    include: interventionInclude,
+  })
   if (!existing) {
     throw new HttpError(404, 'Intervención no encontrada')
   }
@@ -197,7 +209,7 @@ export async function updateIntervention(
         description: input.description,
         interventionProposal: input.interventionProposal,
         involvedActors: input.involvedActors,
-        date: input.date,
+        date: input.date ? schoolDayStart(input.date) : undefined,
       },
       include: interventionInclude,
     })
