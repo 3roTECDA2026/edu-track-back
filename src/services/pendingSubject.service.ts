@@ -52,6 +52,13 @@ export async function updatePendingKnowledge(
     where: { id },
     select: { status: true, subject: { select: { name: true } } },
   })
+  if (!pending) throw new HttpError(404, 'Materia pendiente no encontrada')
+  if (pending.status === PendingSubjectStatus.ACCREDITED) {
+    throw new HttpError(
+      409,
+      `${pending.subject.name} ya está acreditada: no se pueden cambiar sus saberes pendientes`
+    )
+  }
 
   return db.pendingSubject.update({
     where: { id },
