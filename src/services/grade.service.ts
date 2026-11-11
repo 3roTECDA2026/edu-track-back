@@ -123,8 +123,7 @@ export async function getGradeRoster(query: GradeRosterQuery) {
 const gradeByStudentSelect = {
   id: true,
   subject: { select: { id: true, name: true } },
-  classSection: { select: { id: true, grade: true, division: true, shift: true } },
-  grade: {
+    grade: {
     select: {
       id: true,
       term1Scores: true,
