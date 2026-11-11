@@ -19,7 +19,7 @@ const canView = requireRole(
 
 // Cargarla: dirección, administración o docentes
 // (un docente solo la de sus alumnos: lo controla el service)
-const canRegister = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER)
+const canRegister = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.TEACHER, Role.PRECEPTOR)
 
 intensificationAttendanceRouter.use(verifyToken)
 
