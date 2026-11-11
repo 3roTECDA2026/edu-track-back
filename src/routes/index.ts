@@ -15,6 +15,7 @@ import notificationRoutes from '@/routes/notification.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
+import { edteTeamMemberRouter } from '@/routes/edteTeamMember.routes'
 import { userRouter } from '@/routes/user.routes'
 
 const router = Router()
@@ -33,6 +34,7 @@ router.use('/institutional-config', institutionalConfigRouter)
 router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
 router.use('/rites', riteRouter)
+router.use('/edte-members', edteTeamMemberRouter)
 // Calendario de períodos de intensificación (CRM-055)
 router.use('/intensification-schedules', intensificationScheduleRouter)
 router.use('/intensifications', intensificationRouter)

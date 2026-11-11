@@ -212,6 +212,7 @@ model User {
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
+  edteTeamMembers              EdteTeamMember[] // Integrantes del plantel EDTE (CRM-071)
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -635,6 +636,16 @@ model EdteMember {
   signatureHash String? // Firma digital o hash del integrante en el acta
 
   @@unique([edteMeetingId, userId]) // Unicidad de participación por reunión
+}
+
+model EdteTeamMember {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String   @unique
+  roleInTeam String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // ============================================================================
