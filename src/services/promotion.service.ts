@@ -1,3 +1,7 @@
+export function decideOutcome(pendingCount: number): PromotionOutcome {
+  return pendingCount >= 5 ? PromotionOutcome.REFERRED_TO_EDTE : PromotionOutcome.PROMOTED
+}
+
 import crypto from 'node:crypto'
 import {
   PendingSubjectStatus,
@@ -18,6 +22,11 @@ export async function runPromotion(academicYearId: string, executedById: string)
   }
 
   return prisma.$transaction(async (tx) => {
+    // No se permite re-ejecutar: evita duplicar decisiones (CRM-073 las leería repetidas).
+    const existing = await tx.promotionDecision.count({ where: { academicYearId } })
+    if (existing > 0) {
+      throw new HttpError(409, 'El motor de promoción ya se ejecutó para este ciclo')
+    }
     const students = await tx.student.findMany({
       where: {
         status: { in: [StudentStatus.ACTIVE, StudentStatus.CONDITIONAL] },
@@ -56,10 +65,8 @@ export async function runPromotion(academicYearId: string, executedById: string)
     const executedAt = new Date()
     const decisionsData = students.map((student) => {
       const pendingCount = student.pendingSubjects.length
-      const outcome =
-        pendingCount >= 5
-          ? PromotionOutcome.REFERRED_TO_EDTE
-          : PromotionOutcome.PROMOTED
+      // Conteo acumulado: cuenta todas las MPAA PENDING del alumno, no solo las del ciclo.
+      const outcome = decideOutcome(pendingCount)
 
       return {
         id: crypto.randomUUID(),
