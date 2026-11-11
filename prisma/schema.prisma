@@ -195,6 +195,7 @@ model User {
   intensificationScheduleSubjects IntensificationScheduleSubject[] // Materias de intensificación a cargo
   responsibleIntensifications     Intensification[] // Intensificaciones que evalúa
   promotionDecisions              PromotionDecision[] // Ejecuciones del motor de promoción
+  closedAcademicYears             AcademicYear[] // Ciclos lectivos que cerró (CRM-052)
   firstName                       String // Nombre
   lastName                        String // Apellido
   email                           String                           @unique // Correo electrónico (único)
@@ -246,6 +247,11 @@ model AcademicYear {
   term1SchoolDays Int? // Días hábiles del 1° cuatrimestre
   term2SchoolDays Int? // Días hábiles del 2° cuatrimestre
   totalSchoolDays Int? // Días hábiles del ciclo completo
+
+  // Cierre del ciclo (CRM-052): la primera ejecución del cierre lo marca y ya no se cambia
+  closedAt   DateTime? // Fecha y hora del primer cierre del ciclo
+  closedBy   User?     @relation(fields: [closedById], references: [id]) // Quién cerró el ciclo
+  closedById String? // ID de quien cerró el ciclo
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -539,7 +545,7 @@ model Grade {
   term1IntensificationScore Int? // Nota de intensificación del 1° cuatrimestre (E2-RF-04, CRM-042)
 
   // Calificación e informe final:
-  finalScore    Int? // Calificación final cuantitativa
+  finalScore    Float? // Calificación final: promedio de los cuatrimestres, puede tener decimales (7,5)
   subjectStatus SubjectStatus @default(IN_PROGRESS) // Estado final de acreditación de la materia
 
   term1Closed Boolean @default(false) // Cierre administrativo/notas 1° cuatrimestre
@@ -976,6 +982,7 @@ model ConductAgreement {
 
 model InstitutionalConfig {
   id                          String              @id @default(uuid()) // Identificador único
+  singleton                   Boolean             @unique @default(true) // Fuerza una unica fila de configuracion (singleton)
   institutionName             String? // Nombre de la institución (encabezado del RITE, CRM-042)
   institutionNumber           String? // Número de la institución
   district                    String? // Distrito

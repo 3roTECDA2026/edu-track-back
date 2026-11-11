@@ -5,12 +5,17 @@ import {
   AlertSeverity,
   AlertType,
   AttendanceValue,
+  CourseType,
+  IntensificationModel,
+  IntensificationPeriod,
+  IntensificationResultCode,
   Orientation,
   Prisma,
   PrismaClient,
   Role,
   Shift,
   StudentStatus,
+  SubjectStatus,
   UserStatus,
 } from '@prisma/client'
 import bcrypt from 'bcrypt'
@@ -23,6 +28,19 @@ type Scores = (number | null)[]
 // UUIDs fijos para la base de pruebas de Notar
 const ids = {
   academicYear: '00000000-0000-0000-0000-000000000001',
+  // Ciclo 2025, ya terminado, para probar el cierre del ciclo (CRM-052)
+  closableYear: '00000000-0000-0000-0000-000000000002',
+  closableSection: '00000000-0000-0000-0000-000000000023', // 2° A Mañana 2025
+  closableSchedules: {
+    december: '00000000-0000-0000-0000-000000005101',
+    februaryMarch: '00000000-0000-0000-0000-000000005102',
+  },
+  closableEnrollments: [
+    '00000000-0000-0000-0000-000000005201', // Matemática: aprobada (7 y 8)
+    '00000000-0000-0000-0000-000000005202', // Lengua: desaprobada
+    '00000000-0000-0000-0000-000000005203', // Historia: aprobada con AA en febrero
+    '00000000-0000-0000-0000-000000005204', // Biología (recursada): desaprobada
+  ],
   teacher: '00000000-0000-0000-0000-000000000010',
   teacher2: '00000000-0000-0000-0000-000000000011',
   schoolManagement: '00000000-0000-0000-0000-000000000012',
@@ -187,6 +205,29 @@ export async function main() {
       email: 'eoe@notar.local',
       passwordHash: staffPasswordHash,
       role: Role.EOE_DIRECTIVE,
+      status: UserStatus.ACTIVE,
+    },
+  })
+
+  await prisma.user.upsert({
+    where: {
+      email: 'preceptor@notar.local',
+    },
+
+    update: {
+      firstName: 'Lucía',
+      lastName: 'Fernández',
+      role: Role.PRECEPTOR,
+      status: UserStatus.ACTIVE,
+      passwordHash: staffPasswordHash,
+    },
+
+    create: {
+      firstName: 'Lucía',
+      lastName: 'Fernández',
+      email: 'preceptor@notar.local',
+      passwordHash: staffPasswordHash,
+      role: Role.PRECEPTOR,
       status: UserStatus.ACTIVE,
     },
   })
@@ -1384,6 +1425,210 @@ export async function main() {
   }
 
   // ============================================================
+  // 10. Ciclo 2025 terminado, para probar el cierre del ciclo (CRM-052)
+  // ============================================================
+  // Sofía Pérez cursó 2° A en 2025. Sus períodos de diciembre y febrero/marzo ya terminaron,
+  // así que el ciclo se puede cerrar con POST /api/cycle-closure/<id del ciclo 2025>.
+
+  const closableYear = await prisma.academicYear.upsert({
+    where: { year: 2025 },
+    update: {},
+    create: {
+      id: ids.closableYear,
+      year: 2025,
+      active: false,
+      term1StartDate: new Date('2025-03-05'),
+      term1EndDate: new Date('2025-07-18'),
+      term2StartDate: new Date('2025-08-04'),
+      term2EndDate: new Date('2025-12-05'),
+    },
+  })
+
+  await prisma.classSection.upsert({
+    where: { id: ids.closableSection },
+    update: {},
+    create: {
+      id: ids.closableSection,
+      grade: 2,
+      division: 'A',
+      shift: Shift.MORNING,
+      orientation: Orientation.ORIENTED,
+      academicYearId: closableYear.id,
+    },
+  })
+
+  const closableSchedules = [
+    {
+      id: ids.closableSchedules.december,
+      period: IntensificationPeriod.DECEMBER,
+      startDate: new Date('2025-12-09T00:00:00.000Z'),
+      endDate: new Date('2025-12-22T00:00:00.000Z'),
+    },
+    {
+      id: ids.closableSchedules.februaryMarch,
+      period: IntensificationPeriod.FEBRUARY_MARCH,
+      startDate: new Date('2026-02-18T00:00:00.000Z'),
+      endDate: new Date('2026-03-06T00:00:00.000Z'),
+    },
+  ]
+
+  for (const schedule of closableSchedules) {
+    await prisma.intensificationSchedule.upsert({
+      where: {
+        academicYearId_period: { academicYearId: closableYear.id, period: schedule.period },
+      },
+      update: {},
+      create: { ...schedule, academicYearId: closableYear.id },
+    })
+  }
+
+  const closableStudentId = ids.students[0]
+
+  type ClosableAttempt = {
+    period: IntensificationPeriod
+    resultCode: IntensificationResultCode
+    score: number | null
+    pendingKnowledge?: string
+  }
+
+  const closableSubjects: Array<{
+    enrollmentId: string
+    subjectId: string
+    courseType: CourseType
+    term1Score: number
+    term2Score: number
+    rationale2?: string
+    attempts: ClosableAttempt[]
+    // Como lo deja la carga de un AA (CRM-058) antes del ajuste: solo en Grade
+    accredited?: number
+  }> = [
+    {
+      enrollmentId: ids.closableEnrollments[0],
+      subjectId: matematica.id,
+      courseType: CourseType.FIRST_TIME,
+      term1Score: 7,
+      term2Score: 8,
+      attempts: [],
+    },
+    {
+      enrollmentId: ids.closableEnrollments[1],
+      subjectId: lengua.id,
+      courseType: CourseType.FIRST_TIME,
+      term1Score: 6,
+      term2Score: 5,
+      rationale2: 'Producción de textos argumentativos.',
+      attempts: [
+        {
+          period: IntensificationPeriod.DECEMBER,
+          resultCode: IntensificationResultCode.CCA,
+          score: null,
+          pendingKnowledge: 'Producción de textos argumentativos y uso de conectores.',
+        },
+        {
+          period: IntensificationPeriod.FEBRUARY_MARCH,
+          resultCode: IntensificationResultCode.CSA,
+          score: null,
+          pendingKnowledge: 'Uso de conectores en textos argumentativos.',
+        },
+      ],
+    },
+    {
+      enrollmentId: ids.closableEnrollments[2],
+      subjectId: historia.id,
+      courseType: CourseType.FIRST_TIME,
+      term1Score: 5,
+      term2Score: 6,
+      attempts: [
+        {
+          period: IntensificationPeriod.DECEMBER,
+          resultCode: IntensificationResultCode.CCA,
+          score: null,
+          pendingKnowledge: 'Procesos de independencia en América Latina.',
+        },
+        {
+          period: IntensificationPeriod.FEBRUARY_MARCH,
+          resultCode: IntensificationResultCode.AA,
+          score: 6,
+        },
+      ],
+      accredited: 6,
+    },
+    {
+      enrollmentId: ids.closableEnrollments[3],
+      subjectId: biologia.id,
+      courseType: CourseType.REPEAT,
+      term1Score: 4,
+      term2Score: 3,
+      rationale2: 'Célula y funciones vitales.',
+      attempts: [
+        {
+          period: IntensificationPeriod.DECEMBER,
+          resultCode: IntensificationResultCode.CSA,
+          score: null,
+          pendingKnowledge: 'Célula: estructura y funciones.',
+        },
+        {
+          period: IntensificationPeriod.FEBRUARY_MARCH,
+          resultCode: IntensificationResultCode.CSA,
+          score: null,
+        },
+      ],
+    },
+  ]
+
+  for (const item of closableSubjects) {
+    // update vacío: si el seed se vuelve a correr después del cierre, no se pisa lo que hizo el cierre
+    await prisma.enrollment.upsert({
+      where: { id: item.enrollmentId },
+      update: {},
+      create: {
+        id: item.enrollmentId,
+        studentId: closableStudentId,
+        subjectId: item.subjectId,
+        classSectionId: ids.closableSection,
+        academicYearId: closableYear.id,
+        courseType: item.courseType,
+      },
+    })
+
+    await prisma.grade.upsert({
+      where: { enrollmentId: item.enrollmentId },
+      update: {},
+      create: {
+        enrollmentId: item.enrollmentId,
+        term1Score: item.term1Score,
+        term2Score: item.term2Score,
+        rationale2: item.rationale2,
+        ...(item.accredited !== undefined && {
+          finalScore: item.accredited,
+          subjectStatus: SubjectStatus.APPROVED_ACCREDITED,
+        }),
+      },
+    })
+
+    for (const attempt of item.attempts) {
+      const scheduleId =
+        attempt.period === IntensificationPeriod.DECEMBER
+          ? ids.closableSchedules.december
+          : ids.closableSchedules.februaryMarch
+      await prisma.intensification.upsert({
+        where: { enrollmentId_scheduleId: { enrollmentId: item.enrollmentId, scheduleId } },
+        update: {},
+        create: {
+          enrollmentId: item.enrollmentId,
+          scheduleId,
+          period: attempt.period,
+          model: IntensificationModel.MODEL_1,
+          resultCode: attempt.resultCode,
+          score: attempt.score,
+          pendingKnowledge: attempt.pendingKnowledge,
+          responsibleTeacherId: teacher.id,
+        },
+      })
+    }
+  }
+
+  // ============================================================
   // Finalización
   // ============================================================
 
@@ -1395,6 +1640,10 @@ export async function main() {
 
   console.log(
     '👉 Se incorporaron alertas de salud, conducta y bajo rendimiento.',
+  )
+
+  console.log(
+    `👉 Ciclo 2025 terminado para probar el cierre (CRM-052): POST /api/cycle-closure/${closableYear.id}`,
   )
 
   console.log(
