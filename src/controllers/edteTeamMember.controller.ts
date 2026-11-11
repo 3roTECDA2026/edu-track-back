@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import { getAuthUser } from '@/middlewares/auth.middleware'
 
 import {
   createEdteTeamMemberSchema,
@@ -29,4 +30,9 @@ export async function updateEdteTeamMember(req: Request, res: Response) {
 export async function deactivateEdteTeamMember(req: Request, res: Response) {
   const { id } = edteTeamMemberIdParamSchema.parse(req.params)
   res.json(await edteTeamMemberService.deactivateEdteTeamMember(id))
+}
+
+export async function getMyEdteMemberships(req: Request, res: Response) {
+  const { userId } = getAuthUser(req)
+  res.json(await edteTeamMemberService.getMyEdteMemberships(userId))
 }

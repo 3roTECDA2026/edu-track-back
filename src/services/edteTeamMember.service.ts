@@ -149,3 +149,14 @@ export async function deactivateEdteTeamMember(id: string) {
   })
   return toMemberResponse(updated)
 }
+
+// Lugares del usuario logueado en el EDTE (uno por turno). Lo usan otras pantallas para
+// saber si mostrarle las opciones del EDTE (CRM-077 y CRM-074)
+export async function getMyEdteMemberships(userId: string) {
+  const memberships = await prisma.edteTeamMember.findMany({
+    where: { userId, active: true },
+    select: { id: true, shift: true, edteRole: true, joinedAt: true },
+    orderBy: { shift: 'asc' },
+  })
+  return { isMember: memberships.length > 0, memberships }
+}

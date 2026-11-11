@@ -20,7 +20,8 @@ const canView = requireRole(
 const canManage = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE)
 
 edteTeamMemberRouter.use(verifyToken)
-
+// Si el usuario logueado integra el EDTE (y de qué turnos): solo pide estar logueado
+edteTeamMemberRouter.get('/me', asyncHandler(edteTeamMemberController.getMyEdteMemberships))
 edteTeamMemberRouter.get('/', canView, asyncHandler(edteTeamMemberController.listEdteTeamMembers))
 edteTeamMemberRouter.post(
   '/',
