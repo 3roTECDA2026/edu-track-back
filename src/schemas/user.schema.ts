@@ -2,7 +2,7 @@ import { Role, UserStatus } from '@prisma/client'
 import { z } from 'zod'
 
 export const userIdParamSchema = z.object({
-  id: z.uuid(),
+  id: z.guid(),
 })
 
 export const listUsersQuerySchema = z.object({

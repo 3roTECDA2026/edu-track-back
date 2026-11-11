@@ -40,6 +40,12 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'El usuario está suspendido. Consultá con la administración.' });
     }
 
+        // Registramos el momento del último ingreso (solo en logins exitosos)
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: { lastLogin: new Date() },
+    });
+
     // Generamos el token JWT con vigencia de 24 horas (la clave sale del .env)
     const token = jwt.sign(
       {
