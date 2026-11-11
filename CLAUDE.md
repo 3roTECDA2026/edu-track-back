@@ -255,6 +255,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/notifications` | alertas de estudiantes | ninguna |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
+| `/pending-subjects` | saberes pendientes de las MPAA: `GET /?studentId=` y `PATCH /:id` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
