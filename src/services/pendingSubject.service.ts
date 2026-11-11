@@ -43,20 +43,17 @@ export async function listPendingSubjects(query: ListPendingSubjectsQuery) {
 }
 
 // Guarda los saberes pendientes. Una MPAA ya acreditada no tiene saberes por completar
-export async function updatePendingKnowledge(id: string, input: UpdatePendingKnowledgeInput) {
-  const pending = await prisma.pendingSubject.findUnique({
+export async function updatePendingKnowledge(
+  id: string,
+  input: UpdatePendingKnowledgeInput,
+  db: Pick<Prisma.TransactionClient, 'pendingSubject'> = prisma
+) {
+  const pending = await db.pendingSubject.findUnique({
     where: { id },
     select: { status: true, subject: { select: { name: true } } },
   })
-  if (!pending) throw new HttpError(404, 'Materia pendiente no encontrada')
-  if (pending.status === PendingSubjectStatus.ACCREDITED) {
-    throw new HttpError(
-      409,
-      `${pending.subject.name} ya está acreditada: no se pueden cambiar sus saberes pendientes`
-    )
-  }
 
-  return prisma.pendingSubject.update({
+  return db.pendingSubject.update({
     where: { id },
     data: {
       ...(input.initialPendingKnowledge !== undefined && {
