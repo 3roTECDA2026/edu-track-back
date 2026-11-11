@@ -39,7 +39,7 @@ router.use('/intensification-schedules', intensificationScheduleRouter)
 router.use('/intensifications', intensificationRouter)
 // Asistencia en intensificación (CRM-059)
 router.use('/intensification-attendance', intensificationAttendanceRouter)
-// Bitácora de intervenciones 
+// Bitácora de intervenciones
 router.use('/interventions', interventionRouter)
 // Cierre del ciclo lectivo y alta de MPAA (CRM-052)
 router.use('/cycle-closure', cycleClosureRouter)
