@@ -16,7 +16,10 @@ const createConflictSchema = z
     studentId: z.guid(),
     conflictCode: z.string().trim().min(1),
     detailedReport: z.string().trim().min(1),
-    occurrenceDate: z.coerce.date().optional(),
+    occurrenceDate: z.coerce
+      .date()
+      .refine((date) => date.getTime() <= Date.now(), 'La fecha del suceso no puede ser futura')
+      .optional(),
   })
   .strict()
 

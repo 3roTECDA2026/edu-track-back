@@ -53,13 +53,32 @@ export const createLegalConflict = async (data: CreateLegalConflictData) => {
 export const getLegalConflictById = async (id: string) => {
   const conflict = await prisma.legalConflict.findUnique({
     where: { id },
+    include: {
+      attachments: {
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      },
+    },
   })
 
   if (!conflict) return null
 
+  const authorIds = [...new Set(conflict.attachments.map((a) => a.authorId))]
+
+  const authors = await prisma.user.findMany({
+    where: { id: { in: authorIds } },
+    select: { id: true, firstName: true, lastName: true },
+  })
+
+  const authorsById = new Map(authors.map((author) => [author.id, author]))
+
   return {
     ...conflict,
     detailedReport: decryptConflictReport(conflict.detailedReport),
+    attachments: conflict.attachments.map((attachment) => ({
+      ...attachment,
+      content: decryptConflictReport(attachment.content),
+      author: authorsById.get(attachment.authorId) ?? null,
+    })),
   }
 }
 
