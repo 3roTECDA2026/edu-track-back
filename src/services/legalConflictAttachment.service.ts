@@ -1,16 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
-import {
-  encryptConflictReport,
-  decryptConflictReport,
-} from '@/utils/conflictEncryption'
+import { encryptConflictReport, decryptConflictReport } from '@/utils/conflictEncryption'
 
 interface CreateAttachmentData {
   conflictId: string
   authorId: string
   content: string
   ipAddress: string
-  digitalSignHash?: string
 }
 
 type AttachmentDatabase = Pick<typeof prisma, '$transaction'>
@@ -32,7 +28,7 @@ export const createAttachmentService = (db: AttachmentDatabase) => {
           conflictId: data.conflictId,
           authorId: data.authorId,
           content: encryptConflictReport(data.content),
-          digitalSignHash: data.digitalSignHash ?? null,
+          digitalSignHash: null,
         },
       })
 
@@ -47,7 +43,7 @@ export const createAttachmentService = (db: AttachmentDatabase) => {
             conflictId: data.conflictId,
             attachmentId: attachment.id,
             authorId: data.authorId,
-            signed: Boolean(attachment.digitalSignHash),
+            signed: false,
           },
         },
       })

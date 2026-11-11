@@ -18,8 +18,7 @@ const createFixture = () => {
 
   const tx = {
     legalConflict: {
-      findUnique: async () =>
-        state.conflictExists ? { id: 'conflicto-1' } : null,
+      findUnique: async () => (state.conflictExists ? { id: 'conflicto-1' } : null),
     },
     legalConflictAttachment: {
       create: async ({ data }: any) => {
@@ -134,30 +133,19 @@ test('CRM-092: revierte la creación si falla la auditoría', async () => {
 
   state.auditFails = true
 
-  await assert.rejects(
-    create(request()),
-    /Error de auditoría simulado/
-  )
+  await assert.rejects(create(request()), /Error de auditoría simulado/)
 
   assert.equal(state.attachments.length, 0)
   assert.equal(state.audits.length, 0)
   assert.equal(state.transactionCount, 1)
 })
 
-test('CRM-092: permite anexos con firma opcional', async () => {
+test('CRM-092: los anexos nuevos no se marcan como firmados', async () => {
   const { state, create, request } = createFixture()
 
-  const result = await create({
-    ...request(),
-    digitalSignHash: 'hash-de-prueba',
-  })
+  const result = await create(request())
 
-  assert.equal(result.digitalSignHash, 'hash-de-prueba')
+  assert.equal(result.digitalSignHash, null)
   assert.equal(state.attachments.length, 1)
-  assert.deepEqual(state.audits[0].newData, {
-    conflictId: 'conflicto-1',
-    attachmentId: 'anexo-1',
-    authorId: 'usuario-1',
-    signed: true,
-  })
+  assert.equal(state.audits[0].newData.signed, false)
 })

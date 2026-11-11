@@ -5,10 +5,7 @@ import { readFileSync } from 'node:fs'
 test('CRM-090: no expone rutas para editar o eliminar actas', () => {
   const routes = readFileSync('src/routes/legalConflict.routes.ts', 'utf8')
 
-  assert.doesNotMatch(
-    routes,
-    /legalConflictRouter\.(?:patch|put|delete)\s*\(\s*['"`]\/:id['"`]/
-  )
+  assert.doesNotMatch(routes, /legalConflictRouter\.(?:patch|put|delete)\s*\(\s*['"`]\/:id['"`]/)
 })
 
 test('CRM-092: los anexos rechazan modificaciones con 405', () => {
