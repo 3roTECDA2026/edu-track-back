@@ -61,7 +61,22 @@ export async function listGrades(query: ListGradesQuery) {
 
 const gradeRosterSelect = {
   id: true,
-  student: { select: { id: true, dni: true, lastName: true, firstName: true } },
+  student: {
+    select: {
+      id: true,
+      dni: true,
+      lastName: true,
+      firstName: true,
+      // Sección de matrícula vigente del alumno, para detectar inter-sección 
+      enrollmentHistory: {
+        where: { endDate: null },
+        select: {
+          classSection: { select: { id: true, grade: true, division: true, shift: true } },
+        },
+        take: 1,
+      },
+    },
+  },
   subject: { select: { id: true, name: true } },
   grade: {
     select: {
@@ -108,6 +123,7 @@ export async function getGradeRoster(query: GradeRosterQuery) {
 const gradeByStudentSelect = {
   id: true,
   subject: { select: { id: true, name: true } },
+  classSection: { select: { id: true, grade: true, division: true, shift: true } },
   grade: {
     select: {
       id: true,
