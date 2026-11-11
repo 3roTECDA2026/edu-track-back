@@ -77,6 +77,8 @@ const gradeRosterSelect = {
       // Valoración parcial de cada cuatrimestre (CRM-066)
       preliminaryAssessment1: true,
       preliminaryAssessment2: true,
+      // Nota con la que recuperó el 1.º durante el 2.º: es la nota final en ese caso (CRM-052)
+      term1IntensificationScore: true,
     },
   },
   // Intentos de intensificación de diciembre y febrero/marzo, para sus columnas en la grilla (CRM-066).

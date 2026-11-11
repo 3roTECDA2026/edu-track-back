@@ -127,9 +127,9 @@ Para código nuevo, seguir el patrón en capas.
 - **Respuestas de éxito:** `sendSuccess(res, data, mensaje, status)` devuelve
   `{ success, data, message }` (lo usa `user`). Otros módulos devuelven el objeto directo con
   `res.json(...)`: respetar el formato del módulo que se edita, porque el front depende de él.
-- **IDs:** son UUID. Validarlos con **`z.guid()`**, no con `z.uuid()`: los IDs fijos del seed
-  (`00000000-0000-0000-0000-000000000202`) no tienen versión válida y Zod 4 los rechaza con
-  `z.uuid()`.
+- **IDs:** son UUID. Validarlos con **`z.guid()`**, no con `z.uuid()` ni `z.string().uuid()`:
+  los IDs fijos del seed (`00000000-0000-0000-0000-000000000202`) no tienen versión válida y
+  Zod 4 los rechaza.
 - **Enums de Prisma en Zod:** `z.enum(Role)`, `z.enum(StudentStatus)`, etc.
 - **Paginación:** `page` y `limit` con `z.coerce.number()` y valores por defecto
   (ver `listStudentsQuerySchema`).
@@ -254,6 +254,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/attendance` | asistencia, `/batch`, `/summary`, `/:id/justify` | ninguna |
 | `/notifications` | alertas de estudiantes | ninguna |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
+| `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -316,8 +317,6 @@ Al tocar estas zonas, seguir las convenciones de arriba en lugar de copiar lo ex
   `attendance` y `notification` tienen la lógica dentro de la ruta.
 - `routes/index.ts` importa y monta el router de auth dos veces (`authRouter` y `authRoutes`).
 - `academicYear.routes.ts` y `cycle.routes.ts` existen pero no están montados.
-- Algunos esquemas todavía usan `z.uuid()` (`enrollment`, `grade`, `user`, partes de `student`
-  y `rite`).
 - La mayoría de los endpoints no exige autenticación.
 - `JWT_SECRET` tiene un valor por defecto en el código; en producción debe definirse siempre.
 - `src/services/api.ts` está vacío.

@@ -7,16 +7,24 @@ const scoreSchema = z
   .min(1, 'La nota mínima es 1')
   .max(10, 'La nota máxima es 10')
 
+// Nota final: puede tener decimales porque es el promedio de los dos cuatrimestres
+// (7 y 8 → 7,5; Res. 1650/24, Anexo 5, inc. 8.a). El promedio de dos enteros termina en ,0 o ,5.
+const finalScoreSchema = z
+  .number()
+  .min(1, 'La nota mínima es 1')
+  .max(10, 'La nota máxima es 10')
+  .multipleOf(0.5, 'La nota final solo puede terminar en ,0 o ,5')
+
 const termScoresSchema = z
   .array(scoreSchema.nullable())
   .length(4, 'Deben ser 4 notas (usá null para las vacías)')
 
 export const gradeIdParamSchema = z.object({
-  id: z.uuid(),
+  id: z.guid(),
 })
 
 export const createGradeSchema = z.object({
-  enrollmentId: z.uuid(),
+  enrollmentId: z.guid(),
   preliminaryAssessment1: z.enum(PreliminaryAssessment).optional(),
   rationale1: z.string().trim().optional(),
   term1Score: scoreSchema.optional(),
@@ -26,7 +34,7 @@ export const createGradeSchema = z.object({
   term2Score: scoreSchema.optional(),
   term2Scores: termScoresSchema.optional(),
   recoveryIn2ndTerm: z.boolean().optional(),
-  finalScore: scoreSchema.optional(),
+  finalScore: finalScoreSchema.optional(),
   subjectStatus: z.enum(SubjectStatus).optional(),
   term1Closed: z.boolean().optional(),
   term2Closed: z.boolean().optional(),
@@ -39,20 +47,20 @@ export const listGradesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   // z.guid() acepta también los ids fijos del seed (00000000-...), que z.uuid() rechaza.
   studentId: z.guid().optional(), // filtrar notas por alumno
-  classSectionId: z.uuid().optional(),
-  subjectId: z.uuid().optional(),
+  classSectionId: z.guid().optional(),
+  subjectId: z.guid().optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   subjectStatus: z.enum(SubjectStatus).optional(),
 })
 
 export const gradeRosterQuerySchema = z.object({
-  classSectionId: z.uuid(),
-  subjectId: z.uuid(),
+  classSectionId: z.guid(),
+  subjectId: z.guid(),
   year: z.coerce.number().int().min(2000).max(2100),
 })
 
 export const gradeByStudentQuerySchema = z.object({
-  studentId: z.uuid(),
+  studentId: z.guid(),
   year: z.coerce.number().int().min(2000).max(2100),
 })
 
