@@ -47,9 +47,14 @@ npx prisma db seed          # cargar datos de desarrollo (prisma/seed.ts)
 npx prisma studio           # UI de la base en http://localhost:5555
 ```
 
-No hay tests automatizados (`npm test` corre `node --test` sin archivos). La verificación
-mínima es `npx tsc --noEmit` y probar los endpoints afectados (Postman o `curl`) contra
-el back local. `GET /health` responde `{ status: 'ok' }` si el servidor está levantado.
+**Tests:** `npm test` corre `tsx --test "src/**/*.test.ts"` (el runner de Node con `tsx`, para
+que resuelva los alias `@/`). Los tests van junto al archivo que prueban (`algo.test.ts`) y
+usan `node:test` y `node:assert/strict`. Hoy cubren funciones puras, sin base de datos: la
+tabla de MPAA del RITE (`utils/ritePendingSubjects.test.ts`). Para que una regla de negocio
+se pueda probar así, conviene dejarla en una función pura en `utils/` y que el service solo
+haga la consulta. La verificación mínima de cualquier cambio es `npx tsc --noEmit`, `npm test`
+y probar los endpoints afectados (Postman o `curl`) contra el back local.
+`GET /health` responde `{ status: 'ok' }` si el servidor está levantado.
 
 ## 4. Variables de entorno
 

@@ -88,9 +88,12 @@ enum Term {
 }
 
 enum IntensificationPeriod {
-  DECEMBER // Período de Intensificación de Diciembre
+  DECEMBER // Diciembre 2: después del cierre del 2.º cuatrimestre
   FEBRUARY_MARCH // Período de Intensificación de Febrero / Marzo
   AUGUST // Período de Intensificación de Agosto
+  MARCH // Marzo: MPAA de ciclos anteriores (CRM-044)
+  JULY // Julio: antes del receso de invierno (CRM-044)
+  DECEMBER_TERM_CLOSE // Diciembre 1: antes del cierre del 2.º cuatrimestre (CRM-044)
 }
 
 enum IntensificationModel {
@@ -1040,7 +1043,7 @@ model PendingSubject {
 }
 
 // Calendario de intensificación: un período por ciclo lectivo (E3-RF-04).
-// Diciembre y febrero/marzo pertenecen al ciclo que cierran; agosto, al ciclo en curso.
+// Diciembre y febrero/marzo pertenecen al ciclo que cierran; marzo, julio, agosto y diciembre 1, al ciclo en curso.
 model IntensificationSchedule {
   id             String                @id @default(uuid()) // Identificador único
   academicYear   AcademicYear          @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
