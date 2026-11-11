@@ -16,6 +16,7 @@ import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
+import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
 
 const router = Router()
 
@@ -40,5 +41,6 @@ router.use('/intensifications', intensificationRouter)
 router.use('/intensification-attendance', intensificationAttendanceRouter)
 // Cierre del ciclo lectivo y alta de MPAA (CRM-052)
 router.use('/cycle-closure', cycleClosureRouter)
+router.use('/pending-subjects', pendingSubjectRouter)
 
 export default router
