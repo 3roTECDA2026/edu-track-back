@@ -487,6 +487,13 @@ export async function registerResult(
         ...(approved && { finalScore: score }),
       },
     })
+
+    // El estado también vive en la inscripción: se actualiza junto con la calificación
+    // para que los dos no se desfasen (el cierre del ciclo los lee, CRM-052)
+    await tx.enrollment.update({
+      where: { id: intensification.enrollmentId },
+      data: { subjectStatus },
+    })
   })
 
   const updatedIntensification = await findIntensificationOrFail(id)
