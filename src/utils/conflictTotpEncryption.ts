@@ -1,4 +1,4 @@
-import { encryptConflictReport, decryptConflictReport } from './conflictEncryption'
+import { encryptConflictReport, decryptConflictReport } from '@/utils/conflictEncryption'
 
 // Ambos utilizan AES-256-GCM y el mismo formato versionado.
 // Se conserva la interfaz pública para no afectar los servicios.

@@ -15,7 +15,7 @@ import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
 import { legalConflictRouter } from '@/routes/legalConflict.routes'
-import { conflictTotpRouter } from './conflictTotp.routes'
+import { conflictTotpRouter } from '@/routes/conflictTotp.routes'
 
 const router = Router()
 

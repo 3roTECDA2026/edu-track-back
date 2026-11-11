@@ -5,10 +5,10 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "node -r dotenv/config --import tsx --watch src/server.ts",
+    "dev": "node --import tsx --watch src/server.ts",
     "build": "tsup src/server.ts --format esm --clean",
     "start": "node dist/server.js",
-    "test": "node --import tsx --test",
+    "test": "node scripts/run-tests.mjs",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",

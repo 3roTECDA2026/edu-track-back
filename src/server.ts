@@ -5,7 +5,6 @@ import express from 'express'
 import { errorHandler } from '@/middlewares/errorHandler'
 import routes from '@/routes/index'
 
-
 const app = express()
 const PORT = process.env.PORT || 3000
 
