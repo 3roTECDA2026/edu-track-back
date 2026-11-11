@@ -8,6 +8,7 @@ import type {
   UpdateFortePlanInput,
 } from '@/schemas/fortePlan.schema'
 import { HttpError } from '@/utils/httpError'
+import { todayInSchoolTimeZone } from '@/utils/schoolDate'
 
 // Plan Forte (E4-RF-14, CRM-089): asignación de alumnos al programa y reportes de evolución.
 // Los reportes van separados del boletín: no los leen el RITE ni la grilla de calificaciones.
@@ -24,7 +25,10 @@ const planInclude = {
   reports: { orderBy: { date: 'desc' }, take: 1, select: { date: true } },
 } satisfies Prisma.FortePlanInclude
 
+const reportInclude = { author: personSelect } satisfies Prisma.FortePlanReportInclude
+
 type PlanWithRelations = Prisma.FortePlanGetPayload<{ include: typeof planInclude }>
+type ReportWithAuthor = Prisma.FortePlanReportGetPayload<{ include: typeof reportInclude }>
 
 const fullName = (person: { firstName: string; lastName: string }) =>
   `${person.lastName}, ${person.firstName}`
@@ -41,6 +45,17 @@ function toPlanResponse(plan: PlanWithRelations) {
       : null,
     lastReportAt: plan.reports[0]?.date ?? null,
     updatedAt: plan.updatedAt,
+  }
+}
+
+function toReportResponse(report: ReportWithAuthor) {
+  return {
+    id: report.id,
+    date: report.date,
+    progress: report.progress,
+    observations: report.observations,
+    author: report.author ? { id: report.author.id, name: fullName(report.author) } : null,
+    createdAt: report.createdAt,
   }
 }
 
@@ -137,9 +152,16 @@ export async function createFortePlan(input: CreateFortePlanInput) {
 }
 
 // Cambia los objetivos, el responsable o cierra el plan (finalizar o dar de baja).
-// Reactivar no se hace acá: se hace con el alta, que valida al alumno y al responsable
+// Solo con el plan activo: un plan cerrado no se edita. Para retomarlo, se vuelve a asignar
+// con el alta, que valida al alumno y al responsable
 export async function updateFortePlan(id: string, input: UpdateFortePlanInput) {
-  await findPlanOrFail(id)
+  const current = await findPlanOrFail(id)
+  if (current.status !== FortePlanStatus.ACTIVE) {
+    throw new HttpError(
+      409,
+      `${fullName(current.student)} no está activo en el Plan Forte: para cambiarlo, volvé a asignarlo`
+    )
+  }
   if (input.responsibleId) await assertResponsible(input.responsibleId)
 
   const plan = await prisma.fortePlan.update({
@@ -160,16 +182,9 @@ export async function listFortePlanReports(planId: string) {
   const reports = await prisma.fortePlanReport.findMany({
     where: { fortePlanId: planId },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    include: { author: personSelect },
+    include: reportInclude,
   })
-  return reports.map((report) => ({
-    id: report.id,
-    date: report.date,
-    progress: report.progress,
-    observations: report.observations,
-    author: report.author ? { id: report.author.id, name: fullName(report.author) } : null,
-    createdAt: report.createdAt,
-  }))
+  return reports.map(toReportResponse)
 }
 
 // Carga un reporte de evolución. El docente solo puede hacerlo si es el responsable del plan
@@ -195,22 +210,18 @@ export async function createFortePlanReport(
       fortePlanId: planId,
       progress: input.progress,
       observations: input.observations ?? null,
-      date: input.date ? new Date(`${input.date}T12:00:00.000Z`) : new Date(),
+      // Siempre el día (el elegido o el de hoy en Argentina) a las 12:00 UTC, así no cambia
+      // de día al mostrarlo, aunque se cargue de noche
+      date: new Date(`${input.date ?? todayInSchoolTimeZone()}T12:00:00.000Z`),
       authorId: user.userId,
     },
-    include: { author: personSelect },
+    include: reportInclude,
   })
-  return {
-    id: report.id,
-    date: report.date,
-    progress: report.progress,
-    observations: report.observations,
-    author: report.author ? { id: report.author.id, name: fullName(report.author) } : null,
-    createdAt: report.createdAt,
-  }
+  return toReportResponse(report)
 }
 
-// Posibles responsables del seguimiento: el personal activo de la escuela
+// Posibles responsables del seguimiento: el personal activo de la escuela (docentes, EOE y
+// dirección)
 export async function listResponsibleCandidates() {
   const users = await prisma.user.findMany({
     where: { role: { in: RESPONSIBLE_ROLES }, status: UserStatus.ACTIVE },
