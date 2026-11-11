@@ -7,6 +7,7 @@ import courseRoutes from '@/routes/course.routes'
 import { cycleClosureRouter } from '@/routes/cycleClosure.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { gradeRouter } from '@/routes/grade.routes'
+import { edteMeetingRouter } from '@/routes/edteMeeting.routes'
 import { institutionalConfigRouter } from '@/routes/institutionalConfig.routes'
 import { intensificationScheduleRouter } from '@/routes/intensificationSchedule.routes'
 import { intensificationRouter } from '@/routes/intensification.routes'
@@ -34,6 +35,8 @@ router.use('/institutional-config', institutionalConfigRouter)
 router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
 router.use('/rites', riteRouter)
+// Reuniones del EDTE (CRM-075)
+router.use('/edte-meetings', edteMeetingRouter)
 // Calendario de períodos de intensificación (CRM-055)
 router.use('/intensification-schedules', intensificationScheduleRouter)
 router.use('/intensifications', intensificationRouter)

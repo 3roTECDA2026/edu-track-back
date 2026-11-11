@@ -1336,6 +1336,144 @@ export async function main() {
   }
 
   // ============================================================
+  // Reuniones del EDTE (CRM-075)
+  // ============================================================
+  // Mateo García desaprobó 5 materias en 2025 y quedó con 5 MPAA: está derivado al EDTE y se lo
+  // trata en la reunión de febrero/marzo de 2026.
+  // Las MPAA se cargan directo (sin el cierre del ciclo), así este seed no depende de CRM-052.
+  // El ciclo 2025 y la sección 2° A usan los mismos ids y datos que el seed de CRM-052, para que
+  // los dos convivan; cuando corra el cierre, estas materias ya tienen MPAA y no se duplican.
+  // Los enums van como texto para no tocar la lista de imports compartida.
+
+  const referralIds = {
+    year2025: '00000000-0000-0000-0000-000000000002',
+    section2025: '00000000-0000-0000-0000-000000000023', // 2° A Mañana 2025
+    geography: '00000000-0000-0000-0000-000000000204',
+    enrollments: [
+      '00000000-0000-0000-0000-000000005301',
+      '00000000-0000-0000-0000-000000005302',
+      '00000000-0000-0000-0000-000000005303',
+      '00000000-0000-0000-0000-000000005304',
+      '00000000-0000-0000-0000-000000005305',
+    ],
+    meeting: '00000000-0000-0000-0000-000000005401', // Reunión de febrero/marzo de 2026
+  }
+
+  const year2025 = await prisma.academicYear.upsert({
+    where: { year: 2025 },
+    update: {},
+    create: {
+      id: referralIds.year2025,
+      year: 2025,
+      active: false,
+      term1StartDate: new Date('2025-03-05'),
+      term1EndDate: new Date('2025-07-18'),
+      term2StartDate: new Date('2025-08-04'),
+      term2EndDate: new Date('2025-12-05'),
+    },
+  })
+
+  await prisma.classSection.upsert({
+    where: { id: referralIds.section2025 },
+    update: {},
+    create: {
+      id: referralIds.section2025,
+      grade: 2,
+      division: 'A',
+      shift: 'MORNING',
+      orientation: 'ORIENTED',
+      academicYearId: year2025.id,
+    },
+  })
+
+  const geografia = await prisma.subject.upsert({
+    where: { code: 'GEO-TEST' },
+    update: {},
+    create: {
+      id: referralIds.geography,
+      name: 'Geografía',
+      code: 'GEO-TEST',
+      hoursPerWeek: 3,
+      gradeLevel: 2,
+      area: 'Ciencias Sociales',
+    },
+  })
+
+  const referredStudentId = ids.students[1]
+  const [math, language, history, biology, geography] = referralIds.enrollments
+  const referredSubjects = [
+    { enrollmentId: math, subjectId: matematica.id },
+    { enrollmentId: language, subjectId: lengua.id },
+    { enrollmentId: history, subjectId: historia.id },
+    { enrollmentId: biology, subjectId: biologia.id },
+    { enrollmentId: geography, subjectId: geografia.id },
+  ]
+
+  for (const { enrollmentId, subjectId } of referredSubjects) {
+    if (!enrollmentId) continue
+    await prisma.enrollment.upsert({
+      where: { id: enrollmentId },
+      update: {},
+      create: {
+        id: enrollmentId,
+        studentId: referredStudentId,
+        subjectId,
+        classSectionId: referralIds.section2025,
+        academicYearId: year2025.id,
+        courseType: 'FIRST_TIME',
+        subjectStatus: 'MPAA',
+      },
+    })
+    await prisma.grade.upsert({
+      where: { enrollmentId },
+      update: {},
+      create: { enrollmentId, term1Score: 3, term2Score: 3, subjectStatus: 'MPAA' },
+    })
+    await prisma.pendingSubject.upsert({
+      where: { originEnrollmentId: enrollmentId },
+      update: {},
+      create: {
+        studentId: referredStudentId,
+        subjectId,
+        originEnrollmentId: enrollmentId,
+        originAcademicYearId: year2025.id,
+        status: 'PENDING',
+        initialPendingKnowledge: 'Saberes del año sin acreditar.',
+      },
+    })
+  }
+
+  // Reunión de febrero/marzo de 2026, en borrador: arma los PATE del ciclo 2026
+  await prisma.edteMeeting.upsert({
+    where: { id: referralIds.meeting },
+    update: {},
+    create: {
+      id: referralIds.meeting,
+      academicYearId: academicYear.id,
+      date: new Date('2026-03-02T00:00:00.000Z'),
+      period: 'FEBRUARY_MARCH',
+      shift: 'MORNING',
+      status: 'DRAFT',
+      considerations: 'Análisis de los estudiantes con 5 o más materias pendientes.',
+      createdById: ids.schoolManagement,
+      members: {
+        create: [
+          { userId: ids.schoolManagement, present: true, roleInMeeting: 'SCHOOL_MANAGEMENT' },
+          { userId: ids.eoe, present: true, roleInMeeting: 'EOE_DIRECTIVE' },
+          { userId: teacher.id, present: false, roleInMeeting: 'TEACHER' },
+        ],
+      },
+      students: {
+        create: [{ studentId: referredStudentId, notes: 'Cinco materias pendientes de 2025.' }],
+      },
+    },
+  })
+
+  console.log(
+    `👉 Reunión del EDTE de febrero/marzo de 2026 (CRM-075): GET /api/edte-meetings/${referralIds.meeting}`,
+  )
+
+  // ============================================================
   // 9. Alertas / Notificaciones
   // ============================================================
 
