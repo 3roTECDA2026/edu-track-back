@@ -25,7 +25,7 @@ pateRouter.get('/', canView, asyncHandler(pateController.listPates))
 // Antes de "/:id", para que "options" no se tome como un id
 pateRouter.get('/options', canManage, asyncHandler(pateController.getPateOptions))
 pateRouter.get('/:id', canView, asyncHandler(pateController.getPate))
-pateRouter.get('/:id/pdf', canView, asyncHandler(pateController.getPatePdf))
+pateRouter.get('/:id/pdf', canManage, asyncHandler(pateController.getPatePdf))
 pateRouter.post('/', canManage, asyncHandler(pateController.createPate))
 pateRouter.patch('/:id', canManage, asyncHandler(pateController.updatePate))
 pateRouter.patch('/:id/status', canManage, asyncHandler(pateController.changePateStatus))

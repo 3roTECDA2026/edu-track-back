@@ -9,8 +9,9 @@ import {
   StudentStatus,
 } from '@prisma/client'
 
-import { prisma } from '@/lib/prisma'
 import PDFDocument from 'pdfkit'
+
+import { prisma } from '@/lib/prisma'
 import {
   MAX_SUBJECTS_TO_INTENSIFY,
   type CreatePateInput,
@@ -24,7 +25,7 @@ import { MODELS_BY_OPTION } from '@/services/intensification.service'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
 import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
-import { toDay } from '@/utils/schoolDate'
+import { toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
 // PATE (E4-RF-06, RN-012 y RN-013, CRM-078)
 
@@ -736,7 +737,11 @@ export async function changePateStatus(id: string, status: PateStatus, actor: Ac
   return getPate(id)
 }
 export async function generatePatePdf(id: string): Promise<Buffer> {
-  const pate = toPateResponse(await findPateOrFail(id))
+  const pateRaw = await findPateOrFail(id)
+  if (pateRaw.status === 'DRAFT') {
+    throw new HttpError(409, 'El PATE todavía está en borrador')
+  }
+  const pate = toPateResponse(pateRaw)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 })
     const chunks: Buffer[] = []
@@ -748,18 +753,21 @@ export async function generatePatePdf(id: string): Promise<Buffer> {
     doc.moveDown()
     doc.fontSize(11).text(`Alumno: ${pate.student.lastName}, ${pate.student.firstName} (DNI ${pate.student.dni})`)
     doc.text(`Ciclo lectivo: ${pate.year}`)
-    doc.text(`Estado: ${pate.status}`)
+    const statusLabel = pate.status === 'DRAFT' ? 'Borrador' : pate.status === 'IN_PROGRESS' ? 'En curso' : 'Cerrado'
+    doc.text(`Estado: ${statusLabel}`)
     if (pate.diagnosis) { doc.moveDown(); doc.text('Diagnóstico:', { underline: true }); doc.text(pate.diagnosis) }
     if (pate.supportStrategies) { doc.moveDown(); doc.text('Estrategias de acompañamiento:', { underline: true }); doc.text(pate.supportStrategies) }
     if (pate.schedule) { doc.moveDown(); doc.text('Cronograma:', { underline: true }); doc.text(pate.schedule) }
 
     doc.moveDown()
     doc.text('Materias a intensificar:', { underline: true })
+    if (pate.subjectsToIntensify.length === 0) doc.text('Ninguna')
     for (const s of pate.subjectsToIntensify) {
       doc.text(`- ${s.subjectName} (MPAA: materia pendiente de acreditación y aprobación) - Modelo ${s.model.replace('MODEL_', '')}${s.targetClassSection ? ` - ${s.targetClassSection.grade}° ${s.targetClassSection.division} (${s.targetClassSection.shift})` : ''}`)
     }
     doc.moveDown()
     doc.text('Materias a recursar:', { underline: true })
+    if (pate.subjectsToRepeat.length === 0) doc.text('Ninguna')
     for (const s of pate.subjectsToRepeat) {
       doc.text(`- ${s.subjectName}${s.classSection ? ` - ${s.classSection.grade}° ${s.classSection.division} (${s.classSection.shift})` : ''}`)
     }
@@ -769,7 +777,7 @@ export async function generatePatePdf(id: string): Promise<Buffer> {
     doc.moveDown()
     doc.text('Firma autoridad: ____________________   Aclaración: ____________________')
     doc.moveDown()
-    doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`)
+    doc.text(`Fecha: ${todayInSchoolTimeZone()}`)
 
     doc.end()
   })
