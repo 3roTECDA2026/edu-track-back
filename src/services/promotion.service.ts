@@ -1,24 +1,24 @@
-export function decideOutcome(pendingCount: number): PromotionOutcome {
-  return pendingCount >= 5 ? PromotionOutcome.REFERRED_TO_EDTE : PromotionOutcome.PROMOTED
-}
-
 import crypto from 'node:crypto'
-import {
-  PendingSubjectStatus,
-  PromotionOutcome,
-  StudentStatus,
-} from '@prisma/client'
+import { PendingSubjectStatus, StudentStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
+import { decideOutcome } from '@/utils/promotion'
 
 export async function runPromotion(academicYearId: string, executedById: string) {
   const academicYear = await prisma.academicYear.findUnique({
     where: { id: academicYearId },
-    select: { id: true, year: true },
+    select: { id: true, year: true, closedAt: true },
   })
 
   if (!academicYear) {
     throw new HttpError(404, 'Ciclo lectivo no encontrado')
+  }
+
+  if (!academicYear.closedAt) {
+    throw new HttpError(
+      409,
+      'El ciclo lectivo debe estar cerrado para ejecutar el motor de promoción'
+    )
   }
 
   return prisma.$transaction(async (tx) => {
@@ -100,10 +100,7 @@ export async function runPromotion(academicYearId: string, executedById: string)
           },
         },
       },
-      orderBy: [
-        { student: { lastName: 'asc' } },
-        { student: { firstName: 'asc' } },
-      ],
+      orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
     })
   })
 }
