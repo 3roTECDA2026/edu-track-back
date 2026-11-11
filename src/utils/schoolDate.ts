@@ -7,9 +7,19 @@ export const SCHOOL_TIME_ZONE = 'America/Argentina/Buenos_Aires'
 export const toDate = (value: string) => new Date(`${value}T00:00:00.000Z`)
 export const toDay = (value: Date) => value.toISOString().slice(0, 10)
 
-// Fecha de hoy (AAAA-MM-DD) según la hora de Argentina
+// Fecha de hoy en formato AAAA-MM-DD según la hora de Argentina (usado para almacenamiento y comparaciones)
 export function todayInSchoolTimeZone() {
   return new Intl.DateTimeFormat('en-CA', {
+    timeZone: SCHOOL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+// Fecha de hoy formateada para display (DD/MM/AAAA) según la hora de Argentina (usado para mostrar a familias)
+export function todayInSchoolTimeZoneDisplay() {
+  return new Intl.DateTimeFormat('es-ES', {
     timeZone: SCHOOL_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
