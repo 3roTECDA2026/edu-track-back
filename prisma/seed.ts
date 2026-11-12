@@ -1128,6 +1128,140 @@ export async function main() {
   }
 
   // ============================================================
+  // Dashboard del EDTE (CRM-077)
+  // ============================================================
+  // Valoraciones de los dos cuatrimestres de 2026 en 1° A (Matemática y Lengua) y MPAA de 2025:
+  // - Díaz: 2 TED (rojo); Fernández: 1 TED (ámbar); Benítez: TEP (ámbar); el resto, TEA.
+  // - Castro: 4 MPAA (alerta temprana); Mateo García: 5 MPAA (derivado al EDTE).
+  // Las MPAA se cargan directo, sin el cierre del ciclo. El ciclo 2025, la sección 2° A,
+  // Geografía y las cursadas de Mateo usan los mismos ids que los seeds de CRM-052, CRM-075 y
+  // CRM-078, para que convivan. Los enums van como texto para no tocar la lista de imports.
+
+  type DashAssessment = 'TEA' | 'TEP' | 'TED'
+  const dashAssessments: Array<{ dni: string; math: DashAssessment; language: DashAssessment }> = [
+    { dni: '50000001', math: 'TEA', language: 'TEA' },
+    { dni: '50000002', math: 'TEP', language: 'TEA' },
+    { dni: '50000003', math: 'TEA', language: 'TEA' },
+    { dni: '50000004', math: 'TED', language: 'TED' },
+    { dni: '50000005', math: 'TEP', language: 'TED' },
+    { dni: '50000007', math: 'TEA', language: 'TEP' },
+  ]
+
+  for (const item of dashAssessments) {
+    const studentId = gradeStudentsByDni[item.dni]
+    if (!studentId) continue
+    for (const [subjectId, value] of [
+      [matematica.id, item.math],
+      [lengua.id, item.language],
+    ] as const) {
+      const enrollment = await prisma.enrollment.findFirst({
+        where: { studentId, subjectId, academicYearId: academicYear.id },
+        select: { id: true },
+      })
+      if (!enrollment) continue
+      await prisma.grade.upsert({
+        where: { enrollmentId: enrollment.id },
+        update: { preliminaryAssessment1: value, preliminaryAssessment2: value },
+        create: {
+          enrollmentId: enrollment.id,
+          preliminaryAssessment1: value,
+          preliminaryAssessment2: value,
+        },
+      })
+    }
+  }
+
+  const dashYear2025 = await prisma.academicYear.upsert({
+    where: { year: 2025 },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000002',
+      year: 2025,
+      active: false,
+      term1StartDate: new Date('2025-03-05'),
+      term1EndDate: new Date('2025-07-18'),
+      term2StartDate: new Date('2025-08-04'),
+      term2EndDate: new Date('2025-12-05'),
+    },
+  })
+  const dashSection2025 = '00000000-0000-0000-0000-000000000023' // 2° A Mañana 2025
+  await prisma.classSection.upsert({
+    where: { id: dashSection2025 },
+    update: {},
+    create: {
+      id: dashSection2025,
+      grade: 2,
+      division: 'A',
+      shift: 'MORNING',
+      orientation: 'ORIENTED',
+      academicYearId: dashYear2025.id,
+    },
+  })
+  const dashGeography = await prisma.subject.upsert({
+    where: { code: 'GEO-TEST' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000204',
+      name: 'Geografía',
+      code: 'GEO-TEST',
+      hoursPerWeek: 3,
+      gradeLevel: 2,
+      area: 'Ciencias Sociales',
+    },
+  })
+
+  const dashCastroId = gradeStudentsByDni['50000003']
+  const dashPending: Array<{ enrollmentId: string; studentId: string | undefined; subjectId: string }> = [
+    // Mateo García: 5 MPAA (mismas cursadas que los seeds de CRM-075 y CRM-078)
+    { enrollmentId: '00000000-0000-0000-0000-000000005301', studentId: ids.students[1], subjectId: matematica.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005302', studentId: ids.students[1], subjectId: lengua.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005303', studentId: ids.students[1], subjectId: historia.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005304', studentId: ids.students[1], subjectId: biologia.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005305', studentId: ids.students[1], subjectId: dashGeography.id },
+    // Castro: 4 MPAA
+    { enrollmentId: '00000000-0000-0000-0000-000000005501', studentId: dashCastroId, subjectId: matematica.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005502', studentId: dashCastroId, subjectId: lengua.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005503', studentId: dashCastroId, subjectId: historia.id },
+    { enrollmentId: '00000000-0000-0000-0000-000000005504', studentId: dashCastroId, subjectId: biologia.id },
+  ]
+
+  for (const { enrollmentId, studentId, subjectId } of dashPending) {
+    if (!studentId) continue
+    await prisma.enrollment.upsert({
+      where: { id: enrollmentId },
+      update: {},
+      create: {
+        id: enrollmentId,
+        studentId,
+        subjectId,
+        classSectionId: dashSection2025,
+        academicYearId: dashYear2025.id,
+        courseType: 'FIRST_TIME',
+        subjectStatus: 'MPAA',
+      },
+    })
+    await prisma.grade.upsert({
+      where: { enrollmentId },
+      update: {},
+      create: { enrollmentId, term1Score: 3, term2Score: 3, subjectStatus: 'MPAA' },
+    })
+    await prisma.pendingSubject.upsert({
+      where: { originEnrollmentId: enrollmentId },
+      update: {},
+      create: {
+        studentId,
+        subjectId,
+        originEnrollmentId: enrollmentId,
+        originAcademicYearId: dashYear2025.id,
+        status: 'PENDING',
+        initialPendingKnowledge: 'Saberes del año sin acreditar.',
+      },
+    })
+  }
+
+  console.log('👉 Dashboard del EDTE (CRM-077): GET /api/edte-dashboard')
+
+  // ============================================================
   // 7. Asistencias Diarias de Prueba
   // ============================================================
 

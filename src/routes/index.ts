@@ -15,6 +15,7 @@ import { intensificationRouter } from '@/routes/intensification.routes'
 import { intensificationAttendanceRouter } from '@/routes/intensificationAttendance.routes'
 import { interventionRouter } from '@/routes/intervention.routes'
 import notificationRoutes from '@/routes/notification.routes'
+import { edteDashboardRouter } from '@/routes/edteDashboard.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
@@ -28,6 +29,8 @@ router.use('/enrollments', enrollmentRouter)
 router.use('/grades', gradeRouter)
 router.use('/class-sections', classSectionRouter)
 router.use('/teacher-assignments', teacherAssignmentRouter)
+// Dashboard del EDTE (CRM-077)
+router.use('/edte-dashboard', edteDashboardRouter)
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
 router.use('/users', userRouter)
