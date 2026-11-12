@@ -1550,9 +1550,11 @@ export async function main() {
 
   for (const { enrollmentId, subjectId } of referredSubjects) {
     if (!enrollmentId) continue
+    // Las cursó en 2° A, aunque algunas materias son de otro año: originalGradeLevel guarda el año
+    // en que las cursó (CRM-097). Va también en update, para corregir las bases con el seed viejo
     await prisma.enrollment.upsert({
       where: { id: enrollmentId },
-      update: {},
+      update: { originalGradeLevel: 2 },
       create: {
         id: enrollmentId,
         studentId: referredStudentId,
@@ -1561,6 +1563,7 @@ export async function main() {
         academicYearId: year2025.id,
         courseType: 'FIRST_TIME',
         subjectStatus: 'MPAA',
+        originalGradeLevel: 2,
       },
     })
     await prisma.grade.upsert({
