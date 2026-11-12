@@ -15,4 +15,3 @@ router.post(
 
 export const promotionRouter = router
 export default router
-
