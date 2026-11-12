@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { PendingSubjectStatus, StudentStatus } from '@prisma/client'
+import { PendingSubjectStatus, Prisma, StudentStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
 import { decideOutcome } from '@/utils/promotion'
@@ -21,7 +21,7 @@ export async function runPromotion(academicYearId: string, executedById: string)
     )
   }
 
-  return prisma.$transaction(async (tx) => {
+  const transaction = prisma.$transaction(async (tx) => {
     // No se permite re-ejecutar: evita duplicar decisiones (CRM-073 las leería repetidas).
     const existing = await tx.promotionDecision.count({ where: { academicYearId } })
     if (existing > 0) {
@@ -103,4 +103,13 @@ export async function runPromotion(academicYearId: string, executedById: string)
       orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
     })
   })
+
+  try {
+    return await transaction
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new HttpError(409, 'El motor de promoción ya se ejecutó para este ciclo')
+    }
+    throw error
+  }
 }
