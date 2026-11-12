@@ -6,6 +6,7 @@ import type {
   UpdatePendingKnowledgeInput,
 } from '@/schemas/pendingSubject.schema'
 import { HttpError } from '@/utils/httpError'
+import { toPendingSubjectResponse } from '@/utils/pendingSubjectResponse'
 
 // Saberes pendientes por materia (E3-RF-02, CRM-053): se registran, en texto, al inicio y al
 // cierre del ciclo. Son el estado actual de la MPAA; la historia de cada ciclo sale de sus
@@ -21,6 +22,8 @@ const pendingSubjectSelect = {
   updatedAt: true,
   subject: { select: { id: true, name: true, gradeLevel: true } },
   originAcademicYear: { select: { id: true, year: true } },
+  // Para el año de la MPAA (CRM-097): no se devuelve, se usa para calcular gradeLevel
+  originEnrollment: { select: { originalGradeLevel: true } },
 } satisfies Prisma.PendingSubjectSelect
 
 // Las MPAA de un alumno: primero las pendientes y, dentro de cada grupo, el ciclo más reciente
@@ -31,7 +34,7 @@ export async function listPendingSubjects(query: ListPendingSubjectsQuery) {
   })
   if (!student) throw new HttpError(404, 'Estudiante no encontrado')
 
-  return prisma.pendingSubject.findMany({
+  const pendings = await prisma.pendingSubject.findMany({
     where: { studentId: query.studentId },
     select: pendingSubjectSelect,
     orderBy: [
@@ -40,6 +43,7 @@ export async function listPendingSubjects(query: ListPendingSubjectsQuery) {
       { subject: { name: 'asc' } },
     ],
   })
+  return pendings.map(toPendingSubjectResponse)
 }
 
 // Guarda los saberes pendientes. Una MPAA ya acreditada no tiene saberes por completar
@@ -60,7 +64,7 @@ export async function updatePendingKnowledge(
     )
   }
 
-  return db.pendingSubject.update({
+  const updated = await db.pendingSubject.update({
     where: { id },
     data: {
       ...(input.initialPendingKnowledge !== undefined && {
@@ -72,4 +76,5 @@ export async function updatePendingKnowledge(
     },
     select: pendingSubjectSelect,
   })
+  return toPendingSubjectResponse(updated)
 }
