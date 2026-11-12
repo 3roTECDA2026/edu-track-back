@@ -261,6 +261,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/notifications` | alertas de estudiantes | ninguna |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
+| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -282,6 +283,19 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - **Provisorio:** los convocados se validan contra el personal activo hasta que entre CRM-071
   (plantel), y los derivados se calculan como "5 o más MPAA" hasta que entre CRM-073 (listado
   de derivación). Están aislados en `getEligibleMembers` y `getReferredStudentIds`.
+
+**Recursado de materias (CRM-082, E4-RF-09):**
+- Un recursado es un `Enrollment` con `courseType: REPEAT`, vinculado a la MPAA que se recursa
+  (`repeatedPendingSubjectId`). Se califica y se toma asistencia como cualquier cursada.
+- Se recursa una MPAA pendiente de un ciclo anterior, en una sección del ciclo activo y del año
+  de la materia. El turno puede ser otro que el del alumno (contraturno). No hace falta tener 5
+  o más MPAA: lo decide Gestión Escolar, y queda auditado quién lo asignó.
+- No se recursa una MPAA con una intensificación sin resultado.
+- Al editar solo cambia la sección. Se quita solo si no tiene notas, asistencia ni
+  intensificaciones.
+- `createSubjectRepeat(tx, ...)` recibe la transacción para que el PATE la use al confirmarse.
+- **Pendiente:** el límite de 12 materias (`assertSubjectLimit`, PR #57) y decidir si
+  `PRECEPTOR` también asigna (`SUBJECT_REPEAT_MANAGER_ROLES`).
 
 ## 10. Git y Pull Requests
 
