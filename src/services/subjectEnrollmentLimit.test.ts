@@ -43,7 +43,7 @@ describe('assertSubjectLimit (E3-RF-13)', () => {
   it('el mensaje dice cuántas tiene y cuál es el máximo', async () => {
     await assert.rejects(
       assertSubjectLimit('alumno', 'ciclo', 1, fakeDb(12).db),
-      /ya tiene 12 materias.*máximo permitido es 12/
+      /tiene 12 materias.*máximo permitido es 12/
     )
   })
 

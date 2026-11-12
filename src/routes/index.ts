@@ -20,6 +20,8 @@ import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
+import { legalConflictRouter } from '@/routes/legalConflict.routes'
+import { conflictTotpRouter } from '@/routes/conflictTotp.routes'
 import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
 
 const router = Router()
@@ -47,6 +49,8 @@ router.use('/intensification-schedules', intensificationScheduleRouter)
 router.use('/intensifications', intensificationRouter)
 // Asistencia en intensificación (CRM-059)
 router.use('/intensification-attendance', intensificationAttendanceRouter)
+router.use('/legal-conflicts', legalConflictRouter)
+router.use('/conflict-totp', conflictTotpRouter)
 // Bitácora de intervenciones
 router.use('/interventions', interventionRouter)
 // Cierre del ciclo lectivo y alta de MPAA (CRM-052)
