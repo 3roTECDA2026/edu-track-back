@@ -6,6 +6,7 @@ import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
 import { cycleClosureRouter } from '@/routes/cycleClosure.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
+import { edteTeamMemberRouter } from '@/routes/edteTeamMember.routes'
 import { gradeRouter } from '@/routes/grade.routes'
 import { edteMeetingRouter } from '@/routes/edteMeeting.routes'
 import { institutionalConfigRouter } from '@/routes/institutionalConfig.routes'
@@ -46,5 +47,7 @@ router.use('/intensification-attendance', intensificationAttendanceRouter)
 router.use('/interventions', interventionRouter)
 // Cierre del ciclo lectivo y alta de MPAA (CRM-052)
 router.use('/cycle-closure', cycleClosureRouter)
+// Integrantes del EDTE (CRM-071)
+router.use('/edte-team-members', edteTeamMemberRouter)
 
 export default router
