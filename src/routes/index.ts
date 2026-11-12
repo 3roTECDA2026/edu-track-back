@@ -20,6 +20,7 @@ import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
+import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
 
 const router = Router()
 
@@ -52,5 +53,6 @@ router.use('/interventions', interventionRouter)
 router.use('/cycle-closure', cycleClosureRouter)
 // Integrantes del EDTE (CRM-071)
 router.use('/edte-team-members', edteTeamMemberRouter)
+router.use('/pending-subjects', pendingSubjectRouter)
 
 export default router
