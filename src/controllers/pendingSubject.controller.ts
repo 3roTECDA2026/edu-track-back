@@ -8,7 +8,7 @@ import {
 import * as pendingSubjectService from '@/services/pendingSubject.service'
 import { sendSuccess } from '@/utils/apiResponse'
 
-// Saberes pendientes por materia (CRM-053): valida con Zod y le pasa los datos al service
+// Saberes pendientes (CRM-053) e historial de intentos (CRM-054) por materia: valida con Zod y le pasa los datos al service
 
 export async function listPendingSubjects(req: Request, res: Response) {
   const query = listPendingSubjectsQuerySchema.parse(req.query)
@@ -21,4 +21,10 @@ export async function updatePendingKnowledge(req: Request, res: Response) {
   const input = updatePendingKnowledgeSchema.parse(req.body)
   const item = await pendingSubjectService.updatePendingKnowledge(id, input)
   sendSuccess(res, item, 'Saberes pendientes guardados')
+}
+
+export async function listPendingSubjectAttempts(req: Request, res: Response) {
+  const { id } = pendingSubjectIdParamSchema.parse(req.params)
+  const attempts = await pendingSubjectService.listPendingSubjectAttempts(id)
+  sendSuccess(res, attempts, 'Intentos de intensificación de la materia pendiente')
 }
