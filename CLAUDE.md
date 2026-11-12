@@ -294,6 +294,9 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Al editar solo cambia la sección. Se quita solo si no tiene notas, asistencia ni
   intensificaciones.
 - `createSubjectRepeat(tx, ...)` recibe la transacción para que el PATE la use al confirmarse.
+- Cierre del ciclo: si el recursado aprueba, su MPAA queda `ACCREDITED` con la nota del
+  recursado (`PendingSubject.finalScore` admite decimales); si no, sigue la MPAA original y no se
+  crea otra.
 - **Pendiente:** el límite de 12 materias (`assertSubjectLimit`, PR #57) y decidir si
   `PRECEPTOR` también asigna (`SUBJECT_REPEAT_MANAGER_ROLES`).
 
