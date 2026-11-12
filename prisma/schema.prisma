@@ -1038,7 +1038,7 @@ model PendingSubject {
   status                  PendingSubjectStatus @default(PENDING) // Pendiente o acreditada
   initialPendingKnowledge String? // Saberes pendientes al inicio del ciclo
   closingPendingKnowledge String? // Saberes pendientes al cierre del ciclo
-  finalScore              Int? // Nota final al acreditar (4 a 10) o al cierre (1 a 3)
+  finalScore              Float? // Nota final al acreditar (4 a 10, con decimales si se acredita por recursado: 7,5) o al cierre (1 a 3)
   accreditedAt            DateTime? // Fecha en que se acreditó
   createdAt               DateTime             @default(now()) // Fecha de alta
   updatedAt               DateTime             @updatedAt // Fecha de modificación
