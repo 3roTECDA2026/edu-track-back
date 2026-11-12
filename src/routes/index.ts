@@ -16,6 +16,7 @@ import { interventionRouter } from '@/routes/intervention.routes'
 import notificationRoutes from '@/routes/notification.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
+import { subjectRepeatRouter } from '@/routes/subjectRepeat.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
 
@@ -46,5 +47,7 @@ router.use('/intensification-attendance', intensificationAttendanceRouter)
 router.use('/interventions', interventionRouter)
 // Cierre del ciclo lectivo y alta de MPAA (CRM-052)
 router.use('/cycle-closure', cycleClosureRouter)
+// Recursado de materias (CRM-082)
+router.use('/subject-repeats', subjectRepeatRouter)
 
 export default router
