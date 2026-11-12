@@ -59,35 +59,53 @@ export async function listGrades(query: ListGradesQuery) {
   }
 }
 
-const gradeRosterSelect = {
-  id: true,
-  student: { select: { id: true, dni: true, lastName: true, firstName: true } },
-  subject: { select: { id: true, name: true } },
-  grade: {
-    select: {
-      id: true,
-      term1Scores: true,
-      term2Scores: true,
-      term1Score: true,
-      term2Score: true,
-      finalScore: true,
-      subjectStatus: true,
-      term1Closed: true,
-      term2Closed: true,
-      // Valoración parcial de cada cuatrimestre (CRM-066)
-      preliminaryAssessment1: true,
-      preliminaryAssessment2: true,
+const gradeRosterSelect = (year: number) =>
+  ({
+    id: true,
+    student: {
+      select: {
+        id: true,
+        dni: true,
+        lastName: true,
+        firstName: true,
+        // Sección de matrícula vigente del año de la grilla, para detectar inter-sección
+        enrollmentHistory: {
+          where: { endDate: null, classSection: { academicYear: { year } } },
+          select: {
+            classSection: { select: { id: true, grade: true, division: true, shift: true } },
+          },
+          take: 1,
+        },
+      },
     },
-  },
-  // Intentos de intensificación de diciembre y febrero/marzo, para sus columnas en la grilla (CRM-066).
-  // La nota se guarda con el endpoint de resultados de la CRM-058, no desde acá.
-  intensifications: {
-    where: {
-      period: { in: [IntensificationPeriod.DECEMBER, IntensificationPeriod.FEBRUARY_MARCH] },
+    subject: { select: { id: true, name: true } },
+    grade: {
+      select: {
+        id: true,
+        term1Scores: true,
+        term2Scores: true,
+        term1Score: true,
+        term2Score: true,
+        finalScore: true,
+        subjectStatus: true,
+        term1Closed: true,
+        term2Closed: true,
+        // Valoración parcial de cada cuatrimestre
+        preliminaryAssessment1: true,
+        preliminaryAssessment2: true,
+        // Nota con la que recuperó el 1.º durante el 2.º: es la nota final en ese caso
+        term1IntensificationScore: true,
+      },
     },
-    select: { id: true, period: true, resultCode: true, score: true, knowledgeAtClose: true },
-  },
-} satisfies Prisma.EnrollmentSelect
+    // Intentos de intensificación de diciembre y febrero/marzo, para sus columnas en la grilla
+    // La nota se guarda con el endpoint de resultados de la CRM-058, no desde acá.
+    intensifications: {
+      where: {
+        period: { in: [IntensificationPeriod.DECEMBER, IntensificationPeriod.FEBRUARY_MARCH] },
+      },
+      select: { id: true, period: true, resultCode: true, score: true, knowledgeAtClose: true },
+    },
+  }) satisfies Prisma.EnrollmentSelect
 
 // GET /grades/roster: alumnos de una materia/sección/año con su enrollmentId y su nota (si existe).
 // Es la grilla de calificaciones: una fila por alumno, tenga o no nota cargada.
@@ -98,7 +116,7 @@ export async function getGradeRoster(query: GradeRosterQuery) {
       subjectId: query.subjectId,
       academicYear: { year: query.year },
     },
-    select: gradeRosterSelect,
+    select: gradeRosterSelect(query.year),
     orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
   })
 }
