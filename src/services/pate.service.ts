@@ -736,6 +736,25 @@ export async function changePateStatus(id: string, status: PateStatus, actor: Ac
 
   return getPate(id)
 }
+function formatShift(shift: string): string {
+  const labels: Record<string, string> = {
+    MORNING: 'Mañana',
+    AFTERNOON: 'Tarde',
+    EVENING: 'Vespertino',
+    EXTRA_TIME: 'Contraturno',
+  }
+  return labels[shift] ?? shift
+}
+
+function formatSchoolDate(isoDate: string): string {
+  // Convierte "YYYY-MM-DD" a "DD/MM/YYYY"
+  const parts = isoDate.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return isoDate
+}
+
 export async function generatePatePdf(id: string): Promise<Buffer> {
   const pateRaw = await findPateOrFail(id)
   if (pateRaw.status === 'DRAFT') {
@@ -749,27 +768,60 @@ export async function generatePatePdf(id: string): Promise<Buffer> {
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    doc.fontSize(16).text('Notificación a familia - Plan de Acompañamiento (PATE)', { align: 'center' })
+    doc
+      .fontSize(16)
+      .text('Notificación a familia - Plan de Acompañamiento (PATE)', { align: 'center' })
     doc.moveDown()
-    doc.fontSize(11).text(`Alumno: ${pate.student.lastName}, ${pate.student.firstName} (DNI ${pate.student.dni})`)
+    doc
+      .fontSize(11)
+      .text(`Alumno: ${pate.student.lastName}, ${pate.student.firstName} (DNI ${pate.student.dni})`)
     doc.text(`Ciclo lectivo: ${pate.year}`)
-    const statusLabel = pate.status === 'DRAFT' ? 'Borrador' : pate.status === 'IN_PROGRESS' ? 'En curso' : 'Cerrado'
+    const statusLabel =
+      pate.status === 'DRAFT' ? 'Borrador' : pate.status === 'IN_PROGRESS' ? 'En curso' : 'Cerrado'
     doc.text(`Estado: ${statusLabel}`)
-    if (pate.diagnosis) { doc.moveDown(); doc.text('Diagnóstico:', { underline: true }); doc.text(pate.diagnosis) }
-    if (pate.supportStrategies) { doc.moveDown(); doc.text('Estrategias de acompañamiento:', { underline: true }); doc.text(pate.supportStrategies) }
-    if (pate.schedule) { doc.moveDown(); doc.text('Cronograma:', { underline: true }); doc.text(pate.schedule) }
+
+    if (pate.diagnosis) {
+      doc.moveDown()
+      doc.text('Diagnóstico:', { underline: true })
+      doc.text(pate.diagnosis)
+    }
+    if (pate.supportStrategies) {
+      doc.moveDown()
+      doc.text('Estrategias de acompañamiento:', { underline: true })
+      doc.text(pate.supportStrategies)
+    }
+    if (pate.schedule) {
+      doc.moveDown()
+      doc.text('Cronograma:', { underline: true })
+      doc.text(pate.schedule)
+    }
 
     doc.moveDown()
     doc.text('Materias a intensificar:', { underline: true })
-    if (pate.subjectsToIntensify.length === 0) doc.text('Ninguna')
-    for (const s of pate.subjectsToIntensify) {
-      doc.text(`- ${s.subjectName} (MPAA: materia pendiente de acreditación y aprobación) - Modelo ${s.model.replace('MODEL_', '')}${s.targetClassSection ? ` - ${s.targetClassSection.grade}° ${s.targetClassSection.division} (${s.targetClassSection.shift})` : ''}`)
+    if (pate.subjectsToIntensify.length === 0) {
+      doc.text('Ninguna')
+    } else {
+      doc.fontSize(9).text('Nota: MPAA refiere a materia pendiente de acreditación y aprobación.')
+      doc.fontSize(11)
+      for (const s of pate.subjectsToIntensify) {
+        const secText = s.targetClassSection
+          ? ` - ${secSectionText(s.targetClassSection.grade, s.targetClassSection.division, s.targetClassSection.shift)}`
+          : ''
+        doc.text(`- ${s.subjectName} - Modelo ${s.model.replace('MODEL_', '')}${secText}`)
+      }
     }
+
     doc.moveDown()
     doc.text('Materias a recursar:', { underline: true })
-    if (pate.subjectsToRepeat.length === 0) doc.text('Ninguna')
-    for (const s of pate.subjectsToRepeat) {
-      doc.text(`- ${s.subjectName}${s.classSection ? ` - ${s.classSection.grade}° ${s.classSection.division} (${s.classSection.shift})` : ''}`)
+    if (pate.subjectsToRepeat.length === 0) {
+      doc.text('Ninguna')
+    } else {
+      for (const s of pate.subjectsToRepeat) {
+        const sec = s.classSection
+          ? ` - ${secSectionText(s.classSection.grade, s.classSection.division, s.classSection.shift)}`
+          : ''
+        doc.text(`- ${s.subjectName}${sec}`)
+      }
     }
 
     doc.moveDown(2)
@@ -777,8 +829,12 @@ export async function generatePatePdf(id: string): Promise<Buffer> {
     doc.moveDown()
     doc.text('Firma autoridad: ____________________   Aclaración: ____________________')
     doc.moveDown()
-    doc.text(`Fecha: ${todayInSchoolTimeZone()}`)
+    doc.text(`Fecha: ${formatSchoolDate(todayInSchoolTimeZone())}`)
 
     doc.end()
   })
+}
+
+function secSectionText(grade: number, division: string, shift: string): string {
+  return `${grade}° ${division} (Turno ${formatShift(shift)})`
 }
