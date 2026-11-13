@@ -235,6 +235,11 @@ export async function assignIntensifications(input: AssignIntensificationsInput)
           intensifications: { where: { scheduleId: input.scheduleId }, select: { id: true } },
         },
       },
+      // Recursados en curso: no se intensifica y se recursa a la vez (CRM-082)
+      repeatEnrollments: {
+        where: { subjectStatus: SubjectStatus.IN_PROGRESS },
+        select: { id: true },
+      },
     },
   })
   if (pendings.length !== new Set(input.pendingSubjectIds).size) {
@@ -262,6 +267,9 @@ export async function assignIntensifications(input: AssignIntensificationsInput)
     }
     if (pending.originEnrollment.intensifications.length > 0) {
       throw new HttpError(409, `${name} ya está asignado a este período en esta materia`)
+    }
+    if (pending.repeatEnrollments.length > 0) {
+      throw new HttpError(409, `${name} está recursando esta materia: no se puede intensificar`)
     }
     const gradeLevel =
       pending.originEnrollment.originalGradeLevel ?? pending.originEnrollment.subject.gradeLevel

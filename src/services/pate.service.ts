@@ -21,8 +21,11 @@ import {
   type PateSubjectToRepeat,
   type UpdatePateInput,
 } from '@/schemas/pate.schema'
+import { getMyEdteMemberships } from '@/services/edteTeamMember.service'
 import { MODELS_BY_OPTION } from '@/services/intensification.service'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
+import { MAX_SUBJECTS_PER_CYCLE } from '@/services/subjectEnrollmentLimit'
+import { createSubjectRepeat } from '@/services/subjectRepeat.service'
 import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
 import { toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
@@ -30,10 +33,6 @@ import { toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 // PATE (E4-RF-06, RN-012 y RN-013, CRM-078)
 
 type DbClient = Prisma.TransactionClient | typeof prisma
-
-// Máximo de materias por ciclo, cursadas y recursadas (A5, incs. 14 a 16; RN-013).
-// Provisorio hasta que se fusione CRM-061 (PR #57): entonces se usa su assertSubjectLimit.
-const MAX_SUBJECTS_PER_CYCLE = 12
 
 const modelNumber = (model: IntensificationModel) => model.replace('MODEL_', '')
 
@@ -51,7 +50,10 @@ export async function allowedModels(db: DbClient = prisma) {
   }
 }
 
-// Materias del alumno en el ciclo (cursadas y recursadas). Provisorio hasta CRM-061.
+// Materias del alumno en el ciclo (cursadas y recursadas), para el límite de CRM-061. No se usa su
+// assertSubjectLimit porque corta en el primer error, y el PATE devuelve todos los errores juntos;
+// el máximo sí sale de ahí (MAX_SUBJECTS_PER_CYCLE). Al crear las recursadas, CRM-082 lo valida
+// con assertSubjectLimit
 export function countSubjectsInCycle(db: DbClient, studentId: string, academicYearId: string) {
   return db.enrollment.count({ where: { studentId, academicYearId } })
 }
@@ -319,6 +321,24 @@ async function resolvePateCycle(edteMeetingId: string | null | undefined) {
   return { meetingId: null, academicYear: active }
 }
 
+// El alumno tiene que estar entre los tratados en la reunión del EDTE de donde sale el PATE (CRM-075)
+async function assertTreatedInMeeting(
+  edteMeetingId: string,
+  studentId: string,
+  studentName: string
+) {
+  const treated = await prisma.edteMeetingStudent.findUnique({
+    where: { edteMeetingId_studentId: { edteMeetingId, studentId } },
+    select: { id: true },
+  })
+  if (!treated) {
+    throw new HttpError(
+      409,
+      `${studentName} no está entre los alumnos tratados en esa reunión del EDTE`
+    )
+  }
+}
+
 // Si hay errores en las materias, se devuelven todos juntos (en details.errors)
 function throwIfErrors(errors: string[]) {
   if (errors.length > 0) {
@@ -359,7 +379,7 @@ const auditSubjects = (data: {
 //   donde el alumno intensifica o recursa), y solo la parte curricular: materias, modelo y
 //   sección, sin diagnóstico, estrategias ni cronograma.
 // - Preceptor: la parte curricular de todos (todavía no hay un vínculo entre preceptor y sección).
-// Cuando esté CRM-071, los integrantes del plantel del EDTE ven todo, como la dirección.
+// - Integrantes activos del plantel del EDTE (CRM-071): todo, como la dirección, sea cual sea su rol.
 
 interface Viewer {
   userId: string
@@ -368,7 +388,11 @@ interface Viewer {
 
 const FULL_ACCESS_ROLES: Role[] = [Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE]
 
-const hasFullAccess = (viewer: Viewer) => FULL_ACCESS_ROLES.includes(viewer.role)
+// Ve el PATE completo por su rol o por integrar el plantel del EDTE
+async function hasFullAccess(viewer: Viewer) {
+  if (FULL_ACCESS_ROLES.includes(viewer.role)) return true
+  return (await getMyEdteMemberships(viewer.userId)).isMember
+}
 
 // Parte curricular: sin los datos pedagógicos reservados del EDTE
 function toCurricularView(pate: ReturnType<typeof toPateResponse>) {
@@ -382,9 +406,9 @@ function toCurricularView(pate: ReturnType<typeof toPateResponse>) {
   }
 }
 
-function forViewer(pate: PateWithRelations, viewer: Viewer) {
+function forViewer(pate: PateWithRelations, fullAccess: boolean) {
   const response = toPateResponse(pate)
-  return hasFullAccess(viewer) ? { ...response, view: 'FULL' as const } : toCurricularView(response)
+  return fullAccess ? { ...response, view: 'FULL' as const } : toCurricularView(response)
 }
 
 // Filtro de los PATE que ve un docente: los de sus alumnos
@@ -409,7 +433,9 @@ async function teacherScope(teacherId: string): Promise<Prisma.PateWhereInput> {
 
 // Listado: por alumno, ciclo o estado, según lo que puede ver quien consulta
 export async function listPates(query: ListPatesQuery, viewer: Viewer) {
-  const scope = viewer.role === Role.TEACHER ? await teacherScope(viewer.userId) : {}
+  const fullAccess = await hasFullAccess(viewer)
+  // Un docente que integra el plantel del EDTE ve todos, no solo los de sus alumnos
+  const scope = viewer.role === Role.TEACHER && !fullAccess ? await teacherScope(viewer.userId) : {}
   const pates = await prisma.pate.findMany({
     where: {
       ...scope,
@@ -420,12 +446,13 @@ export async function listPates(query: ListPatesQuery, viewer: Viewer) {
     include: pateInclude,
     orderBy: [{ academicYear: { year: 'desc' } }, { student: { lastName: 'asc' } }],
   })
-  return pates.map((pate) => forViewer(pate, viewer))
+  return pates.map((pate) => forViewer(pate, fullAccess))
 }
 
 // Detalle para quien consulta (con los mismos permisos que el listado)
 export async function getPateForViewer(id: string, viewer: Viewer) {
-  if (viewer.role === Role.TEACHER) {
+  const fullAccess = await hasFullAccess(viewer)
+  if (viewer.role === Role.TEACHER && !fullAccess) {
     const visible = await prisma.pate.findFirst({
       where: { id, ...(await teacherScope(viewer.userId)) },
       select: { id: true },
@@ -435,7 +462,7 @@ export async function getPateForViewer(id: string, viewer: Viewer) {
       throw new HttpError(404, 'PATE no encontrado')
     }
   }
-  return forViewer(await findPateOrFail(id), viewer)
+  return forViewer(await findPateOrFail(id), fullAccess)
 }
 
 // Detalle completo, para las acciones de gestión (alta, edición y cambio de estado)
@@ -443,9 +470,8 @@ export async function getPate(id: string) {
   return { ...toPateResponse(await findPateOrFail(id)), view: 'FULL' as const }
 }
 
-// Alta en borrador. El ciclo es el de la reunión del EDTE, si viene; si no, el ciclo activo.
-// Cuando esté CRM-075, la reunión pasa a ser obligatoria y se valida que el alumno esté entre
-// sus alumnos tratados.
+// Alta en borrador. El PATE sale de una reunión del EDTE (CRM-075): el ciclo es el de la reunión y
+// el alumno tiene que estar entre los tratados en ella.
 export async function createPate(input: CreatePateInput, actor: Actor) {
   const [student, cycle] = await Promise.all([
     prisma.student.findUnique({
@@ -460,6 +486,7 @@ export async function createPate(input: CreatePateInput, actor: Actor) {
     throw new HttpError(409, `${studentName} no está activo`)
   }
   const { academicYear, meetingId } = cycle
+  await assertTreatedInMeeting(input.edteMeetingId, student.id, studentName)
   await assertReferred(student.id, academicYear.year, studentName)
 
   const existing = await prisma.pate.findUnique({
@@ -680,7 +707,8 @@ const STATUS_LABELS: Record<PateStatus, string> = {
 }
 
 // Confirmar: se vuelven a validar todas las materias dentro de la transacción, con la fila del
-// alumno bloqueada, para que dos pedidos a la vez no pasen el límite de 12.
+// alumno bloqueada, para que dos pedidos a la vez no pasen el límite de 12, y se crean las
+// inscripciones de las materias a recursar (CRM-082).
 // Cerrar: solo cambia el estado.
 export async function changePateStatus(id: string, status: PateStatus, actor: Actor) {
   const pate = await findPateOrFail(id)
@@ -709,9 +737,29 @@ export async function changePateStatus(id: string, status: PateStatus, actor: Ac
           })),
         })
       )
-      // CRM-082: acá se crean las inscripciones REPEAT de subjectsToRepeat (con
-      // createSubjectRepeat) y se guarda cada una en repeatEnrollmentId, en esta misma
-      // transacción: si alguna falla, no se confirma el PATE.
+      // Recursadas (CRM-082): se crea la inscripción REPEAT de cada materia a recursar, en el ciclo
+      // del PATE, y se guarda en repeatEnrollmentId. En esta misma transacción: si alguna falla,
+      // no se confirma el PATE ni queda ninguna inscripción creada.
+      for (const item of pate.subjectsToRepeat) {
+        try {
+          const repeat = await createSubjectRepeat(
+            tx,
+            { pendingSubjectId: item.pendingSubjectId, classSectionId: item.classSectionId },
+            actor,
+            pate.academicYear
+          )
+          await tx.pateSubjectRepeat.update({
+            where: { id: item.id },
+            data: { repeatEnrollmentId: repeat.id },
+          })
+        } catch (err) {
+          // El mensaje dice de qué materia se trata
+          if (err instanceof HttpError) {
+            throw new HttpError(err.status, `${item.pendingSubject.subject.name}: ${err.message}`)
+          }
+          throw err
+        }
+      }
     }
 
     // Solo si no cambió de estado mientras tanto (dos pedidos a la vez)

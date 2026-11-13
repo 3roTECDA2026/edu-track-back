@@ -22,6 +22,7 @@ import { edteDashboardRouter } from '@/routes/edteDashboard.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { pateRouter } from '@/routes/pate.routes'
+import { subjectRepeatRouter } from '@/routes/subjectRepeat.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
 import { legalConflictRouter } from '@/routes/legalConflict.routes'
@@ -72,5 +73,7 @@ router.use('/promotion', promotionRouter)
 router.use('/forte-plans', fortePlanRouter)
 // Derivación al EDTE: alumnos con 5 o más MPAA (CRM-073)
 router.use('/edte-referrals', edteReferralRouter)
+// Recursado de materias (CRM-082)
+router.use('/subject-repeats', subjectRepeatRouter)
 
 export default router
