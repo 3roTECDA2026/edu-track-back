@@ -47,7 +47,7 @@ export function sectionBlockReason(
   activeCycle: RepeatCycleInfo
 ): string | null {
   if (section.academicYearId !== activeCycle.id) {
-    return 'La sección elegida no es del ciclo lectivo activo'
+    return `La sección elegida no es del ciclo ${activeCycle.year}, en el que se recursa`
   }
   if (section.grade !== gradeLevel) {
     return `La materia es de ${gradeLevel}.º año: la sección tiene que ser de ese año`

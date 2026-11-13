@@ -14,7 +14,7 @@ import { sendSuccess } from '@/utils/apiResponse'
 // Quién hace la acción, a partir del token (para la auditoría)
 function getActor(req: Request): subjectRepeatService.Actor {
   const user = getAuthUser(req)
-  return { userId: user.userId, role: user.role, ipAddress: req.ip ?? 'unknown' }
+  return { userId: user.userId, ipAddress: req.ip ?? 'unknown' }
 }
 
 export async function listSubjectRepeats(req: Request, res: Response) {

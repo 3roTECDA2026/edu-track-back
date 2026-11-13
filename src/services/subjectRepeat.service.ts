@@ -1,4 +1,4 @@
-import { AuditActionType, CourseType, PendingSubjectStatus, Prisma, Role } from '@prisma/client'
+import { AuditActionType, CourseType, PendingSubjectStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type {
@@ -22,7 +22,6 @@ import {
 // Quién hace la acción (para la auditoría)
 export interface Actor {
   userId: string
-  role: Role
   ipAddress: string
 }
 
@@ -130,12 +129,15 @@ const toRepeatPendingInfo = (pending: PendingForRepeat) => ({
   attempts: pending.originEnrollment.intensifications,
 })
 
-// Crea el recursado dentro de la transacción que recibe. Queda exportada para que el PATE la
-// llame al confirmarse (CRM-078), en su propia transacción: si falla, no se confirma el PATE.
+// Crea el recursado dentro de la transacción que recibe. La usa el PATE al confirmarse (CRM-078),
+// en su propia transacción: si falla, no se confirma el PATE.
+// `cycle`: el ciclo en que se recursa. Sin él, el ciclo activo (alta manual); el PATE pasa el suyo,
+// que es el de su reunión del EDTE y puede no ser el activo todavía.
 export async function createSubjectRepeat(
   tx: Prisma.TransactionClient,
   input: CreateSubjectRepeatInput,
-  actor: Actor
+  actor: Actor,
+  cycle?: { id: string; year: number }
 ) {
   const pending = await tx.pendingSubject.findUnique({
     where: { id: input.pendingSubjectId },
@@ -147,17 +149,17 @@ export async function createSubjectRepeat(
   // alumno se ejecutan de a una. Lo necesita el control del límite de materias (CRM-061).
   await tx.$queryRaw`SELECT id FROM "Student" WHERE id = ${pending.studentId} FOR UPDATE`
 
-  const [activeCycle, section] = await Promise.all([
-    getActiveCycleOrFail(tx),
+  const [repeatCycle, section] = await Promise.all([
+    cycle ?? getActiveCycleOrFail(tx),
     findSectionOrFail(tx, input.classSectionId),
   ])
 
-  const reason = repeatBlockReason(toRepeatPendingInfo(pending), section, activeCycle)
+  const reason = repeatBlockReason(toRepeatPendingInfo(pending), section, repeatCycle)
   if (reason) throw new HttpError(409, reason)
 
   // Límite de 12 materias por ciclo, cursadas y recursadas (E3-RF-13, CRM-061). Se cuenta con la
   // fila del alumno ya bloqueada, así dos altas simultáneas no pueden pasarse del máximo
-  await assertSubjectLimit(pending.studentId, activeCycle.id, 1, tx)
+  await assertSubjectLimit(pending.studentId, repeatCycle.id, 1, tx)
 
   try {
     const created = await tx.enrollment.create({
@@ -165,7 +167,7 @@ export async function createSubjectRepeat(
         studentId: pending.studentId,
         subjectId: pending.subjectId,
         classSectionId: section.id,
-        academicYearId: activeCycle.id,
+        academicYearId: repeatCycle.id,
         courseType: CourseType.REPEAT,
         originalGradeLevel: gradeLevelOf(pending),
         repeatedPendingSubjectId: pending.id,
@@ -175,13 +177,13 @@ export async function createSubjectRepeat(
     await writeAudit(tx, actor, AuditActionType.CREATE, created.id, null, {
       pendingSubjectId: pending.id,
       classSectionId: section.id,
-      academicYearId: activeCycle.id,
+      academicYearId: repeatCycle.id,
     })
     return toSubjectRepeatResponse(created)
   } catch (err) {
     // Único de Enrollment: una sola inscripción REPEAT por alumno, materia y ciclo
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw new HttpError(409, 'El alumno ya recursa esta materia en el ciclo activo')
+      throw new HttpError(409, `El alumno ya recursa esta materia en el ciclo ${repeatCycle.year}`)
     }
     throw err
   }

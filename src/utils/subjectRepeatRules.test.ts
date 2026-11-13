@@ -53,7 +53,7 @@ describe('recursado de una MPAA (CRM-082)', () => {
       section({ academicYearId: 'ciclo-2025' }),
       activeCycle
     )
-    assert.match(reason ?? '', /ciclo lectivo activo/)
+    assert.match(reason ?? '', /no es del ciclo 2026/)
   })
 
   it('no se puede en una sección de otro año que la materia', () => {
