@@ -795,7 +795,7 @@ model PateSubjectRepeat {
   pendingSubjectId   String // ID de la MPAA
   classSection       ClassSection   @relation(fields: [classSectionId], references: [id]) // Sección donde recursa
   classSectionId     String // ID de esa sección
-  repeatEnrollment   Enrollment?    @relation("PateRepeatEnrollment", fields: [repeatEnrollmentId], references: [id]) // Inscripción REPEAT creada (CRM-082)
+  repeatEnrollment   Enrollment?    @relation("PateRepeatEnrollment", fields: [repeatEnrollmentId], references: [id], onDelete: Restrict) // Inscripción REPEAT creada (CRM-082): no se puede borrar mientras el PATE la use
   repeatEnrollmentId String?        @unique // ID de esa inscripción
 
   @@unique([pateId, pendingSubjectId]) // Unicidad de materia a recursar por PATE
