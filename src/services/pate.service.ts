@@ -20,6 +20,7 @@ import {
   type UpdatePateInput,
 } from '@/schemas/pate.schema'
 import { MODELS_BY_OPTION } from '@/services/intensification.service'
+import { getReferredStudentIds } from '@/services/promotionDecision.service'
 import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
 import { toDay } from '@/utils/schoolDate'
@@ -213,7 +214,6 @@ interface Actor {
 }
 
 const ENROLLED_STATUSES: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.CONDITIONAL]
-const MIN_PENDING_TO_REFER = 5 // RN-012: 5 o más MPAA
 
 const sectionSelect = { select: { id: true, grade: true, division: true, shift: true } } as const
 const pendingSelect = {
@@ -298,25 +298,6 @@ async function findPateOrFail(id: string, db: DbClient = prisma) {
   return pate
 }
 
-// Alumnos derivados al EDTE al cierre del ciclo anterior: 5 o más MPAA pendientes (RN-012).
-// Provisorio: CRM-075 tiene la misma función (getReferredStudentIds en edteMeeting.service) y
-// CRM-073 la reemplaza por su listado de derivación. Cuando estén en develop, se unifica.
-async function getReferredStudentIds(closedYear: number, studentIds: string[]) {
-  // groupBy con `having` sobre el conteo: sintaxis soportada por Prisma (probada con 4 y con 5
-  // MPAA: con 4 no devuelve al alumno, con 5 sí)
-  const groups = await prisma.pendingSubject.groupBy({
-    by: ['studentId'],
-    where: {
-      studentId: { in: studentIds },
-      status: PendingSubjectStatus.PENDING,
-      originAcademicYear: { year: { lte: closedYear } },
-    },
-    _count: { _all: true },
-    having: { studentId: { _count: { gte: MIN_PENDING_TO_REFER } } },
-  })
-  return groups.map((group) => group.studentId)
-}
-
 // Ciclo del PATE: el de la reunión del EDTE, si viene; si no, el ciclo activo
 async function resolvePateCycle(edteMeetingId: string | null | undefined) {
   if (edteMeetingId) {
@@ -343,13 +324,14 @@ function throwIfErrors(errors: string[]) {
   }
 }
 
-// El alumno tiene que estar derivado al EDTE al cierre del ciclo anterior (RN-012)
+// El alumno tiene que estar derivado al EDTE al cierre del ciclo anterior (RN-012): lo decide el
+// motor de promoción (CRM-062), y se lee de sus decisiones (CRM-073)
 async function assertReferred(studentId: string, year: number, studentName: string) {
   const referred = await getReferredStudentIds(year - 1, [studentId])
   if (!referred.includes(studentId)) {
     throw new HttpError(
       409,
-      `${studentName} no está derivado al EDTE: hacen falta ${MIN_PENDING_TO_REFER} o más materias pendientes`
+      `${studentName} no está derivado al EDTE: el motor de promoción del ciclo ${year - 1} no lo derivó`
     )
   }
 }
