@@ -1650,6 +1650,7 @@ export async function main() {
       '00000000-0000-0000-0000-000000005305',
     ],
     meeting: '00000000-0000-0000-0000-000000005401', // Reunión de febrero/marzo de 2026
+    history2025: '00000000-0000-0000-0000-000000005310', // Su matrícula en 2° A de 2025
   }
 
   const year2025 = await prisma.academicYear.upsert({
@@ -1738,6 +1739,22 @@ export async function main() {
       },
     })
   }
+
+  // Su matrícula en 2° A de 2025, cerrada a fin de año. Es de donde sale el curso del ciclo cerrado
+  // en el listado de derivación (CRM-073) y en la pantalla de derivados (CRM-074); sin ella, Mateo
+  // figura "Sin curso". No pisa su matrícula de 2026, que es la abierta
+  await prisma.enrollmentHistory.upsert({
+    where: { id: referralIds.history2025 },
+    update: {},
+    create: {
+      id: referralIds.history2025,
+      studentId: referredStudentId,
+      classSectionId: referralIds.section2025,
+      startDate: new Date('2025-03-03T03:00:00.000Z'),
+      endDate: new Date('2025-12-31T03:00:00.000Z'),
+      leaveReason: 'Fin del ciclo 2025',
+    },
+  })
 
   // Decisión del motor de promoción al cierre de 2025 (CRM-062): Mateo queda derivado al EDTE.
   // Las reuniones (CRM-075) y el PATE (CRM-078) leen los derivados de estas decisiones (CRM-073),
