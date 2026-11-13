@@ -184,7 +184,7 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
     temprana) y 5 (derivados) salen de E6-RF-02; una TED como alerta, de E6-RF-03; "2 o más TED =
     rojo" es una propuesta del equipo, no de un requerimiento. Las reglas tienen tests
     (`utils/edteRisk.test.ts`).
-  - **Provisorio:** el PATE en curso (`getActivePates`) devuelve vacío hasta CRM-078.
+  - El PATE en curso (`getActivePates`) son los PATE `IN_PROGRESS` del ciclo activo (CRM-078).
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
   TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
   usa todavía en `requireRole`, así que un preceptor puede iniciar sesión pero no accede a
@@ -286,8 +286,10 @@ Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque
 de distintos recursos y puede pisar otras.
 
 **PATE (CRM-078, E4-RF-06, RN-012 y RN-013):**
-- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior. El ciclo es
-  el de la reunión del EDTE si viene; si no, el ciclo activo.
+- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior.
+- Sale de una reunión del EDTE (CRM-075): `edteMeetingId` es obligatorio, el ciclo es el de la
+  reunión y el alumno tiene que estar entre los tratados (409 si no). En `/options` la reunión es
+  opcional (sin ella se usa el ciclo activo), para poder armar el formulario antes de elegirla.
 - **Derivados al EDTE:** son los que el motor de promoción (CRM-062) decidió `REFERRED_TO_EDTE`
   (RN-012, CRM-073). No se recuentan las MPAA: si el motor no se ejecutó para ese ciclo, no hay
   derivados. Una sola función para todos: `getReferredStudentIds` en
@@ -308,11 +310,11 @@ de distintos recursos y puede pisar otras.
     recursa) y en versión curricular (`view: 'CURRICULAR'`: sin diagnóstico, estrategias,
     cronograma ni notificación). Si no es de sus alumnos, `GET /:id` responde 404;
   - preceptor: la versión curricular de todos (no hay vínculo entre preceptor y sección);
-  - cuando esté CRM-071, los integrantes del plantel del EDTE ven todo.
-- **Provisorio:**
-  - la reunión del EDTE es opcional hasta que esté CRM-075; después pasa a ser obligatoria y se
-    valida que el alumno esté entre sus tratados;
-  - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57).
+  - integrantes activos del plantel del EDTE (CRM-071): todos, completos, sea cual sea su rol
+    (un docente integrante no queda limitado a sus alumnos).
+- El límite de 12 usa el máximo de CRM-061 (`MAX_SUBJECTS_PER_CYCLE`). No se usa
+  `assertSubjectLimit` porque corta en el primer error y el PATE devuelve todos juntos; al crear
+  las recursadas, CRM-082 sí lo usa.
 - Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
   la misma tabla que usa la asignación de CRM-056.
 
