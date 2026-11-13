@@ -341,8 +341,9 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
   de la materia. El turno puede ser otro que el del alumno (contraturno). No hace falta tener 5
   o más MPAA: lo decide Gestión Escolar, y queda auditado quién lo asignó.
 - No se recursa una MPAA con una intensificación sin resultado.
-- Al editar solo cambia la sección. Se quita solo si no tiene notas, asistencia ni
-  intensificaciones.
+- Al editar solo cambia la sección. Si el recursado lo creó un PATE, el cambio también se guarda en
+  el PATE (`PateSubjectRepeat.classSectionId`), en la misma transacción. Se quita solo si no tiene
+  notas, asistencia ni intensificaciones.
 - `createSubjectRepeat(tx, input, actor, cycle?)` recibe la transacción y, opcional, el ciclo: sin
   él usa el activo (alta manual); el PATE pasa el suyo.
 - Cierre del ciclo: si el recursado aprueba, su MPAA queda `ACCREDITED` con la nota del
@@ -356,7 +357,9 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
   en el ciclo del PATE, y se guarda en `PateSubjectRepeat.repeatEnrollmentId`. Va en la misma
   transacción: si una falla (por ejemplo, el límite de 12), no se confirma el PATE. El error dice de
   qué materia se trata.
-- Un recursado creado por un PATE no se puede quitar a mano (409): está vinculado al PATE.
+- Un recursado creado por un PATE no se puede quitar a mano (409): el servicio lo controla antes de
+  borrar, y la FK `PateSubjectRepeat.repeatEnrollmentId` es `RESTRICT`. La respuesta trae `pateId`
+  (null si se asignó a mano).
 
 ## 10. Git y Pull Requests
 
