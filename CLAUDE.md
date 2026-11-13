@@ -318,6 +318,21 @@ de distintos recursos y puede pisar otras.
 - Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
   la misma tabla que usa la asignación de CRM-056.
 
+**Adjuntos de intervenciones (CRM-087, E4-RF-12):**
+- Endpoints: `POST /interventions/:id/attachments` (multipart, campo `files`, hasta 10 archivos),
+  `GET /interventions/:id/attachments` (listado) y `GET /interventions/:id/attachments/:attachmentId`
+  (descarga del archivo, no JSON).
+- Tipos permitidos: jpg, png, pdf y docx, hasta 10 MB cada uno (`utils/attachmentFileType.ts`). Se
+  valida la extensión **y** los primeros bytes del archivo, no el tipo que manda el navegador.
+- Subir: quien puede editar la intervención (el autor, dentro de las 48 hs, `assertCanEdit`).
+  Ver y descargar: quien puede ver la intervención (misma regla que `GET /interventions/:id`).
+  Los archivos nunca se sirven por URL pública.
+- **Dónde se guardan:** a través de `fileStorage` (`src/lib/storage`). Es una *factory* que elige
+  la implementación con `STORAGE_DRIVER` del `.env`; hoy solo existe `local` (carpeta `UPLOADS_DIR`,
+  por defecto `./uploads`, ignorada por git). Cuando la escuela defina otro lugar, se agrega una clase
+  que implemente `FileStorage` y su caso en `createFileStorage`, sin tocar services ni rutas.
+  En la base (`InterventionAttachment`) se guarda solo la clave (`storageKey`) y los datos del archivo.
+
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
 **Reuniones del EDTE (CRM-075, E4-RF-03):**

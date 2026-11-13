@@ -33,3 +33,5 @@ pnpm-debug.log*
 # OS generated files
 .DS_Store
 Thumbs.db
+# Archivos subidos (CRM-087): adjuntos de intervenciones
+/uploads

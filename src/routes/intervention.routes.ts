@@ -3,6 +3,7 @@ import { Router } from 'express'
 
 import * as interventionController from '@/controllers/intervention.controller'
 import { requireRole, verifyToken } from '@/middlewares/auth.middleware'
+import { uploadAttachments } from '@/middlewares/uploadAttachments'
 import { asyncHandler } from '@/utils/asyncHandler'
 
 export const interventionRouter = Router()
@@ -46,4 +47,32 @@ interventionRouter.put(
   verifyToken,
   requireRole(...INTERVENTION_ROLES),
   asyncHandler(interventionController.updateIntervention)
+)
+
+// ---- Adjuntos (CRM-087) ----
+
+// Subir uno o varios archivos (multipart, campo "files"). verifyToken va antes que multer:
+// así no se leen archivos de alguien sin sesión.
+interventionRouter.post(
+  '/:id/attachments',
+  verifyToken,
+  requireRole(...INTERVENTION_ROLES),
+  uploadAttachments,
+  asyncHandler(interventionController.uploadInterventionAttachments)
+)
+
+// Listar los adjuntos de una intervención
+interventionRouter.get(
+  '/:id/attachments',
+  verifyToken,
+  requireRole(...INTERVENTION_ROLES),
+  asyncHandler(interventionController.listInterventionAttachments)
+)
+
+// Descargar un adjunto (nunca por URL pública: siempre con token y permiso)
+interventionRouter.get(
+  '/:id/attachments/:attachmentId',
+  verifyToken,
+  requireRole(...INTERVENTION_ROLES),
+  asyncHandler(interventionController.downloadInterventionAttachment)
 )
