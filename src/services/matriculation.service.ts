@@ -10,6 +10,27 @@ import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
 import { decideDestination, type DestinationDecisionResult } from '@/utils/matriculationDestination'
 
+// Cierra únicamente los historiales activos del ciclo de origen. Un alumno puede tener
+// historiales activos de otros ciclos y no deben cerrarse en esta matriculación.
+export async function closeSourceEnrollmentHistories(
+  tx: Prisma.TransactionClient,
+  studentIds: string[],
+  fromYearId: string,
+  endDate: Date
+) {
+  return tx.enrollmentHistory.updateMany({
+    where: {
+      studentId: { in: studentIds },
+      endDate: null,
+      classSection: { academicYearId: fromYearId },
+    },
+    data: {
+      endDate,
+      leaveReason: 'Promoción al ciclo lectivo siguiente (matriculación continuada)',
+    },
+  })
+}
+
 export async function continueMatriculation(fromYearId: string, toYearId: string) {
   const [fromYear, toYear] = await Promise.all([
     prisma.academicYear.findUnique({
@@ -262,16 +283,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
 
       // 6. Impactar en base de datos de manera atómica
       if (historyUpdates.length > 0) {
-        await tx.enrollmentHistory.updateMany({
-          where: {
-            studentId: { in: historyUpdates },
-            endDate: null,
-          },
-          data: {
-            endDate: now,
-            leaveReason: 'Promoción al ciclo lectivo siguiente (matriculación continuada)',
-          },
-        })
+        await closeSourceEnrollmentHistories(tx, historyUpdates, fromYearId, now)
 
         await tx.enrollmentHistory.createMany({
           data: historyToCreate,
