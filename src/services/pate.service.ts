@@ -9,6 +9,8 @@ import {
   StudentStatus,
 } from '@prisma/client'
 
+import PDFDocument from 'pdfkit'
+
 import { prisma } from '@/lib/prisma'
 import {
   MAX_SUBJECTS_TO_INTENSIFY,
@@ -23,7 +25,7 @@ import { MODELS_BY_OPTION } from '@/services/intensification.service'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
 import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
-import { toDay } from '@/utils/schoolDate'
+import { toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
 // PATE (E4-RF-06, RN-012 y RN-013, CRM-078)
 
@@ -733,4 +735,106 @@ export async function changePateStatus(id: string, status: PateStatus, actor: Ac
   })
 
   return getPate(id)
+}
+function formatShift(shift: string): string {
+  const labels: Record<string, string> = {
+    MORNING: 'Mañana',
+    AFTERNOON: 'Tarde',
+    EVENING: 'Vespertino',
+    EXTRA_TIME: 'Contraturno',
+  }
+  return labels[shift] ?? shift
+}
+
+function formatSchoolDate(isoDate: string): string {
+  // Convierte "YYYY-MM-DD" a "DD/MM/YYYY"
+  const parts = isoDate.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return isoDate
+}
+
+export async function generatePatePdf(id: string): Promise<Buffer> {
+  const pateRaw = await findPateOrFail(id)
+  if (pateRaw.status === 'DRAFT') {
+    throw new HttpError(409, 'El PATE todavía está en borrador')
+  }
+  const pate = toPateResponse(pateRaw)
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50 })
+    const chunks: Buffer[] = []
+    doc.on('data', (c: Buffer) => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    doc
+      .fontSize(16)
+      .text('Notificación a familia - Plan de Acompañamiento (PATE)', { align: 'center' })
+    doc.moveDown()
+    doc
+      .fontSize(11)
+      .text(`Alumno: ${pate.student.lastName}, ${pate.student.firstName} (DNI ${pate.student.dni})`)
+    doc.text(`Ciclo lectivo: ${pate.year}`)
+    const statusLabel =
+      pate.status === 'DRAFT' ? 'Borrador' : pate.status === 'IN_PROGRESS' ? 'En curso' : 'Cerrado'
+    doc.text(`Estado: ${statusLabel}`)
+
+    if (pate.diagnosis) {
+      doc.moveDown()
+      doc.text('Diagnóstico:', { underline: true })
+      doc.text(pate.diagnosis)
+    }
+    if (pate.supportStrategies) {
+      doc.moveDown()
+      doc.text('Estrategias de acompañamiento:', { underline: true })
+      doc.text(pate.supportStrategies)
+    }
+    if (pate.schedule) {
+      doc.moveDown()
+      doc.text('Cronograma:', { underline: true })
+      doc.text(pate.schedule)
+    }
+
+    doc.moveDown()
+    doc.text('Materias a intensificar:', { underline: true })
+    if (pate.subjectsToIntensify.length === 0) {
+      doc.text('Ninguna')
+    } else {
+      doc.fontSize(9).text('Nota: MPAA refiere a materia pendiente de acreditación y aprobación.')
+      doc.fontSize(11)
+      for (const s of pate.subjectsToIntensify) {
+        const secText = s.targetClassSection
+          ? ` - ${secSectionText(s.targetClassSection.grade, s.targetClassSection.division, s.targetClassSection.shift)}`
+          : ''
+        doc.text(`- ${s.subjectName} - Modelo ${s.model.replace('MODEL_', '')}${secText}`)
+      }
+    }
+
+    doc.moveDown()
+    doc.text('Materias a recursar:', { underline: true })
+    if (pate.subjectsToRepeat.length === 0) {
+      doc.text('Ninguna')
+    } else {
+      for (const s of pate.subjectsToRepeat) {
+        const sec = s.classSection
+          ? ` - ${secSectionText(s.classSection.grade, s.classSection.division, s.classSection.shift)}`
+          : ''
+        doc.text(`- ${s.subjectName}${sec}`)
+      }
+    }
+
+    doc.moveDown(2)
+    doc.text('Firma adulto responsable: ____________________   Aclaración: ____________________')
+    doc.moveDown()
+    doc.text('Firma autoridad: ____________________   Aclaración: ____________________')
+    doc.moveDown()
+    doc.text(`Fecha: ${formatSchoolDate(todayInSchoolTimeZone())}`)
+
+    doc.end()
+  })
+}
+
+function secSectionText(grade: number, division: string, shift: string): string {
+  return `${grade}° ${division} (Turno ${formatShift(shift)})`
 }
