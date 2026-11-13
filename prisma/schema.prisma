@@ -165,9 +165,10 @@ enum EdteMeetingStatus {
 }
 
 enum PateStatus {
-  ACTIVE // PATE Activo
-  UNDER_FOLLOW_UP // PATE en Seguimiento
-  FINISHED // PATE Finalizado / Concluido
+  // Estado del PATE (CRM-078): se arma en borrador, se confirma (en curso) y se cierra
+  DRAFT // Borrador: se puede editar
+  IN_PROGRESS // En curso: confirmado, ya no se edita
+  CLOSED // Cerrado
 }
 
 enum TransferType {
@@ -245,6 +246,7 @@ model User {
   sentMessages                 Message[]              @relation("MessageSender") // Mensajes enviados
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
+  patesCreated                 Pate[]                 @relation("PateCreator") // PATE que cargó
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
   edteTeamMemberships          EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
   fortePlansInCharge           FortePlan[]            @relation("FortePlanResponsible") // Planes Forte a su cargo
@@ -297,6 +299,7 @@ model AcademicYear {
   enrollments        Enrollment[]
   rites              Rite[]
   edteMeetings       EdteMeeting[]
+  pates              Pate[] // PATE que se aplican en este ciclo
   calendarMilestones CalendarMilestone[]
   notifications      Notification[]
 }
@@ -323,12 +326,14 @@ model ClassSection {
   createdAt        DateTime          @default(now()) // Fecha de creación
 
   // Relaciones:
-  enrollments        Enrollment[] // Estudiantes matriculados en esta división
-  teacherAssignments TeacherSubjectCourse[] // Docentes asignados a esta división
-  enrollmentHistory  EnrollmentHistory[] // Historial de cambios de sección
-  curriculumSubjects CurriculumSubject[] // Materias de la currícula asociadas al curso
-  dailyAttendances   DailyAttendance[] // Asistencias diarias de la sección
-  interventions      Intervention[] // Intervenciones registradas en esta sección
+  enrollments           Enrollment[] // Estudiantes matriculados en esta división
+  teacherAssignments    TeacherSubjectCourse[] // Docentes asignados a esta división
+  enrollmentHistory     EnrollmentHistory[] // Historial de cambios de sección
+  curriculumSubjects    CurriculumSubject[] // Materias de la currícula asociadas al curso
+  dailyAttendances      DailyAttendance[] // Asistencias diarias de la sección
+  interventions         Intervention[] // Intervenciones registradas en esta sección
+  pateIntensifySubjects PateSubjectIntensify[] // Materias de PATE que se intensifican en esta sección (modelos 2 y 3)
+  pateRepeatSubjects    PateSubjectRepeat[] // Materias de PATE que se recursan en esta sección
 
   @@unique([grade, division, shift, academicYearId]) // No pueden repetirse divisiones iguales en el mismo ciclo
 }
@@ -504,12 +509,11 @@ model Enrollment {
   updatedAt DateTime @updatedAt // Fecha de modificación
 
   // Relaciones:
-  grade                 Grade? // Calificaciones obtenidas
-  intensifications      Intensification[] // Instancias de intensificación rendidas
-  subjectAttendances    SubjectAttendance[] // Registro de asistencia en esta materia
-  pateIntensifySubjects PateSubjectIntensify[] // Si forma parte de un PATE para intensificar
-  pateRepeatSubjects    PateSubjectRepeat[] // Si forma parte de un PATE para recursar
-  committeeSubjects     CommitteeSubject[] // Evaluación en comisiones evaluadoras
+  grade              Grade? // Calificaciones obtenidas
+  intensifications   Intensification[] // Instancias de intensificación rendidas
+  subjectAttendances SubjectAttendance[] // Registro de asistencia en esta materia
+  pateRepeatOrigin   PateSubjectRepeat?  @relation("PateRepeatEnrollment") // Si es la recursada creada al confirmar un PATE (CRM-082)
+  committeeSubjects  CommitteeSubject[] // Evaluación en comisiones evaluadoras
 
   @@unique([studentId, subjectId, academicYearId, courseType]) // Inscripción única por materia/año/condición
   @@index([academicYearId, subjectStatus]) // Índice para reportes de estado académico
@@ -734,47 +738,64 @@ model EdteTeamMember {
 // PATE — Plan de Acompañamiento a la Trayectoria Educativa
 // ============================================================================
 
+// PATE del alumno derivado al EDTE (E4-RF-06, CRM-078): uno por alumno y ciclo. Las materias a
+// intensificar y a recursar son MPAA del alumno. La reunión del EDTE es opcional hasta que se
+// puedan registrar reuniones (CRM-075); después pasa a ser obligatoria.
 model Pate {
-  id                String      @id @default(uuid()) // Identificador único
-  student           Student     @relation(fields: [studentId], references: [id]) // Estudiante asistido
+  id                String       @id @default(uuid()) // Identificador único
+  student           Student      @relation(fields: [studentId], references: [id]) // Estudiante asistido
   studentId         String // ID del estudiante
-  edteMeeting       EdteMeeting @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
-  edteMeetingId     String // ID de la reunión EDTE
+  academicYear      AcademicYear @relation(fields: [academicYearId], references: [id]) // Ciclo en que se aplica
+  academicYearId    String // ID del ciclo
+  edteMeeting       EdteMeeting? @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
+  edteMeetingId     String? // ID de la reunión EDTE (opcional hasta CRM-075)
   diagnosis         String // Diagnóstico pedagógico de la trayectoria
   supportStrategies String // Estrategias de acompañamiento e intervención acordadas
   schedule          String? // Cronograma de actividades/propuestas
-  status            PateStatus  @default(ACTIVE) // Estado actual del plan PATE
+  status            PateStatus   @default(DRAFT) // Borrador, en curso o cerrado
   notificationUrl   String? // Documento de notificación a la familia cargado
-  createdAt         DateTime    @default(now()) // Fecha de elaboración
+  createdBy         User?        @relation("PateCreator", fields: [createdById], references: [id]) // Quién lo cargó
+  createdById       String? // ID de ese usuario (vacío en PATE anteriores a CRM-078)
+  createdAt         DateTime     @default(now()) // Fecha de elaboración
+  updatedAt         DateTime     @default(now()) @updatedAt // Última modificación
 
   subjectsToIntensify PateSubjectIntensify[] // Materias a intensificar según el PATE
   subjectsToRepeat    PateSubjectRepeat[] // Materias que debe recursar según el PATE
   followUps           PateFollowUp[] // Seguimiento periódico de los avances del PATE
 
+  @@unique([studentId, academicYearId]) // Un PATE por alumno y ciclo
   @@index([studentId]) // Índice para consulta de PATE por estudiante
 }
 
+// MPAA que se intensifica (hasta 4 por PATE, A5 inc. 13), con su modelo y, en los modelos 2 y 3,
+// la sección donde intensifica (año, sección y turno)
 model PateSubjectIntensify {
-  id           String               @id @default(uuid()) // Identificador único
-  pate         Pate                 @relation(fields: [pateId], references: [id]) // Plan PATE asignado
-  pateId       String // ID del PATE
-  enrollment   Enrollment           @relation(fields: [enrollmentId], references: [id]) // Materia/Inscripción a intensificar
-  enrollmentId String // ID de inscripción
-  model        IntensificationModel // Modelo de intensificación elegido
-  location     String? // Espacio/Aula/Turno asignado para la intensificación
+  id                   String               @id @default(uuid()) // Identificador único
+  pate                 Pate                 @relation(fields: [pateId], references: [id]) // Plan PATE asignado
+  pateId               String // ID del PATE
+  pendingSubject       PendingSubject       @relation(fields: [pendingSubjectId], references: [id]) // MPAA a intensificar
+  pendingSubjectId     String // ID de la MPAA
+  model                IntensificationModel // Modelo de intensificación elegido
+  targetClassSection   ClassSection?        @relation(fields: [targetClassSectionId], references: [id]) // Sección donde intensifica (modelos 2 y 3)
+  targetClassSectionId String? // ID de esa sección
 
-  @@unique([pateId, enrollmentId]) // Unicidad de materia dentro del mismo PATE
+  @@unique([pateId, pendingSubjectId]) // Unicidad de materia dentro del mismo PATE
 }
 
+// MPAA que se recursa, con la sección donde la cursa (año, sección y turno). Al confirmar el PATE,
+// CRM-082 crea la inscripción REPEAT y la guarda en repeatEnrollmentId.
 model PateSubjectRepeat {
-  id           String     @id @default(uuid()) // Identificador único
-  pate         Pate       @relation(fields: [pateId], references: [id]) // Plan PATE asignado
-  pateId       String // ID del PATE
-  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id]) // Materia/Inscripción a recursar
-  enrollmentId String // ID de inscripción
-  location     String? // Espacio/Aula/Turno donde recursará
+  id                 String         @id @default(uuid()) // Identificador único
+  pate               Pate           @relation(fields: [pateId], references: [id]) // Plan PATE asignado
+  pateId             String // ID del PATE
+  pendingSubject     PendingSubject @relation(fields: [pendingSubjectId], references: [id]) // MPAA a recursar
+  pendingSubjectId   String // ID de la MPAA
+  classSection       ClassSection   @relation(fields: [classSectionId], references: [id]) // Sección donde recursa
+  classSectionId     String // ID de esa sección
+  repeatEnrollment   Enrollment?    @relation("PateRepeatEnrollment", fields: [repeatEnrollmentId], references: [id]) // Inscripción REPEAT creada (CRM-082)
+  repeatEnrollmentId String?        @unique // ID de esa inscripción
 
-  @@unique([pateId, enrollmentId]) // Unicidad de materia a recursar por PATE
+  @@unique([pateId, pendingSubjectId]) // Unicidad de materia a recursar por PATE
 }
 
 model PateFollowUp {
@@ -1132,6 +1153,9 @@ model PendingSubject {
   accreditedAt            DateTime? // Fecha en que se acreditó
   createdAt               DateTime             @default(now()) // Fecha de alta
   updatedAt               DateTime             @updatedAt // Fecha de modificación
+
+  pateIntensifySubjects PateSubjectIntensify[] // PATE en que se intensifica
+  pateRepeatSubjects    PateSubjectRepeat[] // PATE en que se recursa
 
   @@index([studentId, status]) // Índice para contar las MPAA de un alumno
 }

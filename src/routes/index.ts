@@ -20,6 +20,7 @@ import notificationRoutes from '@/routes/notification.routes'
 import { edteDashboardRouter } from '@/routes/edteDashboard.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
+import { pateRouter } from '@/routes/pate.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
 import { legalConflictRouter } from '@/routes/legalConflict.routes'
@@ -40,6 +41,8 @@ router.use('/edte-dashboard', edteDashboardRouter)
 router.use('/attendance', attendanceRouter)
 router.use('/notifications', notificationRoutes)
 router.use('/users', userRouter)
+// PATE (CRM-078)
+router.use('/pates', pateRouter)
 router.use('/institutional-config', institutionalConfigRouter)
 // Las rutas de cursos se montan también en la raíz para que /api/subjects siga funcionando
 router.use('/', courseRoutes)
