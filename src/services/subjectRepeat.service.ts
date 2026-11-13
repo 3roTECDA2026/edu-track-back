@@ -37,14 +37,18 @@ const subjectRepeatInclude = {
   },
   grade: { select: { id: true } },
   _count: { select: { subjectAttendances: true, intensifications: true } },
+  // Si lo creó un PATE al confirmarse (CRM-078)
+  pateRepeatOrigin: { select: { id: true, pateId: true } },
 } satisfies Prisma.EnrollmentInclude
 
 type SubjectRepeatRecord = Prisma.EnrollmentGetPayload<{ include: typeof subjectRepeatInclude }>
 
 function toSubjectRepeatResponse(record: SubjectRepeatRecord) {
-  const { grade, _count, repeatedPendingSubject, ...rest } = record
+  const { grade, _count, repeatedPendingSubject, pateRepeatOrigin, ...rest } = record
   return {
     ...rest,
+    // PATE que lo creó, o null si se asignó a mano
+    pateId: pateRepeatOrigin?.pateId ?? null,
     pendingSubject: repeatedPendingSubject && {
       id: repeatedPendingSubject.id,
       status: repeatedPendingSubject.status,
@@ -278,13 +282,18 @@ async function findRepeatOrFail(db: Prisma.TransactionClient, id: string) {
   return record
 }
 
+type TransactionRunner = Pick<typeof prisma, '$transaction'>
+
 // PATCH /subject-repeats/:id: cambia la sección. Las notas y la asistencia se conservan.
+// Si el recursado lo creó un PATE, la sección también se cambia en el PATE, en la misma
+// transacción, para que los dos registros no queden distintos.
 export async function updateSubjectRepeat(
   id: string,
   input: UpdateSubjectRepeatInput,
-  actor: Actor
+  actor: Actor,
+  db: TransactionRunner = prisma
 ) {
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const current = await findRepeatOrFail(tx, id)
     const [activeCycle, section] = await Promise.all([
       getActiveCycleOrFail(tx),
@@ -302,23 +311,36 @@ export async function updateSubjectRepeat(
       data: { classSectionId: section.id },
       include: subjectRepeatInclude,
     })
+    const pateId = current.pateRepeatOrigin?.pateId ?? null
+    if (current.pateRepeatOrigin) {
+      await tx.pateSubjectRepeat.update({
+        where: { id: current.pateRepeatOrigin.id },
+        data: { classSectionId: section.id },
+      })
+    }
     await writeAudit(
       tx,
       actor,
       AuditActionType.UPDATE,
       id,
-      { classSectionId: current.classSection.id },
-      { classSectionId: section.id }
+      { classSectionId: current.classSection.id, pateId },
+      { classSectionId: section.id, pateId }
     )
     return toSubjectRepeatResponse(updated)
   })
 }
 
-// DELETE /subject-repeats/:id: baja física, solo si no tiene notas, asistencia ni intensificaciones
-export async function deleteSubjectRepeat(id: string, actor: Actor) {
-  return prisma.$transaction(async (tx) => {
+// DELETE /subject-repeats/:id: baja física, solo si no lo creó un PATE y no tiene notas,
+// asistencia ni intensificaciones
+export async function deleteSubjectRepeat(
+  id: string,
+  actor: Actor,
+  db: TransactionRunner = prisma
+) {
+  return db.$transaction(async (tx) => {
     const current = await findRepeatOrFail(tx, id)
     const reason = deleteBlockReason({
+      linkedToPate: current.pateRepeatOrigin !== null,
       hasGrade: current.grade !== null,
       attendances: current._count.subjectAttendances,
       intensifications: current._count.intensifications,
@@ -328,7 +350,8 @@ export async function deleteSubjectRepeat(id: string, actor: Actor) {
     try {
       await tx.enrollment.delete({ where: { id } })
     } catch (err) {
-      // Otra tabla apunta a la inscripción (por ejemplo, un PATE o una comisión evaluadora)
+      // Otra tabla apunta a la inscripción (por ejemplo, una comisión evaluadora). El PATE ya se
+      // controla arriba, y su FK también es RESTRICT
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
         throw new HttpError(
           409,

@@ -64,13 +64,19 @@ function attemptsBlockReason(pending: RepeatPendingInfo): string | null {
 }
 
 export interface RepeatUsage {
+  // Lo creó un PATE al confirmarse (PateSubjectRepeat.repeatEnrollmentId)
+  linkedToPate: boolean
   hasGrade: boolean
   attendances: number
   intensifications: number
 }
 
-// Un recursado se quita solo si todavía no tiene notas, asistencia ni intensificaciones
+// Un recursado se quita solo si no lo creó un PATE y todavía no tiene notas, asistencia ni
+// intensificaciones. Si viene de un PATE, quitarlo dejaría al PATE sin su recursada.
 export function deleteBlockReason(usage: RepeatUsage): string | null {
+  if (usage.linkedToPate) {
+    return 'El recursado lo creó un PATE: no se puede quitar desde acá'
+  }
   if (usage.hasGrade) return 'El recursado ya tiene notas cargadas: no se puede quitar'
   if (usage.attendances > 0) return 'El recursado ya tiene asistencias cargadas: no se puede quitar'
   if (usage.intensifications > 0) {

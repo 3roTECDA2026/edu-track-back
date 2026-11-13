@@ -81,7 +81,11 @@ describe('recursado de una MPAA (CRM-082)', () => {
 })
 
 describe('quitar un recursado (CRM-082)', () => {
-  const unused = { hasGrade: false, attendances: 0, intensifications: 0 }
+  const unused = { linkedToPate: false, hasGrade: false, attendances: 0, intensifications: 0 }
+
+  it('no se puede si lo creó un PATE, aunque no tenga notas ni asistencias', () => {
+    assert.match(deleteBlockReason({ ...unused, linkedToPate: true }) ?? '', /lo creó un PATE/)
+  })
 
   it('se puede si no tiene notas, asistencias ni intensificaciones', () => {
     assert.equal(deleteBlockReason(unused), null)
