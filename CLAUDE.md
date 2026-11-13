@@ -277,7 +277,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 | `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
-| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -313,8 +313,11 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Cierre del ciclo: si el recursado aprueba, su MPAA queda `ACCREDITED` con la nota del
   recursado (`PendingSubject.finalScore` admite decimales); si no, sigue la MPAA original y no se
   crea otra.
-- **Pendiente:** el límite de 12 materias (`assertSubjectLimit`, PR #57) y decidir si
-  `PRECEPTOR` también asigna (`SUBJECT_REPEAT_MANAGER_ROLES`).
+- Valida el límite de 12 materias por ciclo (`assertSubjectLimit`, CRM-061) con la fila del
+  alumno bloqueada.
+- Asignan, cambian la sección y quitan: administración, dirección, EOE/directivos y preceptores
+  (`SUBJECT_REPEAT_MANAGER_ROLES`); los docentes solo ven.
+- **Pendiente:** crear las recursadas al confirmar el PATE (CRM-078, PR #65).
 
 ## 10. Git y Pull Requests
 
