@@ -27,6 +27,7 @@ import { legalConflictRouter } from '@/routes/legalConflict.routes'
 import { conflictTotpRouter } from '@/routes/conflictTotp.routes'
 import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
 import { promotionRouter } from '@/routes/promotion.routes'
+import { matriculationRouter } from '@/routes/matriculation.routes'
 
 const router = Router()
 
@@ -44,6 +45,7 @@ router.use('/users', userRouter)
 // PATE (CRM-078)
 router.use('/pates', pateRouter)
 router.use('/institutional-config', institutionalConfigRouter)
+router.use('/matriculation', matriculationRouter)
 // Las rutas de cursos se montan también en la raíz para que /api/subjects siga funcionando
 router.use('/', courseRoutes)
 router.use('/courses', courseRoutes)
