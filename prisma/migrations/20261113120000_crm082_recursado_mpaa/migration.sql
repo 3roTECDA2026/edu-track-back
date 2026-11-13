@@ -8,5 +8,12 @@ ALTER TABLE "Enrollment" ADD COLUMN IF NOT EXISTS "repeatedPendingSubjectId" TEX
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "Enrollment_repeatedPendingSubjectId_idx" ON "Enrollment"("repeatedPendingSubjectId");
 
--- AddForeignKey
-ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_repeatedPendingSubjectId_fkey" FOREIGN KEY ("repeatedPendingSubjectId") REFERENCES "PendingSubject"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- AddForeignKey (solo si no existe, para que la migración se pueda volver a aplicar sin error)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'Enrollment_repeatedPendingSubjectId_fkey'
+  ) THEN
+    ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_repeatedPendingSubjectId_fkey" FOREIGN KEY ("repeatedPendingSubjectId") REFERENCES "PendingSubject"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
