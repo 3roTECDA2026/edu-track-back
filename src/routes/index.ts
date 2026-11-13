@@ -23,6 +23,7 @@ import { userRouter } from '@/routes/user.routes'
 import { legalConflictRouter } from '@/routes/legalConflict.routes'
 import { conflictTotpRouter } from '@/routes/conflictTotp.routes'
 import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
+import { promotionRouter } from '@/routes/promotion.routes'
 import { matriculationRouter } from '@/routes/matriculation.routes'
 
 const router = Router()
@@ -59,6 +60,8 @@ router.use('/cycle-closure', cycleClosureRouter)
 // Integrantes del EDTE (CRM-071)
 router.use('/edte-team-members', edteTeamMemberRouter)
 router.use('/pending-subjects', pendingSubjectRouter)
+// Motor de promoción con auditoría (CRM-062)
+router.use('/promotion', promotionRouter)
 // Matriculación continuada (CRM-064)
 router.use('/matriculation', matriculationRouter)
 
