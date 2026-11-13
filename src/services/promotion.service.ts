@@ -1,10 +1,20 @@
 import crypto from 'node:crypto'
-import { PendingSubjectStatus, Prisma, StudentStatus } from '@prisma/client'
+import {
+  PendingSubjectStatus,
+  Prisma,
+  StudentStatus,
+  AuditActionType,
+  PromotionOutcome,
+} from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
 import { decideOutcome } from '@/utils/promotion'
 
-export async function runPromotion(academicYearId: string, executedById: string) {
+export async function runPromotion(
+  academicYearId: string,
+  executedById: string,
+  ipAddress: string
+) {
   const academicYear = await prisma.academicYear.findUnique({
     where: { id: academicYearId },
     select: { id: true, year: true, closedAt: true },
@@ -82,6 +92,29 @@ export async function runPromotion(academicYearId: string, executedById: string)
     if (decisionsData.length > 0) {
       await tx.promotionDecision.createMany({
         data: decisionsData,
+      })
+    }
+
+    // Auditoría de las derivaciones al EDTE (CRM-073, E3-RNF-02): un registro por cada alumno
+    // derivado, en la misma transacción que su decisión
+    const referrals = decisionsData.filter(
+      (decision) => decision.outcome === PromotionOutcome.REFERRED_TO_EDTE
+    )
+    if (referrals.length > 0) {
+      await tx.auditLog.createMany({
+        data: referrals.map((decision) => ({
+          userId: executedById,
+          action: AuditActionType.CREATE,
+          affectedEntity: 'PromotionDecision',
+          entityId: decision.id,
+          newData: {
+            studentId: decision.studentId,
+            academicYearId,
+            pendingCount: decision.pendingCount,
+            outcome: decision.outcome,
+          },
+          ipAddress,
+        })),
       })
     }
 

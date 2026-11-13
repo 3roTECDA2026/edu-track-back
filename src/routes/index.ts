@@ -5,6 +5,7 @@ import authRouter from '@/routes/auth.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
 import courseRoutes from '@/routes/course.routes'
 import { cycleClosureRouter } from '@/routes/cycleClosure.routes'
+import { edteReferralRouter } from '@/routes/edteReferral.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { edteTeamMemberRouter } from '@/routes/edteTeamMember.routes'
 import { fortePlanRouter } from '@/routes/fortePlan.routes'
@@ -64,5 +65,7 @@ router.use('/pending-subjects', pendingSubjectRouter)
 router.use('/promotion', promotionRouter)
 // Plan Forte (CRM-089)
 router.use('/forte-plans', fortePlanRouter)
+// Derivación al EDTE: alumnos con 5 o más MPAA (CRM-073)
+router.use('/edte-referrals', edteReferralRouter)
 
 export default router
