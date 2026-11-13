@@ -127,4 +127,61 @@ describe('CRM-064: decideDestination (Lógica de asignación en Matriculación C
 
     assert.equal(res.status, 'skippedStatus')
   })
+
+  it('7. Egresado de 6.° año con materias pendientes: egresa con advertencia de pendientes (no va a pendingPate)', () => {
+    const res = decideDestination({
+      student: { id: 's7', firstName: 'Sofía', lastName: 'Castro', status: StudentStatus.ACTIVE },
+      promotionDecision: { outcome: PromotionOutcome.REFERRED_TO_EDTE, pendingCount: 5 },
+      currentSection: {
+        id: 'sec-6A',
+        grade: 6,
+        division: 'A',
+        shift: 'MORNING',
+        orientation: null,
+      },
+      targetSections,
+      alreadyEnrolledInTarget: false,
+    })
+
+    assert.equal(res.status, 'graduates')
+    assert.equal(res.reason, 'Egresa con 5 materias pendientes')
+  })
+
+  it('8. Promoción a 4.° año (ingreso al Ciclo Superior): queda en pendingOrientation para asignación manual', () => {
+    const res = decideDestination({
+      student: { id: 's8', firstName: 'Tomás', lastName: 'Navarro', status: StudentStatus.ACTIVE },
+      promotionDecision: { outcome: PromotionOutcome.PROMOTED, pendingCount: 0 },
+      currentSection: {
+        id: 'sec-3A',
+        grade: 3,
+        division: 'A',
+        shift: 'MORNING',
+        orientation: null,
+      },
+      targetSections,
+      alreadyEnrolledInTarget: false,
+    })
+
+    assert.equal(res.status, 'pendingOrientation')
+    assert.match(res.reason ?? '', /orientación/)
+  })
+
+  it('9. Sin decisión de promoción: queda en missingDecision para revisión previa', () => {
+    const res = decideDestination({
+      student: { id: 's9', firstName: 'Esteban', lastName: 'Quito', status: StudentStatus.ACTIVE },
+      promotionDecision: null,
+      currentSection: {
+        id: 'sec-1A',
+        grade: 1,
+        division: 'A',
+        shift: 'MORNING',
+        orientation: null,
+      },
+      targetSections,
+      alreadyEnrolledInTarget: false,
+    })
+
+    assert.equal(res.status, 'missingDecision')
+    assert.match(res.reason ?? '', /motor de promoción/)
+  })
 })

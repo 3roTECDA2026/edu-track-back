@@ -19,17 +19,17 @@ y alertas/notificaciones de estudiantes.
 
 ## 2. Stack
 
-| Componente | Tecnología |
-| --- | --- |
-| Runtime | Node.js 22, módulos ES (`"type": "module"`) |
-| Framework | Express 4 |
-| Lenguaje | TypeScript 5 (`strict: true`, `noUncheckedIndexedAccess`) |
-| ORM | Prisma 6 (`@prisma/client` y `prisma`, misma versión) |
-| Base de datos | PostgreSQL (local en desarrollo) |
-| Validación | Zod 4 |
-| Autenticación | JWT (`jsonwebtoken`) + `bcrypt` |
-| Build | `tsup` (genera `dist/server.js`) |
-| Dev | `tsx watch` |
+| Componente    | Tecnología                                                |
+| ------------- | --------------------------------------------------------- |
+| Runtime       | Node.js 22, módulos ES (`"type": "module"`)               |
+| Framework     | Express 4                                                 |
+| Lenguaje      | TypeScript 5 (`strict: true`, `noUncheckedIndexedAccess`) |
+| ORM           | Prisma 6 (`@prisma/client` y `prisma`, misma versión)     |
+| Base de datos | PostgreSQL (local en desarrollo)                          |
+| Validación    | Zod 4                                                     |
+| Autenticación | JWT (`jsonwebtoken`) + `bcrypt`                           |
+| Build         | `tsup` (genera `dist/server.js`)                          |
+| Dev           | `tsx watch`                                               |
 
 ## 3. Comandos
 
@@ -61,11 +61,11 @@ y probar los endpoints afectados (Postman o `curl`) contra el back local.
 Se cargan desde `.env` (ignorado por git). La plantilla es `.env.example`.
 **Nunca** commitear valores reales ni pegarlos en issues, PRs o logs.
 
-| Variable | Uso |
-| --- | --- |
-| `PORT` | Puerto del servidor (por defecto 3000) |
-| `DATABASE_URL` | `postgresql://postgres:<contraseña>@localhost:5432/edutrack_db?schema=public` |
-| `JWT_SECRET` | Firma de los tokens. Si falta se usa `'clave_secreta_temporal'` (solo desarrollo) |
+| Variable       | Uso                                                                               |
+| -------------- | --------------------------------------------------------------------------------- |
+| `PORT`         | Puerto del servidor (por defecto 3000)                                            |
+| `DATABASE_URL` | `postgresql://postgres:<contraseña>@localhost:5432/edutrack_db?schema=public`     |
+| `JWT_SECRET`   | Firma de los tokens. Si falta se usa `'clave_secreta_temporal'` (solo desarrollo) |
 
 La instalación de PostgreSQL local está explicada en `instalacion .txt`.
 Si PostgreSQL está instalado con **snap**, se entra con `psql -U postgres -h /tmp`
@@ -186,7 +186,7 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
     (`utils/edteRisk.test.ts`).
   - **Provisorio:** el PATE en curso (`getActivePates`) devuelve vacío hasta CRM-078.
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
-  TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
+TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
   usa todavía en `requireRole`, así que un preceptor puede iniciar sesión pero no accede a
   nada protegido hasta que se lo agregue donde corresponda.
   - ✅ `req.user.role === Role.TEACHER`
@@ -260,23 +260,24 @@ contraseñas bcrypt: `admin@notar.local` (`Admin1234!`), `direccion@notar.local`
 
 Base: `/api`. Recursos montados en `src/routes/index.ts`:
 
-| Ruta | Recurso | Protección |
-| --- | --- | --- |
-| `/auth` | login | — |
-| `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
-| `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
-| `/enrollments` | inscripciones | ninguna |
-| `/class-sections` | listado de cursos/divisiones | ninguna |
-| `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
-| `/teacher-assignments` | asignación de materias a docentes | ninguna |
-| `/grades` | notas, `/roster`, `/by-student` | ninguna |
-| `/attendance` | asistencia, `/batch`, `/summary`, `/:id/justify` | ninguna |
-| `/edte-meetings` | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/member-options`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
-| `/notifications` | alertas de estudiantes | ninguna |
-| `/edte-dashboard` | dashboard del EDTE: indicadores y alumnos con trayectorias complejas (`?term`, `?assessment`, `?grade`, `?classSectionId`) | `requireEdteAccess`: `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT` |
-| `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
-| `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
-| `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
+| Ruta                   | Recurso                                                                                                                                        | Protección                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `/auth`                | login                                                                                                                                          | —                                                                                             |
+| `/users`               | CRUD de usuarios, `/:id/suspend`, `/:id/activate`                                                                                              | `ADMINISTRATOR`                                                                               |
+| `/students`            | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history`                                                                        | ninguna                                                                                       |
+| `/enrollments`         | inscripciones                                                                                                                                  | ninguna                                                                                       |
+| `/class-sections`      | listado de cursos/divisiones                                                                                                                   | ninguna                                                                                       |
+| `/courses`             | `/class-sections` y `/subjects` (CRUD)                                                                                                         | ninguna                                                                                       |
+| `/teacher-assignments` | asignación de materias a docentes                                                                                                              | ninguna                                                                                       |
+| `/grades`              | notas, `/roster`, `/by-student`                                                                                                                | ninguna                                                                                       |
+| `/attendance`          | asistencia, `/batch`, `/summary`, `/:id/justify`                                                                                               | ninguna                                                                                       |
+| `/edte-meetings`       | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/member-options`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/notifications`       | alertas de estudiantes                                                                                                                         | ninguna                                                                                       |
+| `/edte-dashboard`      | dashboard del EDTE: indicadores y alumnos con trayectorias complejas (`?term`, `?assessment`, `?grade`, `?classSectionId`)                     | `requireEdteAccess`: `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT`                                     |
+| `/rites`               | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign`                                                                              | directivos                                                                                    |
+| `/cycle-closure`       | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId`                                                          | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`                                                          |
+| `/pending-subjects`    | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`              | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER`                              |
+| `/matriculation`       | matriculación continuada entre ciclos lectivos: `POST /run`                                                                                    | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`                                                          |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -286,6 +287,7 @@ de distintos recursos y puede pisar otras.
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
 **Reuniones del EDTE (CRM-075, E4-RF-03):**
+
 - Períodos propios (`EdteMeetingPeriod`): febrero/marzo, agosto, diciembre y adicional.
 - La reunión pertenece al ciclo en que se aplican sus decisiones: la de febrero/marzo de 2026
   analiza el cierre de 2025, pero arma los PATE de 2026. Su fecha tiene que ser de febrero o
@@ -306,7 +308,7 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Nombres de ramas: `feature/CRM-XXX-descripcion-en-kebab-case`, `fix/descripcion`,
   `docs/...`, `chore/...`. Si una rama depende de otra todavía sin mergear, crearla desde esa
   rama y avisarlo en el PR.
-- Commits en español con formato *conventional commits*:
+- Commits en español con formato _conventional commits_:
   `feat(area): ...`, `fix(area): ...`, `refactor(area): ...`, `chore: ...`,
   con el ticket si aplica (`(CRM-033)`).
 - **No commitear** `dist/` ni `.env`. No incluir `package-lock.json` si la tarea no cambió
