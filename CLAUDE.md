@@ -285,8 +285,13 @@ Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque
 de distintos recursos y puede pisar otras.
 
 **PATE (CRM-078, E4-RF-06, RN-012 y RN-013):**
-- Uno por alumno y ciclo, para alumnos derivados al EDTE (5 o más MPAA). El ciclo es el de la
-  reunión del EDTE si viene; si no, el ciclo activo.
+- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior. El ciclo es
+  el de la reunión del EDTE si viene; si no, el ciclo activo.
+- **Derivados al EDTE:** son los que el motor de promoción (CRM-062) decidió `REFERRED_TO_EDTE`
+  (RN-012, CRM-073). No se recuentan las MPAA: si el motor no se ejecutó para ese ciclo, no hay
+  derivados. Una sola función para todos: `getReferredStudentIds` en
+  `services/promotionDecision.service.ts` (la usan el PATE y las reuniones del EDTE). El seed
+  carga la decisión de Mateo García (derivado al cierre de 2025).
 - Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED`.
 - Las materias son MPAA pendientes del alumno, de ciclos anteriores. Hasta 4 a intensificar, con
   modelo (y sección en los modelos 2 y 3, con las mismas reglas que la asignación de CRM-056); el
@@ -306,8 +311,6 @@ de distintos recursos y puede pisar otras.
 - **Provisorio:**
   - la reunión del EDTE es opcional hasta que esté CRM-075; después pasa a ser obligatoria y se
     valida que el alumno esté entre sus tratados;
-  - los derivados se calculan como "5 o más MPAA" (`getReferredStudentIds` en
-    `pate.service.ts`) hasta CRM-073;
   - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57).
 - Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
   la misma tabla que usa la asignación de CRM-056.
@@ -324,9 +327,9 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Los convocados se guardan presentes o ausentes, con el rol que tenían al cargar la reunión.
 - `/candidates`: en febrero/marzo, los derivados al cierre del ciclo anterior; en agosto y
   diciembre, los alumnos con PATE en curso; en las adicionales, los dos grupos.
+- Los derivados salen de las decisiones del motor de promoción (`getReferredStudentIds`, ver PATE).
 - **Provisorio:** los convocados se validan contra el personal activo hasta que entre CRM-071
-  (plantel), y los derivados se calculan como "5 o más MPAA" hasta que entre CRM-073 (listado
-  de derivación). Están aislados en `getEligibleMembers` y `getReferredStudentIds`.
+  (plantel). Está aislado en `getEligibleMembers`.
 
 ## 10. Git y Pull Requests
 
