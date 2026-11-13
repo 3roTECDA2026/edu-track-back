@@ -1,7 +1,14 @@
 import { PromotionOutcome, StudentStatus } from '@prisma/client'
 
 export type DestinationStatus =
-  'enrolled' | 'pendingPate' | 'graduates' | 'missingSection' | 'alreadyEnrolled' | 'skippedStatus'
+  | 'enrolled'
+  | 'pendingPate'
+  | 'pendingOrientation'
+  | 'graduates'
+  | 'missingDecision'
+  | 'missingSection'
+  | 'alreadyEnrolled'
+  | 'skippedStatus'
 
 export interface DestinationDecisionInput {
   student: {
@@ -70,17 +77,7 @@ export function decideDestination(input: DestinationDecisionInput): DestinationD
     }
   }
 
-  // 3. Estudiantes derivados al EDTE (5 o más MPAA)
-  if (promotionDecision?.outcome === PromotionOutcome.REFERRED_TO_EDTE) {
-    return {
-      studentId: student.id,
-      studentName,
-      status: 'pendingPate',
-      reason: `Derivado al EDTE por ${promotionDecision.pendingCount} MPAA. La asignación se define mediante PATE`,
-    }
-  }
-
-  // 4. Si no tiene sección origen o no tiene decisión de promoción
+  // 3. Si no tiene sección origen asignada
   if (!currentSection) {
     return {
       studentId: student.id,
@@ -91,17 +88,63 @@ export function decideDestination(input: DestinationDecisionInput): DestinationD
     }
   }
 
-  // 5. Estudiantes de 6.° año que promueven
+  // 4. Estudiantes de 6.° año: egresan completando nivel secundario (con o sin MPAA pendientes)
   if (currentSection.grade === 6) {
+    const pendingCount = promotionDecision?.pendingCount ?? 0
+    const reason =
+      pendingCount > 0
+        ? `Egresa con ${pendingCount} materias pendientes`
+        : 'Estudiante de 6.° año que completa el nivel secundario'
     return {
       studentId: student.id,
       studentName,
       status: 'graduates',
-      reason: 'Estudiante de 6.° año que completa el nivel secundario',
+      reason,
     }
   }
 
-  // 6. Promoción regular a año siguiente (grade + 1)
+  // 5. Exigir decisión del motor de promoción para el resto de los cursos
+  if (!promotionDecision) {
+    return {
+      studentId: student.id,
+      studentName,
+      status: 'missingDecision',
+      reason: 'No se registra decisión del motor de promoción para este estudiante',
+    }
+  }
+
+  // 6. Estudiantes derivados al EDTE (5 o más MPAA)
+  if (promotionDecision.outcome === PromotionOutcome.REFERRED_TO_EDTE) {
+    return {
+      studentId: student.id,
+      studentName,
+      status: 'pendingPate',
+      reason: `Derivado al EDTE por ${promotionDecision.pendingCount} MPAA. La asignación se define mediante PATE`,
+    }
+  }
+
+  // Si no promovió (solo se matricula automáticamente con PROMOTED)
+  if (promotionDecision.outcome !== PromotionOutcome.PROMOTED) {
+    return {
+      studentId: student.id,
+      studentName,
+      status: 'missingDecision',
+      reason: `Decisión de promoción no habilita matriculación automática: ${promotionDecision.outcome}`,
+    }
+  }
+
+  // 7. Ingreso a 4.° año (desde 3.° año): asignación manual por elección de orientación
+  if (currentSection.grade === 3) {
+    return {
+      studentId: student.id,
+      studentName,
+      status: 'pendingOrientation',
+      reason:
+        'Promueve al Ciclo Superior (4.° año). Requiere asignación manual por elección de orientación',
+    }
+  }
+
+  // 8. Promoción regular a año siguiente (grade + 1)
   const nextGrade = currentSection.grade + 1
   const targetSection = targetSections.find((s) => {
     const matchGrade = s.grade === nextGrade
