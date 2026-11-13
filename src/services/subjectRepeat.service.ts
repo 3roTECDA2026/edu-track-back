@@ -7,6 +7,7 @@ import type {
   RepeatOptionsQuery,
   UpdateSubjectRepeatInput,
 } from '@/schemas/subjectRepeat.schema'
+import { assertSubjectLimit } from '@/services/subjectEnrollmentLimit'
 import { HttpError } from '@/utils/httpError'
 import {
   deleteBlockReason,
@@ -154,8 +155,9 @@ export async function createSubjectRepeat(
   const reason = repeatBlockReason(toRepeatPendingInfo(pending), section, activeCycle)
   if (reason) throw new HttpError(409, reason)
 
-  // TODO(CRM-061): cuando se fusione el PR #57, validar acá el límite de 12 materias con
-  // assertSubjectLimit(pending.studentId, activeCycle.id, 1, tx).
+  // Límite de 12 materias por ciclo, cursadas y recursadas (E3-RF-13, CRM-061). Se cuenta con la
+  // fila del alumno ya bloqueada, así dos altas simultáneas no pueden pasarse del máximo
+  await assertSubjectLimit(pending.studentId, activeCycle.id, 1, tx)
 
   try {
     const created = await tx.enrollment.create({
