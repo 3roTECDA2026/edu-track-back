@@ -21,7 +21,10 @@ import { studentRouter } from '@/routes/student.routes'
 import { pateRouter } from '@/routes/pate.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
+import { legalConflictRouter } from '@/routes/legalConflict.routes'
+import { conflictTotpRouter } from '@/routes/conflictTotp.routes'
 import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
+import { promotionRouter } from '@/routes/promotion.routes'
 
 const router = Router()
 
@@ -50,6 +53,8 @@ router.use('/intensification-schedules', intensificationScheduleRouter)
 router.use('/intensifications', intensificationRouter)
 // Asistencia en intensificación (CRM-059)
 router.use('/intensification-attendance', intensificationAttendanceRouter)
+router.use('/legal-conflicts', legalConflictRouter)
+router.use('/conflict-totp', conflictTotpRouter)
 // Bitácora de intervenciones
 router.use('/interventions', interventionRouter)
 // Cierre del ciclo lectivo y alta de MPAA (CRM-052)
@@ -57,5 +62,7 @@ router.use('/cycle-closure', cycleClosureRouter)
 // Integrantes del EDTE (CRM-071)
 router.use('/edte-team-members', edteTeamMemberRouter)
 router.use('/pending-subjects', pendingSubjectRouter)
+// Motor de promoción con auditoría (CRM-062)
+router.use('/promotion', promotionRouter)
 
 export default router
