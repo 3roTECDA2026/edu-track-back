@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { academicYearRouter } from '@/routes/academicYear.routes'
 import attendanceRouter from '@/routes/attendance.routes'
 import authRouter from '@/routes/auth.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
@@ -27,6 +28,7 @@ import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
 const router = Router()
 
 router.use('/auth', authRouter)
+router.use('/academic-years', academicYearRouter)
 router.use('/students', studentRouter)
 router.use('/enrollments', enrollmentRouter)
 router.use('/grades', gradeRouter)
