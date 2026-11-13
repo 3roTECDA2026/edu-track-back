@@ -240,6 +240,7 @@ model User {
   registeredAttendances        DailyAttendance[]      @relation("AttendanceRegistrar")
   registeredSubjectAttendances SubjectAttendance[]    @relation("SubjectAttendanceRegistrar") // Asistencias por materia cargadas por el usuario (CRM-059)
   authoredInterventions        Intervention[]         @relation("InterventionAuthor") // Intervenciones registradas por el usuario
+  uploadedInterventionAttachments InterventionAttachment[] @relation("InterventionAttachmentUploader") // Adjuntos de intervenciones subidos por el usuario (CRM-087)
   authoredConflicts            LegalConflict[]        @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
   signedRites                  Rite[]                 @relation("SigningAuthority") // RITEs firmados por esta autoridad
   auditLogs                    AuditLog[] // Registros de auditoría generados por el usuario
@@ -830,8 +831,28 @@ model Intervention {
   digitalSignature     String? // Firma o hash de validación del profesional
   createdAt            DateTime              @default(now()) // Fecha de alta en el sistema
 
+  attachments InterventionAttachment[] // Archivos y fotos de evidencia (CRM-087)
+
   @@index([studentId, date]) // Índice para cronología de intervenciones del estudiante
   @@index([classSectionId, date]) // Índice para listar intervenciones por curso
+}
+
+// Archivo de evidencia adjunto a una intervención (E4-RF-12, CRM-087).
+// El archivo en sí vive en el almacenamiento (hoy, disco local; ver src/lib/storage);
+// acá se guardan sus datos y la clave para encontrarlo.
+model InterventionAttachment {
+  id             String       @id @default(uuid()) // Identificador único
+  intervention   Intervention @relation(fields: [interventionId], references: [id]) // Intervención a la que pertenece
+  interventionId String // ID de la intervención
+  storageKey     String       @unique // Ruta dentro del almacenamiento (ej. interventions/<id>/<uuid>.pdf)
+  originalName   String // Nombre del archivo tal como lo subió el usuario
+  mimeType       String // Tipo de archivo (image/jpeg, image/png, application/pdf, docx)
+  size           Int // Tamaño en bytes
+  uploadedBy     User         @relation("InterventionAttachmentUploader", fields: [uploadedById], references: [id]) // Quién lo subió
+  uploadedById   String // ID de quien lo subió
+  createdAt      DateTime     @default(now()) // Fecha de subida
+
+  @@index([interventionId]) // Para listar los adjuntos de una intervención
 }
 
 // Asignación de un alumno al programa Plan Forte (E4-RF-14, CRM-089).
