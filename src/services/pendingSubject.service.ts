@@ -6,6 +6,7 @@ import type {
   UpdatePendingKnowledgeInput,
 } from '@/schemas/pendingSubject.schema'
 import { HttpError } from '@/utils/httpError'
+import { toAttemptsResponse } from '@/utils/pendingAttempts'
 import { toPendingSubjectResponse } from '@/utils/pendingSubjectResponse'
 
 // Saberes pendientes por materia (E3-RF-02, CRM-053): se registran, en texto, al inicio y al
@@ -77,4 +78,41 @@ export async function updatePendingKnowledge(
     select: pendingSubjectSelect,
   })
   return toPendingSubjectResponse(updated)
+}
+// Historial de intentos de intensificación de una MPAA, del más viejo al más nuevo (E3-RF-03).
+// Los intentos cuelgan de la cursada que originó la MPAA. Sin intentos devuelve una lista vacía.
+export async function listPendingSubjectAttempts(
+  id: string,
+  db: Pick<Prisma.TransactionClient, 'pendingSubject'> = prisma
+) {
+  const pending = await db.pendingSubject.findUnique({
+    where: { id },
+    select: {
+      originEnrollment: {
+        select: {
+          intensifications: {
+            select: {
+              id: true,
+              period: true,
+              model: true,
+              resultCode: true,
+              score: true,
+              evaluationDate: true,
+              createdAt: true,
+              schedule: {
+                select: {
+                  startDate: true,
+                  endDate: true,
+                  academicYear: { select: { year: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  if (!pending) throw new HttpError(404, 'Materia pendiente no encontrada')
+
+  return toAttemptsResponse(pending.originEnrollment.intensifications)
 }

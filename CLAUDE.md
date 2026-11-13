@@ -265,6 +265,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/auth` | login | — |
 | `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
 | `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
+| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela (el docente, solo los de sus alumnos); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/enrollments` | inscripciones | ninguna |
 | `/class-sections` | listado de cursos/divisiones | ninguna |
 | `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
@@ -276,12 +277,43 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/edte-dashboard` | dashboard del EDTE: indicadores y alumnos con trayectorias complejas (`?term`, `?assessment`, `?grade`, `?classSectionId`) | `requireEdteAccess`: `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT` |
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
-| `/pending-subjects` | saberes pendientes de las MPAA: `GET /?studentId=` y `PATCH /:id`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
+| `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
 Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque mezcla rutas
 de distintos recursos y puede pisar otras.
+
+**PATE (CRM-078, E4-RF-06, RN-012 y RN-013):**
+- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior. El ciclo es
+  el de la reunión del EDTE si viene; si no, el ciclo activo.
+- **Derivados al EDTE:** son los que el motor de promoción (CRM-062) decidió `REFERRED_TO_EDTE`
+  (RN-012, CRM-073). No se recuentan las MPAA: si el motor no se ejecutó para ese ciclo, no hay
+  derivados. Una sola función para todos: `getReferredStudentIds` en
+  `services/promotionDecision.service.ts` (la usan el PATE y las reuniones del EDTE). El seed
+  carga la decisión de Mateo García (derivado al cierre de 2025).
+- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED`.
+- Las materias son MPAA pendientes del alumno, de ciclos anteriores. Hasta 4 a intensificar, con
+  modelo (y sección en los modelos 2 y 3, con las mismas reglas que la asignación de CRM-056); el
+  resto, a recursar con la sección donde cursa (del año de la materia; el turno puede ser otro).
+  Una MPAA va una sola vez.
+- El modelo tiene que estar en la opción organizativa de la escuela, y cursadas + recursadas no
+  pueden pasar de 12 en el ciclo.
+- Las validaciones devuelven todos los errores juntos (409 con `details.errors`) y se repiten al
+  confirmar, con la fila del alumno bloqueada. CRM-082 crea las recursadas en ese momento.
+- **Quién ve cada PATE** (decisión del equipo; es parte del legajo pedagógico):
+  - dirección, EOE/directivos y administración: todos, completos (`view: 'FULL'`);
+  - docente: solo los de sus alumnos (da clase en la sección del alumno o donde intensifica o
+    recursa) y en versión curricular (`view: 'CURRICULAR'`: sin diagnóstico, estrategias,
+    cronograma ni notificación). Si no es de sus alumnos, `GET /:id` responde 404;
+  - preceptor: la versión curricular de todos (no hay vínculo entre preceptor y sección);
+  - cuando esté CRM-071, los integrantes del plantel del EDTE ven todo.
+- **Provisorio:**
+  - la reunión del EDTE es opcional hasta que esté CRM-075; después pasa a ser obligatoria y se
+    valida que el alumno esté entre sus tratados;
+  - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57).
+- Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
+  la misma tabla que usa la asignación de CRM-056.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
@@ -295,9 +327,9 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Los convocados se guardan presentes o ausentes, con el rol que tenían al cargar la reunión.
 - `/candidates`: en febrero/marzo, los derivados al cierre del ciclo anterior; en agosto y
   diciembre, los alumnos con PATE en curso; en las adicionales, los dos grupos.
+- Los derivados salen de las decisiones del motor de promoción (`getReferredStudentIds`, ver PATE).
 - **Provisorio:** los convocados se validan contra el personal activo hasta que entre CRM-071
-  (plantel), y los derivados se calculan como "5 o más MPAA" hasta que entre CRM-073 (listado
-  de derivación). Están aislados en `getEligibleMembers` y `getReferredStudentIds`.
+  (plantel). Está aislado en `getEligibleMembers`.
 
 ## 10. Git y Pull Requests
 

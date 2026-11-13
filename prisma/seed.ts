@@ -1421,6 +1421,160 @@ export async function main() {
   }
 
   // ============================================================
+  // PATE (CRM-078)
+  // ============================================================
+  // Mateo García desaprobó 5 materias en 2025 y quedó con 5 MPAA: está derivado al EDTE. Su PATE
+  // de 2026, en borrador: cursa 3° A Mañana, intensifica 4 MPAA (Historia con modelo 2 en su
+  // turno, Geografía con modelo 3 a contraturno, Matemática y Biología con modelo 1) y recursa
+  // Lengua en 1° A Mañana.
+  // Las MPAA se cargan directo, sin el cierre del ciclo. El ciclo 2025, la sección 2° A, Geografía
+  // y las cursadas usan los mismos ids que los seeds de CRM-052 y CRM-075, para que convivan.
+  // Los enums van como texto para no tocar la lista de imports compartida.
+
+  const pateIds = {
+    year2025: '00000000-0000-0000-0000-000000000002',
+    section2025: '00000000-0000-0000-0000-000000000023', // 2° A Mañana 2025
+    geography: '00000000-0000-0000-0000-000000000204',
+    enrollments: {
+      math: '00000000-0000-0000-0000-000000005301',
+      language: '00000000-0000-0000-0000-000000005302',
+      history: '00000000-0000-0000-0000-000000005303',
+      biology: '00000000-0000-0000-0000-000000005304',
+      geography: '00000000-0000-0000-0000-000000005305',
+    },
+  }
+
+  const pateYear2025 = await prisma.academicYear.upsert({
+    where: { year: 2025 },
+    update: {},
+    create: {
+      id: pateIds.year2025,
+      year: 2025,
+      active: false,
+      term1StartDate: new Date('2025-03-05'),
+      term1EndDate: new Date('2025-07-18'),
+      term2StartDate: new Date('2025-08-04'),
+      term2EndDate: new Date('2025-12-05'),
+    },
+  })
+
+  await prisma.classSection.upsert({
+    where: { id: pateIds.section2025 },
+    update: {},
+    create: {
+      id: pateIds.section2025,
+      grade: 2,
+      division: 'A',
+      shift: 'MORNING',
+      orientation: 'ORIENTED',
+      academicYearId: pateYear2025.id,
+    },
+  })
+
+  const pateGeography = await prisma.subject.upsert({
+    where: { code: 'GEO-TEST' },
+    update: {},
+    create: {
+      id: pateIds.geography,
+      name: 'Geografía',
+      code: 'GEO-TEST',
+      hoursPerWeek: 3,
+      gradeLevel: 2,
+      area: 'Ciencias Sociales',
+    },
+  })
+
+  const pateStudentId = ids.students[1] // Mateo García
+  const patePendingSubjects = [
+    { key: 'math', enrollmentId: pateIds.enrollments.math, subjectId: matematica.id },
+    { key: 'language', enrollmentId: pateIds.enrollments.language, subjectId: lengua.id },
+    { key: 'history', enrollmentId: pateIds.enrollments.history, subjectId: historia.id },
+    { key: 'biology', enrollmentId: pateIds.enrollments.biology, subjectId: biologia.id },
+    { key: 'geography', enrollmentId: pateIds.enrollments.geography, subjectId: pateGeography.id },
+  ] as const
+
+  const patePendingIds: Record<string, string> = {}
+  for (const { key, enrollmentId, subjectId } of patePendingSubjects) {
+    await prisma.enrollment.upsert({
+      where: { id: enrollmentId },
+      update: {},
+      create: {
+        id: enrollmentId,
+        studentId: pateStudentId,
+        subjectId,
+        classSectionId: pateIds.section2025,
+        academicYearId: pateYear2025.id,
+        courseType: 'FIRST_TIME',
+        subjectStatus: 'MPAA',
+      },
+    })
+    await prisma.grade.upsert({
+      where: { enrollmentId },
+      update: {},
+      create: { enrollmentId, term1Score: 3, term2Score: 3, subjectStatus: 'MPAA' },
+    })
+    const pending = await prisma.pendingSubject.upsert({
+      where: { originEnrollmentId: enrollmentId },
+      update: {},
+      create: {
+        studentId: pateStudentId,
+        subjectId,
+        originEnrollmentId: enrollmentId,
+        originAcademicYearId: pateYear2025.id,
+        status: 'PENDING',
+        initialPendingKnowledge: 'Saberes del año sin acreditar.',
+      },
+      select: { id: true },
+    })
+    patePendingIds[key] = pending.id
+  }
+  const pendingId = (key: string) => {
+    const id = patePendingIds[key]
+    if (!id) throw new Error(`Falta la MPAA ${key} del seed del PATE`)
+    return id
+  }
+
+  // El PATE es del ciclo en que se aplica: 2026 (`academicYear`), no del 2025 (`pateYear2025`),
+  // que es donde las MPAA quedaron pendientes. El servicio exige que las MPAA sean de un ciclo
+  // anterior al del PATE, y la unicidad (alumno, ciclo) es por el ciclo de aplicación.
+  await prisma.pate.upsert({
+    where: {
+      studentId_academicYearId: { studentId: pateStudentId, academicYearId: academicYear.id },
+    },
+    update: {},
+    create: {
+      studentId: pateStudentId,
+      academicYearId: academicYear.id,
+      diagnosis: 'Cinco materias pendientes de 2025, con dificultades en la producción escrita.',
+      supportStrategies: 'Tutoría semanal y seguimiento del preceptor con la familia.',
+      schedule: 'Marzo a julio: intensificación; agosto: primer seguimiento del EDTE.',
+      status: 'DRAFT',
+      createdById: ids.schoolManagement,
+      subjectsToIntensify: {
+        create: [
+          {
+            pendingSubjectId: pendingId('history'),
+            model: 'MODEL_2',
+            targetClassSectionId: ids.sections[0], // 3° A Mañana
+          },
+          {
+            pendingSubjectId: pendingId('geography'),
+            model: 'MODEL_3',
+            targetClassSectionId: ids.sections[1], // 2° B Tarde
+          },
+          { pendingSubjectId: pendingId('math'), model: 'MODEL_1' },
+          { pendingSubjectId: pendingId('biology'), model: 'MODEL_1' },
+        ],
+      },
+      subjectsToRepeat: {
+        create: [{ pendingSubjectId: pendingId('language'), classSectionId: section1A.id }],
+      },
+    },
+  })
+
+  console.log(`👉 PATE de Mateo García en borrador (CRM-078): GET /api/pates?studentId=${pateStudentId}`)
+
+  // ============================================================
   // 8. Comunicaciones institucionales
   // ============================================================
 
@@ -1584,6 +1738,22 @@ export async function main() {
       },
     })
   }
+
+  // Decisión del motor de promoción al cierre de 2025 (CRM-062): Mateo queda derivado al EDTE.
+  // Las reuniones (CRM-075) y el PATE (CRM-078) leen los derivados de estas decisiones (CRM-073),
+  // así que sin ella Mateo no aparecería como derivado hasta ejecutar el motor.
+  await prisma.promotionDecision.upsert({
+    where: { studentId_academicYearId: { studentId: referredStudentId, academicYearId: year2025.id } },
+    update: {},
+    create: {
+      studentId: referredStudentId,
+      academicYearId: year2025.id,
+      pendingCount: referredSubjects.length,
+      outcome: 'REFERRED_TO_EDTE',
+      executedById: ids.schoolManagement,
+      notes: 'Cargada por el seed: derivado al cierre de 2025 con 5 MPAA.',
+    },
+  })
 
   // Reunión de febrero/marzo de 2026, en borrador: arma los PATE del ciclo 2026
   await prisma.edteMeeting.upsert({

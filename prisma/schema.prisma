@@ -121,6 +121,13 @@ enum PromotionOutcome {
   REFERRED_TO_EDTE // 5 o más MPAA: no promueve y se deriva al EDTE
 }
 
+// Estado del alumno en el programa Plan Forte (E4-RF-14)
+enum FortePlanStatus {
+  ACTIVE // En el programa
+  COMPLETED // Finalizó el programa
+  WITHDRAWN // Dado de baja del programa
+}
+
 // Rol con el que participa cada integrante del EDTE (E4-RF-01)
 enum EdteRole {
   TEACHER // Docente
@@ -158,9 +165,10 @@ enum EdteMeetingStatus {
 }
 
 enum PateStatus {
-  ACTIVE // PATE Activo
-  UNDER_FOLLOW_UP // PATE en Seguimiento
-  FINISHED // PATE Finalizado / Concluido
+  // Estado del PATE (CRM-078): se arma en borrador, se confirma (en curso) y se cierra
+  DRAFT // Borrador: se puede editar
+  IN_PROGRESS // En curso: confirmado, ya no se edita
+  CLOSED // Cerrado
 }
 
 enum TransferType {
@@ -238,10 +246,19 @@ model User {
   sentMessages                 Message[]              @relation("MessageSender") // Mensajes enviados
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
+  patesCreated                 Pate[]                 @relation("PateCreator") // PATE que cargó
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
   edteTeamMemberships          EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
+  fortePlansInCharge           FortePlan[]            @relation("FortePlanResponsible") // Planes Forte a su cargo
+  fortePlanReports             FortePlanReport[]      @relation("FortePlanReportAuthor") // Reportes Forte que cargó
   edteMeetingsCreated          EdteMeeting[]          @relation("EdteMeetingCreator") // Reuniones del EDTE que cargó
   edteMeetingsSigned           EdteMeeting[]          @relation("EdteMeetingSigner") // Reuniones del EDTE que marcó como firmadas
+
+  conflictTotpCredential       ConflictTotpCredential?
+  electronicConflictSignatures ConflictElectronicSignature[]
+  requestedTotpRecoveries      ConflictTotpRecovery[]        @relation("TotpRecoveryOwner")
+  approvedTotpRecoveries       ConflictTotpRecovery[]        @relation("TotpRecoveryApprover")
+  conflictTotpRecoveryAttempt  ConflictTotpRecoveryAttempt?
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -282,6 +299,7 @@ model AcademicYear {
   enrollments        Enrollment[]
   rites              Rite[]
   edteMeetings       EdteMeeting[]
+  pates              Pate[] // PATE que se aplican en este ciclo
   calendarMilestones CalendarMilestone[]
   notifications      Notification[]
 }
@@ -308,12 +326,14 @@ model ClassSection {
   createdAt        DateTime          @default(now()) // Fecha de creación
 
   // Relaciones:
-  enrollments        Enrollment[] // Estudiantes matriculados en esta división
-  teacherAssignments TeacherSubjectCourse[] // Docentes asignados a esta división
-  enrollmentHistory  EnrollmentHistory[] // Historial de cambios de sección
-  curriculumSubjects CurriculumSubject[] // Materias de la currícula asociadas al curso
-  dailyAttendances   DailyAttendance[] // Asistencias diarias de la sección
-  interventions      Intervention[] // Intervenciones registradas en esta sección 
+  enrollments           Enrollment[] // Estudiantes matriculados en esta división
+  teacherAssignments    TeacherSubjectCourse[] // Docentes asignados a esta división
+  enrollmentHistory     EnrollmentHistory[] // Historial de cambios de sección
+  curriculumSubjects    CurriculumSubject[] // Materias de la currícula asociadas al curso
+  dailyAttendances      DailyAttendance[] // Asistencias diarias de la sección
+  interventions         Intervention[] // Intervenciones registradas en esta sección
+  pateIntensifySubjects PateSubjectIntensify[] // Materias de PATE que se intensifican en esta sección (modelos 2 y 3)
+  pateRepeatSubjects    PateSubjectRepeat[] // Materias de PATE que se recursan en esta sección
 
   @@unique([grade, division, shift, academicYearId]) // No pueden repetirse divisiones iguales en el mismo ciclo
 }
@@ -489,12 +509,11 @@ model Enrollment {
   updatedAt DateTime @updatedAt // Fecha de modificación
 
   // Relaciones:
-  grade                 Grade? // Calificaciones obtenidas
-  intensifications      Intensification[] // Instancias de intensificación rendidas
-  subjectAttendances    SubjectAttendance[] // Registro de asistencia en esta materia
-  pateIntensifySubjects PateSubjectIntensify[] // Si forma parte de un PATE para intensificar
-  pateRepeatSubjects    PateSubjectRepeat[] // Si forma parte de un PATE para recursar
-  committeeSubjects     CommitteeSubject[] // Evaluación en comisiones evaluadoras
+  grade              Grade? // Calificaciones obtenidas
+  intensifications   Intensification[] // Instancias de intensificación rendidas
+  subjectAttendances SubjectAttendance[] // Registro de asistencia en esta materia
+  pateRepeatOrigin   PateSubjectRepeat?  @relation("PateRepeatEnrollment") // Si es la recursada creada al confirmar un PATE (CRM-082)
+  committeeSubjects  CommitteeSubject[] // Evaluación en comisiones evaluadoras
 
   @@unique([studentId, subjectId, academicYearId, courseType]) // Inscripción única por materia/año/condición
   @@index([academicYearId, subjectStatus]) // Índice para reportes de estado académico
@@ -696,11 +715,6 @@ model EdteMember {
 }
 
 // Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
-// Es el plantel del equipo: existe aunque no haya reuniones. La participación en cada
-// reunión se registra aparte, en EdteMember (CRM-075).
-// Una sola fila por usuario: la baja es lógica (active = false) y un alta posterior reactiva
-// la misma fila, así un usuario nunca queda dos veces como integrante activo.
-// Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
 // Hay un EDTE por turno (Anexo 2, inc. 22): una persona puede integrar el de cada turno.
 // La participación en cada reunión se registra aparte, en EdteMember (CRM-075).
 // Una fila por usuario y turno: la baja es lógica (active = false) y un alta posterior
@@ -724,47 +738,64 @@ model EdteTeamMember {
 // PATE — Plan de Acompañamiento a la Trayectoria Educativa
 // ============================================================================
 
+// PATE del alumno derivado al EDTE (E4-RF-06, CRM-078): uno por alumno y ciclo. Las materias a
+// intensificar y a recursar son MPAA del alumno. La reunión del EDTE es opcional hasta que se
+// puedan registrar reuniones (CRM-075); después pasa a ser obligatoria.
 model Pate {
-  id                String      @id @default(uuid()) // Identificador único
-  student           Student     @relation(fields: [studentId], references: [id]) // Estudiante asistido
+  id                String       @id @default(uuid()) // Identificador único
+  student           Student      @relation(fields: [studentId], references: [id]) // Estudiante asistido
   studentId         String // ID del estudiante
-  edteMeeting       EdteMeeting @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
-  edteMeetingId     String // ID de la reunión EDTE
+  academicYear      AcademicYear @relation(fields: [academicYearId], references: [id]) // Ciclo en que se aplica
+  academicYearId    String // ID del ciclo
+  edteMeeting       EdteMeeting? @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
+  edteMeetingId     String? // ID de la reunión EDTE (opcional hasta CRM-075)
   diagnosis         String // Diagnóstico pedagógico de la trayectoria
   supportStrategies String // Estrategias de acompañamiento e intervención acordadas
   schedule          String? // Cronograma de actividades/propuestas
-  status            PateStatus  @default(ACTIVE) // Estado actual del plan PATE
+  status            PateStatus   @default(DRAFT) // Borrador, en curso o cerrado
   notificationUrl   String? // Documento de notificación a la familia cargado
-  createdAt         DateTime    @default(now()) // Fecha de elaboración
+  createdBy         User?        @relation("PateCreator", fields: [createdById], references: [id]) // Quién lo cargó
+  createdById       String? // ID de ese usuario (vacío en PATE anteriores a CRM-078)
+  createdAt         DateTime     @default(now()) // Fecha de elaboración
+  updatedAt         DateTime     @default(now()) @updatedAt // Última modificación
 
   subjectsToIntensify PateSubjectIntensify[] // Materias a intensificar según el PATE
   subjectsToRepeat    PateSubjectRepeat[] // Materias que debe recursar según el PATE
   followUps           PateFollowUp[] // Seguimiento periódico de los avances del PATE
 
+  @@unique([studentId, academicYearId]) // Un PATE por alumno y ciclo
   @@index([studentId]) // Índice para consulta de PATE por estudiante
 }
 
+// MPAA que se intensifica (hasta 4 por PATE, A5 inc. 13), con su modelo y, en los modelos 2 y 3,
+// la sección donde intensifica (año, sección y turno)
 model PateSubjectIntensify {
-  id           String               @id @default(uuid()) // Identificador único
-  pate         Pate                 @relation(fields: [pateId], references: [id]) // Plan PATE asignado
-  pateId       String // ID del PATE
-  enrollment   Enrollment           @relation(fields: [enrollmentId], references: [id]) // Materia/Inscripción a intensificar
-  enrollmentId String // ID de inscripción
-  model        IntensificationModel // Modelo de intensificación elegido
-  location     String? // Espacio/Aula/Turno asignado para la intensificación
+  id                   String               @id @default(uuid()) // Identificador único
+  pate                 Pate                 @relation(fields: [pateId], references: [id]) // Plan PATE asignado
+  pateId               String // ID del PATE
+  pendingSubject       PendingSubject       @relation(fields: [pendingSubjectId], references: [id]) // MPAA a intensificar
+  pendingSubjectId     String // ID de la MPAA
+  model                IntensificationModel // Modelo de intensificación elegido
+  targetClassSection   ClassSection?        @relation(fields: [targetClassSectionId], references: [id]) // Sección donde intensifica (modelos 2 y 3)
+  targetClassSectionId String? // ID de esa sección
 
-  @@unique([pateId, enrollmentId]) // Unicidad de materia dentro del mismo PATE
+  @@unique([pateId, pendingSubjectId]) // Unicidad de materia dentro del mismo PATE
 }
 
+// MPAA que se recursa, con la sección donde la cursa (año, sección y turno). Al confirmar el PATE,
+// CRM-082 crea la inscripción REPEAT y la guarda en repeatEnrollmentId.
 model PateSubjectRepeat {
-  id           String     @id @default(uuid()) // Identificador único
-  pate         Pate       @relation(fields: [pateId], references: [id]) // Plan PATE asignado
-  pateId       String // ID del PATE
-  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id]) // Materia/Inscripción a recursar
-  enrollmentId String // ID de inscripción
-  location     String? // Espacio/Aula/Turno donde recursará
+  id                 String         @id @default(uuid()) // Identificador único
+  pate               Pate           @relation(fields: [pateId], references: [id]) // Plan PATE asignado
+  pateId             String // ID del PATE
+  pendingSubject     PendingSubject @relation(fields: [pendingSubjectId], references: [id]) // MPAA a recursar
+  pendingSubjectId   String // ID de la MPAA
+  classSection       ClassSection   @relation(fields: [classSectionId], references: [id]) // Sección donde recursa
+  classSectionId     String // ID de esa sección
+  repeatEnrollment   Enrollment?    @relation("PateRepeatEnrollment", fields: [repeatEnrollmentId], references: [id]) // Inscripción REPEAT creada (CRM-082)
+  repeatEnrollmentId String?        @unique // ID de esa inscripción
 
-  @@unique([pateId, enrollmentId]) // Unicidad de materia a recursar por PATE
+  @@unique([pateId, pendingSubjectId]) // Unicidad de materia a recursar por PATE
 }
 
 model PateFollowUp {
@@ -788,7 +819,7 @@ model Intervention {
   studentId            String // ID del estudiante
   author               User                  @relation("InterventionAuthor", fields: [authorId], references: [id]) // Profesional/Docente actuante
   authorId             String // ID del autor de la intervención
-  classSection         ClassSection?         @relation(fields: [classSectionId], references: [id]) // Curso/división donde ocurrió 
+  classSection         ClassSection?         @relation(fields: [classSectionId], references: [id]) // Curso/división donde ocurrió
   classSectionId       String? // ID del curso/división
   eventType            InterventionEventType // Tipo de intervención (Pedagógica, Salud, Convivencia)
   involvedActors       String? // Actores intervinientes (Ej: "EOE, Equipo Directivo, Madre")
@@ -803,45 +834,94 @@ model Intervention {
   @@index([classSectionId, date]) // Índice para listar intervenciones por curso
 }
 
+// Asignación de un alumno al programa Plan Forte (E4-RF-14, CRM-089).
+// Un plan por alumno: si deja el programa y vuelve, se reactiva el mismo plan.
 model FortePlan {
-  id               String   @id @default(uuid()) // Identificador único
-  student          Student  @relation(fields: [studentId], references: [id]) // Estudiante
-  studentId        String   @unique // ID del estudiante (1 a 1)
+  id               String          @id @default(uuid()) // Identificador único
+  student          Student         @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId        String          @unique // ID del estudiante (1 a 1)
   pedagogicalGoals String // Objetivos pedagógicos prioritarios del programa FORTE
-  assignedAt       DateTime @default(now()) // Fecha de asignación al programa
+  assignedAt       DateTime        @default(now()) // Fecha de asignación (alta) al programa
+  responsible      User?           @relation("FortePlanResponsible", fields: [responsibleId], references: [id]) // Responsable del seguimiento
+  responsibleId    String? // ID del responsable
+  status           FortePlanStatus @default(ACTIVE) // Estado en el programa
+  updatedAt        DateTime        @default(now()) @updatedAt // Última modificación
 
   reports FortePlanReport[] // Informes periódicos de avance en el programa FORTE
+
+  @@index([status]) // Para listar los alumnos activos en el programa
 }
 
+// Reporte de evolución del alumno en el Plan Forte. Va separado del boletín: no aparece
+// en el RITE ni en la grilla de calificaciones (criterio 5 de la CRM-089).
 model FortePlanReport {
-  id          String    @id @default(uuid()) // Identificador único
-  fortePlan   FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
-  fortePlanId String // ID del plan FORTE
-  date        DateTime  @default(now()) // Fecha del informe de avance
-  progress    String // Detalle de saberes alcanzados y nivel de avance
+  id           String    @id @default(uuid()) // Identificador único
+  fortePlan    FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
+  fortePlanId  String // ID del plan FORTE
+  date         DateTime  @default(now()) // Fecha del informe de avance
+  progress     String // Detalle de saberes alcanzados y nivel de avance (evolución)
+  observations String? // Observaciones
+  author       User?     @relation("FortePlanReportAuthor", fields: [authorId], references: [id]) // Quién cargó el reporte
+  authorId     String? // ID del autor
+  createdAt    DateTime  @default(now()) // Fecha de carga
+
+  @@index([fortePlanId, date]) // Para el historial de reportes de un plan
 }
 
 // ============================================================================
 // LEGAL CONFLICTS (Registro de Conflictos y Actas Complejas / Legales)
 // ============================================================================
 
+// Códigos normalizados de situaciones de conflicto
+model ConflictCode {
+  code        String @id // Código único de la situación
+  description String // Descripción del tipo de conflicto
+
+  // Relaciones
+  conflicts LegalConflict[] // Conflictos asociados a este código
+}
+
+// Registro de conflictos de alta complejidad
 model LegalConflict {
-  id              String    @id @default(uuid()) // Identificador único
-  student         Student   @relation(fields: [studentId], references: [id]) // Estudiante involucrado
-  studentId       String // ID del estudiante
-  author          User      @relation("ConflictAuthor", fields: [authorId], references: [id]) // Redactor del acta/informe
-  authorId        String // ID del autor
-  conflictCode    String // Código del tipo de conflicto/acta (Guía de orientación ante situaciones complejas)
-  detailedReport  String // Relato minucioso de los hechos e intervenciones realizadas
-  editLocked      Boolean   @default(true) // ¿Bloqueado contra ediciones posteriores? (Inalterabilidad del acta)
-  digitalSignHash String // Hash de la firma digital de resguardo legal
-  documentUuid    String    @unique @default(uuid()) // Identificador único legal del documento
-  registeredAt    DateTime  @default(now()) // Fecha y hora de registro oficial
-  occurrenceDate  DateTime? // Fecha y hora real en que ocurrieron los hechos
+  id String @id @default(uuid()) // Identificador único
 
-  attachments LegalConflictAttachment[] // Anexos y agregados posteriores al acta
+  // Estudiante involucrado
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId String
 
-  @@index([studentId]) // Índice de resguardo por alumno
+  // Usuario que registra el conflicto
+  author   User   @relation("ConflictAuthor", fields: [authorId], references: [id])
+  authorId String
+
+  // Código normalizado del conflicto
+  conflictCode String
+  conflictType ConflictCode @relation(fields: [conflictCode], references: [code])
+
+  // Informe detallado cifrado con AES-256-GCM
+  // El cifrado se realizará en el servicio antes de guardar en PostgreSQL
+  detailedReport String
+
+  // Bloqueo de edición del acta
+  editLocked Boolean @default(true)
+
+  // Hash de firma digital
+  digitalSignHash String?
+
+  // Identificador único del documento
+  documentUuid String @unique @default(uuid())
+
+  // Fechas
+  registeredAt   DateTime  @default(now()) // Fecha de registro
+  occurrenceDate DateTime? // Fecha del suceso
+
+  // Anexos posteriores al acta
+  attachments LegalConflictAttachment[]
+
+  electronicSignature ConflictElectronicSignature?
+
+  // Índices
+  @@index([studentId])
+  @@index([conflictCode])
 }
 
 model LegalConflictAttachment {
@@ -851,7 +931,7 @@ model LegalConflictAttachment {
   authorId        String // ID del autor del anexo
   content         String // Texto del anexo / actualización de la intervención
   date            DateTime      @default(now()) // Fecha de incorporación del anexo
-  digitalSignHash String // Hash de firma digital del anexo
+  digitalSignHash String? // Hash opcional de firma digital del anexo
 }
 
 // ============================================================================
@@ -1074,6 +1154,9 @@ model PendingSubject {
   createdAt               DateTime             @default(now()) // Fecha de alta
   updatedAt               DateTime             @updatedAt // Fecha de modificación
 
+  pateIntensifySubjects PateSubjectIntensify[] // PATE en que se intensifica
+  pateRepeatSubjects    PateSubjectRepeat[] // PATE en que se recursa
+
   @@index([studentId, status]) // Índice para contar las MPAA de un alumno
 }
 
@@ -1122,6 +1205,66 @@ model PromotionDecision {
   executedAt     DateTime         @default(now()) // Cuándo se decidió
   notes          String? // Observaciones
 
+  @@unique([studentId, academicYearId]) // Evita decisiones duplicadas por alumno y ciclo
   @@index([academicYearId, outcome]) // Índice para la pantalla del motor
   @@index([studentId]) // Índice para el historial de un alumno
+}
+
+// ============================================================================
+// CRM-090 - AUTENTICADOR PARA FIRMA ELECTRÓNICA
+// ============================================================================
+
+model ConflictTotpCredential {
+  userId          String    @id
+  user            User      @relation(fields: [userId], references: [id])
+  encryptedSecret String
+  verifiedAt      DateTime?
+  lastUsedStep    BigInt?
+  failedAttempts  Int       @default(0)
+  lockedUntil     DateTime?
+}
+
+// ============================================================================
+// CRM-090 - FIRMA ELECTRÓNICA DE ACTAS
+// ============================================================================
+
+model ConflictElectronicSignature {
+  id String @id @default(uuid())
+
+  conflictId String        @unique
+  conflict   LegalConflict @relation(fields: [conflictId], references: [id])
+
+  signerId String
+  signer   User   @relation(fields: [signerId], references: [id])
+
+  documentHash String
+  signedAt     DateTime @default(now())
+
+  @@index([signerId])
+}
+
+// CRM-090: Solicitudes de recuperación del autenticador de firma
+model ConflictTotpRecovery {
+  id           String    @id @default(uuid())
+  userId       String
+  requestedAt  DateTime  @default(now())
+  expiresAt    DateTime
+  approvedById String?
+  approvedAt   DateTime?
+  status       String    @default("PENDING")
+  reason       String
+
+  user       User  @relation("TotpRecoveryOwner", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  approvedBy User? @relation("TotpRecoveryApprover", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, status])
+}
+
+// CRM-090: Límite de intentos de autorización de recuperación
+model ConflictTotpRecoveryAttempt {
+  userId         String    @id
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 }
