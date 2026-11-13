@@ -23,6 +23,7 @@ import { getMyEdteMemberships } from '@/services/edteTeamMember.service'
 import { MODELS_BY_OPTION } from '@/services/intensification.service'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
 import { MAX_SUBJECTS_PER_CYCLE } from '@/services/subjectEnrollmentLimit'
+import { createSubjectRepeat } from '@/services/subjectRepeat.service'
 import { HttpError } from '@/utils/httpError'
 import { assertPlacement } from '@/utils/intensificationPlacement'
 import { toDay } from '@/utils/schoolDate'
@@ -704,7 +705,8 @@ const STATUS_LABELS: Record<PateStatus, string> = {
 }
 
 // Confirmar: se vuelven a validar todas las materias dentro de la transacción, con la fila del
-// alumno bloqueada, para que dos pedidos a la vez no pasen el límite de 12.
+// alumno bloqueada, para que dos pedidos a la vez no pasen el límite de 12, y se crean las
+// inscripciones de las materias a recursar (CRM-082).
 // Cerrar: solo cambia el estado.
 export async function changePateStatus(id: string, status: PateStatus, actor: Actor) {
   const pate = await findPateOrFail(id)
@@ -733,9 +735,29 @@ export async function changePateStatus(id: string, status: PateStatus, actor: Ac
           })),
         })
       )
-      // CRM-082: acá se crean las inscripciones REPEAT de subjectsToRepeat (con
-      // createSubjectRepeat) y se guarda cada una en repeatEnrollmentId, en esta misma
-      // transacción: si alguna falla, no se confirma el PATE.
+      // Recursadas (CRM-082): se crea la inscripción REPEAT de cada materia a recursar, en el ciclo
+      // del PATE, y se guarda en repeatEnrollmentId. En esta misma transacción: si alguna falla,
+      // no se confirma el PATE ni queda ninguna inscripción creada.
+      for (const item of pate.subjectsToRepeat) {
+        try {
+          const repeat = await createSubjectRepeat(
+            tx,
+            { pendingSubjectId: item.pendingSubjectId, classSectionId: item.classSectionId },
+            actor,
+            pate.academicYear
+          )
+          await tx.pateSubjectRepeat.update({
+            where: { id: item.id },
+            data: { repeatEnrollmentId: repeat.id },
+          })
+        } catch (err) {
+          // El mensaje dice de qué materia se trata
+          if (err instanceof HttpError) {
+            throw new HttpError(err.status, `${item.pendingSubject.subject.name}: ${err.message}`)
+          }
+          throw err
+        }
+      }
     }
 
     // Solo si no cambió de estado mientras tanto (dos pedidos a la vez)
