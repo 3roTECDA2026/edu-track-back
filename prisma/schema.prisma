@@ -1161,6 +1161,7 @@ model PromotionDecision {
   executedAt     DateTime         @default(now()) // Cuándo se decidió
   notes          String? // Observaciones
 
+  @@unique([studentId, academicYearId]) // Evita decisiones duplicadas por alumno y ciclo
   @@index([academicYearId, outcome]) // Índice para la pantalla del motor
   @@index([studentId]) // Índice para el historial de un alumno
 }
