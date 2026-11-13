@@ -16,7 +16,7 @@ const gradeListInclude = {
       id: true,
       student: { select: { id: true, dni: true, lastName: true, firstName: true } },
       subject: { select: { id: true, name: true } },
-      classSection: { select: { id: true, grade: true, division: true } },
+      classSection: { select: { id: true, grade: true, division: true, shift: true } },
       academicYear: { select: { id: true, year: true } },
       // Cursada por primera vez o recursado (marca "R", CRM-082)
       courseType: true,
