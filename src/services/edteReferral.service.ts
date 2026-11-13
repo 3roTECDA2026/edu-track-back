@@ -54,7 +54,11 @@ export async function listEdteReferrals(query: ListEdteReferralsQuery) {
           },
           // Las materias que sigue debiendo hoy (las acreditadas después ya no aparecen)
           pendingSubjects: {
-            where: { status: PendingSubjectStatus.PENDING },
+            // Las que sigue debiendo, de hasta el ciclo de la derivación (no las de ciclos posteriores)
+            where: {
+              status: PendingSubjectStatus.PENDING,
+              originAcademicYear: { year: { lte: query.year } },
+            },
             orderBy: { originAcademicYear: { year: 'asc' } },
             select: {
               id: true,
