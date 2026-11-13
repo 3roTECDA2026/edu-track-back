@@ -7,6 +7,7 @@ import courseRoutes from '@/routes/course.routes'
 import { cycleClosureRouter } from '@/routes/cycleClosure.routes'
 import { enrollmentRouter } from '@/routes/enrollment.routes'
 import { edteTeamMemberRouter } from '@/routes/edteTeamMember.routes'
+import { fortePlanRouter } from '@/routes/fortePlan.routes'
 import { gradeRouter } from '@/routes/grade.routes'
 import { edteMeetingRouter } from '@/routes/edteMeeting.routes'
 import { institutionalConfigRouter } from '@/routes/institutionalConfig.routes'
@@ -61,5 +62,7 @@ router.use('/edte-team-members', edteTeamMemberRouter)
 router.use('/pending-subjects', pendingSubjectRouter)
 // Motor de promoción con auditoría (CRM-062)
 router.use('/promotion', promotionRouter)
+// Plan Forte (CRM-089)
+router.use('/forte-plans', fortePlanRouter)
 
 export default router

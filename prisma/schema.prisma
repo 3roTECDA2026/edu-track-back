@@ -121,6 +121,13 @@ enum PromotionOutcome {
   REFERRED_TO_EDTE // 5 o más MPAA: no promueve y se deriva al EDTE
 }
 
+// Estado del alumno en el programa Plan Forte (E4-RF-14)
+enum FortePlanStatus {
+  ACTIVE // En el programa
+  COMPLETED // Finalizó el programa
+  WITHDRAWN // Dado de baja del programa
+}
+
 // Rol con el que participa cada integrante del EDTE (E4-RF-01)
 enum EdteRole {
   TEACHER // Docente
@@ -240,13 +247,15 @@ model User {
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
   edteTeamMemberships          EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
+  fortePlansInCharge           FortePlan[]            @relation("FortePlanResponsible") // Planes Forte a su cargo
+  fortePlanReports             FortePlanReport[]      @relation("FortePlanReportAuthor") // Reportes Forte que cargó
   edteMeetingsCreated          EdteMeeting[]          @relation("EdteMeetingCreator") // Reuniones del EDTE que cargó
   edteMeetingsSigned           EdteMeeting[]          @relation("EdteMeetingSigner") // Reuniones del EDTE que marcó como firmadas
 
   conflictTotpCredential       ConflictTotpCredential?
   electronicConflictSignatures ConflictElectronicSignature[]
-  requestedTotpRecoveries      ConflictTotpRecovery[] @relation("TotpRecoveryOwner")
-  approvedTotpRecoveries       ConflictTotpRecovery[] @relation("TotpRecoveryApprover")
+  requestedTotpRecoveries      ConflictTotpRecovery[]        @relation("TotpRecoveryOwner")
+  approvedTotpRecoveries       ConflictTotpRecovery[]        @relation("TotpRecoveryApprover")
   conflictTotpRecoveryAttempt  ConflictTotpRecoveryAttempt?
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
@@ -702,11 +711,6 @@ model EdteMember {
 }
 
 // Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
-// Es el plantel del equipo: existe aunque no haya reuniones. La participación en cada
-// reunión se registra aparte, en EdteMember (CRM-075).
-// Una sola fila por usuario: la baja es lógica (active = false) y un alta posterior reactiva
-// la misma fila, así un usuario nunca queda dos veces como integrante activo.
-// Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
 // Hay un EDTE por turno (Anexo 2, inc. 22): una persona puede integrar el de cada turno.
 // La participación en cada reunión se registra aparte, en EdteMember (CRM-075).
 // Una fila por usuario y turno: la baja es lógica (active = false) y un alta posterior
@@ -809,22 +813,38 @@ model Intervention {
   @@index([classSectionId, date]) // Índice para listar intervenciones por curso
 }
 
+// Asignación de un alumno al programa Plan Forte (E4-RF-14, CRM-089).
+// Un plan por alumno: si deja el programa y vuelve, se reactiva el mismo plan.
 model FortePlan {
-  id               String   @id @default(uuid()) // Identificador único
-  student          Student  @relation(fields: [studentId], references: [id]) // Estudiante
-  studentId        String   @unique // ID del estudiante (1 a 1)
+  id               String          @id @default(uuid()) // Identificador único
+  student          Student         @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId        String          @unique // ID del estudiante (1 a 1)
   pedagogicalGoals String // Objetivos pedagógicos prioritarios del programa FORTE
-  assignedAt       DateTime @default(now()) // Fecha de asignación al programa
+  assignedAt       DateTime        @default(now()) // Fecha de asignación (alta) al programa
+  responsible      User?           @relation("FortePlanResponsible", fields: [responsibleId], references: [id]) // Responsable del seguimiento
+  responsibleId    String? // ID del responsable
+  status           FortePlanStatus @default(ACTIVE) // Estado en el programa
+  updatedAt        DateTime        @default(now()) @updatedAt // Última modificación
 
   reports FortePlanReport[] // Informes periódicos de avance en el programa FORTE
+
+  @@index([status]) // Para listar los alumnos activos en el programa
 }
 
+// Reporte de evolución del alumno en el Plan Forte. Va separado del boletín: no aparece
+// en el RITE ni en la grilla de calificaciones (criterio 5 de la CRM-089).
 model FortePlanReport {
-  id          String    @id @default(uuid()) // Identificador único
-  fortePlan   FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
-  fortePlanId String // ID del plan FORTE
-  date        DateTime  @default(now()) // Fecha del informe de avance
-  progress    String // Detalle de saberes alcanzados y nivel de avance
+  id           String    @id @default(uuid()) // Identificador único
+  fortePlan    FortePlan @relation(fields: [fortePlanId], references: [id]) // Plan FORTE
+  fortePlanId  String // ID del plan FORTE
+  date         DateTime  @default(now()) // Fecha del informe de avance
+  progress     String // Detalle de saberes alcanzados y nivel de avance (evolución)
+  observations String? // Observaciones
+  author       User?     @relation("FortePlanReportAuthor", fields: [authorId], references: [id]) // Quién cargó el reporte
+  authorId     String? // ID del autor
+  createdAt    DateTime  @default(now()) // Fecha de carga
+
+  @@index([fortePlanId, date]) // Para el historial de reportes de un plan
 }
 
 // ============================================================================
@@ -1198,7 +1218,6 @@ model ConflictElectronicSignature {
 
   @@index([signerId])
 }
-
 
 // CRM-090: Solicitudes de recuperación del autenticador de firma
 model ConflictTotpRecovery {
