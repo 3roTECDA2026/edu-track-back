@@ -1736,6 +1736,22 @@ export async function main() {
     })
   }
 
+  // Decisión del motor de promoción al cierre de 2025 (CRM-062): Mateo queda derivado al EDTE.
+  // Las reuniones (CRM-075) y el PATE (CRM-078) leen los derivados de estas decisiones (CRM-073),
+  // así que sin ella Mateo no aparecería como derivado hasta ejecutar el motor.
+  await prisma.promotionDecision.upsert({
+    where: { studentId_academicYearId: { studentId: referredStudentId, academicYearId: year2025.id } },
+    update: {},
+    create: {
+      studentId: referredStudentId,
+      academicYearId: year2025.id,
+      pendingCount: referredSubjects.length,
+      outcome: 'REFERRED_TO_EDTE',
+      executedById: ids.schoolManagement,
+      notes: 'Cargada por el seed: derivado al cierre de 2025 con 5 MPAA.',
+    },
+  })
+
   // Reunión de febrero/marzo de 2026, en borrador: arma los PATE del ciclo 2026
   await prisma.edteMeeting.upsert({
     where: { id: referralIds.meeting },
