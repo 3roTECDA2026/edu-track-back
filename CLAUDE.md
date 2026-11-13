@@ -184,7 +184,7 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
     temprana) y 5 (derivados) salen de E6-RF-02; una TED como alerta, de E6-RF-03; "2 o más TED =
     rojo" es una propuesta del equipo, no de un requerimiento. Las reglas tienen tests
     (`utils/edteRisk.test.ts`).
-  - **Provisorio:** el PATE en curso (`getActivePates`) devuelve vacío hasta CRM-078.
+  - El PATE en curso (`getActivePates`) son los PATE `IN_PROGRESS` del ciclo activo (CRM-078).
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
   TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
   usa todavía en `requireRole`, así que un preceptor puede iniciar sesión pero no accede a
@@ -278,6 +278,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 | `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
+| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -285,8 +286,10 @@ Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque
 de distintos recursos y puede pisar otras.
 
 **PATE (CRM-078, E4-RF-06, RN-012 y RN-013):**
-- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior. El ciclo es
-  el de la reunión del EDTE si viene; si no, el ciclo activo.
+- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior.
+- Sale de una reunión del EDTE (CRM-075): `edteMeetingId` es obligatorio, el ciclo es el de la
+  reunión y el alumno tiene que estar entre los tratados (409 si no). En `/options` la reunión es
+  opcional (sin ella se usa el ciclo activo), para poder armar el formulario antes de elegirla.
 - **Derivados al EDTE:** son los que el motor de promoción (CRM-062) decidió `REFERRED_TO_EDTE`
   (RN-012, CRM-073). No se recuentan las MPAA: si el motor no se ejecutó para ese ciclo, no hay
   derivados. Una sola función para todos: `getReferredStudentIds` en
@@ -307,11 +310,11 @@ de distintos recursos y puede pisar otras.
     recursa) y en versión curricular (`view: 'CURRICULAR'`: sin diagnóstico, estrategias,
     cronograma ni notificación). Si no es de sus alumnos, `GET /:id` responde 404;
   - preceptor: la versión curricular de todos (no hay vínculo entre preceptor y sección);
-  - cuando esté CRM-071, los integrantes del plantel del EDTE ven todo.
-- **Provisorio:**
-  - la reunión del EDTE es opcional hasta que esté CRM-075; después pasa a ser obligatoria y se
-    valida que el alumno esté entre sus tratados;
-  - el límite de 12 (`countSubjectsInCycle`) hasta CRM-061 (#57).
+  - integrantes activos del plantel del EDTE (CRM-071): todos, completos, sea cual sea su rol
+    (un docente integrante no queda limitado a sus alumnos).
+- El límite de 12 usa el máximo de CRM-061 (`MAX_SUBJECTS_PER_CYCLE`). No se usa
+  `assertSubjectLimit` porque corta en el primer error y el PATE devuelve todos juntos; al crear
+  las recursadas, CRM-082 sí lo usa.
 - Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
   la misma tabla que usa la asignación de CRM-056.
 
@@ -345,6 +348,33 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Los derivados salen de las decisiones del motor de promoción (`getReferredStudentIds`, ver PATE).
 - **Provisorio:** los convocados se validan contra el personal activo hasta que entre CRM-071
   (plantel). Está aislado en `getEligibleMembers`.
+
+**Recursado de materias (CRM-082, E4-RF-09):**
+- Un recursado es un `Enrollment` con `courseType: REPEAT`, vinculado a la MPAA que se recursa
+  (`repeatedPendingSubjectId`). Se califica y se toma asistencia como cualquier cursada.
+- Se recursa una MPAA pendiente de un ciclo anterior, en una sección del ciclo activo y del año
+  de la materia. El turno puede ser otro que el del alumno (contraturno). No hace falta tener 5
+  o más MPAA: lo decide Gestión Escolar, y queda auditado quién lo asignó.
+- No se recursa una MPAA con una intensificación sin resultado.
+- Al editar solo cambia la sección. Si el recursado lo creó un PATE, el cambio también se guarda en
+  el PATE (`PateSubjectRepeat.classSectionId`), en la misma transacción. Se quita solo si no tiene
+  notas, asistencia ni intensificaciones.
+- `createSubjectRepeat(tx, input, actor, cycle?)` recibe la transacción y, opcional, el ciclo: sin
+  él usa el activo (alta manual); el PATE pasa el suyo.
+- Cierre del ciclo: si el recursado aprueba, su MPAA queda `ACCREDITED` con la nota del
+  recursado (`PendingSubject.finalScore` admite decimales); si no, sigue la MPAA original y no se
+  crea otra.
+- Valida el límite de 12 materias por ciclo (`assertSubjectLimit`, CRM-061) con la fila del
+  alumno bloqueada.
+- Asignan, cambian la sección y quitan: administración, dirección, EOE/directivos y preceptores
+  (`SUBJECT_REPEAT_MANAGER_ROLES`); los docentes solo ven.
+- Al confirmar un PATE (`IN_PROGRESS`), se crea la inscripción REPEAT de cada materia a recursar,
+  en el ciclo del PATE, y se guarda en `PateSubjectRepeat.repeatEnrollmentId`. Va en la misma
+  transacción: si una falla (por ejemplo, el límite de 12), no se confirma el PATE. El error dice de
+  qué materia se trata.
+- Un recursado creado por un PATE no se puede quitar a mano (409): el servicio lo controla antes de
+  borrar, y la FK `PateSubjectRepeat.repeatEnrollmentId` es `RESTRICT`. La respuesta trae `pateId`
+  (null si se asignó a mano).
 
 ## 10. Git y Pull Requests
 

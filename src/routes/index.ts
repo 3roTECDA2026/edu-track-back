@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { academicYearRouter } from '@/routes/academicYear.routes'
 import attendanceRouter from '@/routes/attendance.routes'
 import authRouter from '@/routes/auth.routes'
 import { classSectionRouter } from '@/routes/classSection.routes'
@@ -21,6 +22,7 @@ import { edteDashboardRouter } from '@/routes/edteDashboard.routes'
 import { riteRouter } from '@/routes/rite.routes'
 import { studentRouter } from '@/routes/student.routes'
 import { pateRouter } from '@/routes/pate.routes'
+import { subjectRepeatRouter } from '@/routes/subjectRepeat.routes'
 import { teacherAssignmentRouter } from '@/routes/teacherAssignment.routes'
 import { userRouter } from '@/routes/user.routes'
 import { legalConflictRouter } from '@/routes/legalConflict.routes'
@@ -31,6 +33,7 @@ import { promotionRouter } from '@/routes/promotion.routes'
 const router = Router()
 
 router.use('/auth', authRouter)
+router.use('/academic-years', academicYearRouter)
 router.use('/students', studentRouter)
 router.use('/enrollments', enrollmentRouter)
 router.use('/grades', gradeRouter)
@@ -70,5 +73,7 @@ router.use('/promotion', promotionRouter)
 router.use('/forte-plans', fortePlanRouter)
 // Derivación al EDTE: alumnos con 5 o más MPAA (CRM-073)
 router.use('/edte-referrals', edteReferralRouter)
+// Recursado de materias (CRM-082)
+router.use('/subject-repeats', subjectRepeatRouter)
 
 export default router

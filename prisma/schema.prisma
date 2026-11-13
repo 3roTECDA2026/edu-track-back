@@ -492,19 +492,21 @@ model EnrollmentHistory {
 // ============================================================================
 
 model Enrollment {
-  id                 String          @id @default(uuid()) // Identificador único
-  pendingSubject     PendingSubject? // MPAA que se originó en esta cursada, si la desaprobó
-  student            Student         @relation(fields: [studentId], references: [id]) // Estudiante
-  studentId          String // ID del estudiante
-  classSection       ClassSection    @relation(fields: [classSectionId], references: [id]) // División
-  classSectionId     String // ID de la división
-  subject            Subject         @relation(fields: [subjectId], references: [id]) // Materia
-  subjectId          String // ID de la materia
-  courseType         CourseType      @default(FIRST_TIME) // Condición: Cursada por 1° vez o recursado
-  academicYear       AcademicYear    @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
-  academicYearId     String // ID del ciclo lectivo
-  subjectStatus      SubjectStatus   @default(IN_PROGRESS) // Estado académico de la materia
-  originalGradeLevel Int? // Año académico de origen de la materia (para pendienteros/MPAA)
+  id                       String          @id @default(uuid()) // Identificador único
+  pendingSubject           PendingSubject? @relation("PendingSubjectOrigin") // MPAA que se originó en esta cursada, si la desaprobó
+  student                  Student         @relation(fields: [studentId], references: [id]) // Estudiante
+  studentId                String // ID del estudiante
+  classSection             ClassSection    @relation(fields: [classSectionId], references: [id]) // División
+  classSectionId           String // ID de la división
+  subject                  Subject         @relation(fields: [subjectId], references: [id]) // Materia
+  subjectId                String // ID de la materia
+  courseType               CourseType      @default(FIRST_TIME) // Condición: Cursada por 1° vez o recursado
+  academicYear             AcademicYear    @relation(fields: [academicYearId], references: [id]) // Ciclo lectivo
+  academicYearId           String // ID del ciclo lectivo
+  subjectStatus            SubjectStatus   @default(IN_PROGRESS) // Estado académico de la materia
+  originalGradeLevel       Int? // Año académico de origen de la materia (para pendienteros/MPAA)
+  repeatedPendingSubject   PendingSubject? @relation("PendingSubjectRepeats", fields: [repeatedPendingSubjectId], references: [id], onDelete: Restrict) // MPAA que se recursa con esta inscripción (courseType REPEAT, CRM-082)
+  repeatedPendingSubjectId String? // ID de esa MPAA
 
   createdAt DateTime @default(now()) // Fecha de inscripción
   updatedAt DateTime @updatedAt // Fecha de modificación
@@ -517,6 +519,7 @@ model Enrollment {
   committeeSubjects  CommitteeSubject[] // Evaluación en comisiones evaluadoras
 
   @@unique([studentId, subjectId, academicYearId, courseType]) // Inscripción única por materia/año/condición
+  @@index([repeatedPendingSubjectId]) // Índice para buscar los recursados de una MPAA
   @@index([academicYearId, subjectStatus]) // Índice para reportes de estado académico
 }
 
@@ -793,7 +796,7 @@ model PateSubjectRepeat {
   pendingSubjectId   String // ID de la MPAA
   classSection       ClassSection   @relation(fields: [classSectionId], references: [id]) // Sección donde recursa
   classSectionId     String // ID de esa sección
-  repeatEnrollment   Enrollment?    @relation("PateRepeatEnrollment", fields: [repeatEnrollmentId], references: [id]) // Inscripción REPEAT creada (CRM-082)
+  repeatEnrollment   Enrollment?    @relation("PateRepeatEnrollment", fields: [repeatEnrollmentId], references: [id], onDelete: Restrict) // Inscripción REPEAT creada (CRM-082): no se puede borrar mientras el PATE la use
   repeatEnrollmentId String?        @unique // ID de esa inscripción
 
   @@unique([pateId, pendingSubjectId]) // Unicidad de materia a recursar por PATE
@@ -1163,14 +1166,15 @@ model PendingSubject {
   studentId               String // ID del alumno
   subject                 Subject              @relation(fields: [subjectId], references: [id]) // Materia pendiente
   subjectId               String // ID de la materia
-  originEnrollment        Enrollment           @relation(fields: [originEnrollmentId], references: [id]) // Cursada desaprobada que la originó
+  originEnrollment        Enrollment           @relation("PendingSubjectOrigin", fields: [originEnrollmentId], references: [id]) // Cursada desaprobada que la originó
   originEnrollmentId      String               @unique // De esa cursada cuelgan los intentos de intensificación
+  repeatEnrollments       Enrollment[]         @relation("PendingSubjectRepeats") // Inscripciones en que se recursa (una por ciclo, CRM-082)
   originAcademicYear      AcademicYear         @relation(fields: [originAcademicYearId], references: [id]) // Ciclo en que quedó pendiente
   originAcademicYearId    String // ID de ese ciclo
   status                  PendingSubjectStatus @default(PENDING) // Pendiente o acreditada
   initialPendingKnowledge String? // Saberes pendientes al inicio del ciclo
   closingPendingKnowledge String? // Saberes pendientes al cierre del ciclo
-  finalScore              Int? // Nota final al acreditar (4 a 10) o al cierre (1 a 3)
+  finalScore              Float? // Nota final al acreditar (4 a 10, con decimales si se acredita por recursado: 7,5) o al cierre (1 a 3)
   accreditedAt            DateTime? // Fecha en que se acreditó
   createdAt               DateTime             @default(now()) // Fecha de alta
   updatedAt               DateTime             @updatedAt // Fecha de modificación

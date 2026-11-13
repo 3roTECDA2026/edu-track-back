@@ -35,6 +35,14 @@ export async function getPate(req: Request, res: Response) {
   res.json(await pateService.getPateForViewer(id, { userId, role }))
 }
 
+export async function getPatePdf(req: Request, res: Response) {
+  const { id } = pateIdParamSchema.parse(req.params)
+  const buffer = await pateService.generatePatePdf(id)
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `inline; filename="pate-${id}.pdf"`)
+  res.send(buffer)
+}
+
 export async function createPate(req: Request, res: Response) {
   const input = createPateSchema.parse(req.body)
   res.status(201).json(await pateService.createPate(input, getActor(req)))
