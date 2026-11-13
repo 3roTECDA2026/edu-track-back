@@ -28,14 +28,17 @@ const pendingSubjectSelect = {
 } satisfies Prisma.PendingSubjectSelect
 
 // Las MPAA de un alumno: primero las pendientes y, dentro de cada grupo, el ciclo más reciente
-export async function listPendingSubjects(query: ListPendingSubjectsQuery) {
-  const student = await prisma.student.findUnique({
+export async function listPendingSubjects(
+  query: ListPendingSubjectsQuery,
+  db: Pick<Prisma.TransactionClient, 'student' | 'pendingSubject'> = prisma
+) {
+  const student = await db.student.findUnique({
     where: { id: query.studentId },
     select: { id: true },
   })
   if (!student) throw new HttpError(404, 'Estudiante no encontrado')
 
-  const pendings = await prisma.pendingSubject.findMany({
+  const pendings = await db.pendingSubject.findMany({
     where: { studentId: query.studentId },
     select: pendingSubjectSelect,
     orderBy: [
