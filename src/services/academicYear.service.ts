@@ -29,6 +29,7 @@ export async function listAcademicYearsService(
       term1EndDate: true,
       term2StartDate: true,
       term2EndDate: true,
+      closedAt: true,
       createdAt: true,
       updatedAt: true,
     },
