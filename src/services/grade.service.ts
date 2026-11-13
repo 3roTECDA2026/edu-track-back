@@ -18,6 +18,8 @@ const gradeListInclude = {
       subject: { select: { id: true, name: true } },
       classSection: { select: { id: true, grade: true, division: true } },
       academicYear: { select: { id: true, year: true } },
+      // Cursada por primera vez o recursado (marca "R", CRM-082)
+      courseType: true,
     },
   },
 } satisfies Prisma.GradeInclude
@@ -62,6 +64,8 @@ export async function listGrades(query: ListGradesQuery) {
 const gradeRosterSelect = (year: number) =>
   ({
     id: true,
+    // Cursada por primera vez o recursado (marca "R", CRM-082)
+    courseType: true,
     student: {
       select: {
         id: true,
@@ -123,6 +127,8 @@ export async function getGradeRoster(query: GradeRosterQuery) {
 
 const gradeByStudentSelect = {
   id: true,
+  // Cursada por primera vez o recursado (marca "R", CRM-082)
+  courseType: true,
   subject: { select: { id: true, name: true } },
   grade: {
     select: {

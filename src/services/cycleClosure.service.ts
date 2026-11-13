@@ -31,8 +31,11 @@ const enrollmentSelect = {
   subject: { select: { name: true } },
   classSection: { select: { grade: true, division: true } },
   pendingSubject: { select: { id: true } },
+  // MPAA que se recursa con esta inscripción (CRM-082); null en las cursadas por primera vez
+  repeatedPendingSubjectId: true,
   grade: {
     select: {
+      finalScore: true,
       term1Score: true,
       term2Score: true,
       term1IntensificationScore: true,
@@ -66,6 +69,9 @@ export interface CycleClosureSummary {
   newMpaa: number
   alreadyMpaa: number
   approved: number
+  // Recursados (CRM-082): aprobados acreditan su MPAA; los no aprobados no crean una nueva
+  repeatsAccredited: number
+  repeatsNotApproved: number
   unrated: UnratedSubject[]
 }
 
@@ -162,6 +168,10 @@ export async function closeCycle(
   const approved: Array<{ enrollment: EnrollmentForClosure; finalScore: number | null }> = []
   const notApproved: EnrollmentForClosure[] = []
   const unrated: EnrollmentForClosure[] = []
+  // Recursados (CRM-082, decisión del equipo): si aprueba, la MPAA queda acreditada con la nota
+  // del recursado; si no, sigue pendiente la MPAA original y no se crea otra
+  const repeatsToAccredit: Array<{ pendingSubjectId: string; finalScore: number | null }> = []
+  const repeatsNotApproved: EnrollmentForClosure[] = []
 
   for (const enrollment of enrollments) {
     if (enrollment.pendingSubject) {
@@ -171,6 +181,14 @@ export async function closeCycle(
     // Ya aprobada (por ejemplo, con AA en una intensificación): no se recalcula la nota
     if (enrollment.grade?.subjectStatus === SubjectStatus.APPROVED_ACCREDITED) {
       alreadyApproved.push(enrollment)
+      // Si es un recursado, se vuelve a pedir la acreditación de su MPAA: si ya estaba
+      // acreditada no cambia nada, y si una ejecución anterior no llegó a hacerlo, la completa
+      if (enrollment.repeatedPendingSubjectId) {
+        repeatsToAccredit.push({
+          pendingSubjectId: enrollment.repeatedPendingSubjectId,
+          finalScore: enrollment.grade.finalScore,
+        })
+      }
       continue
     }
     const result = evaluateSubjectApproval({
@@ -179,9 +197,18 @@ export async function closeCycle(
       term1IntensificationScore: enrollment.grade?.term1IntensificationScore ?? null,
       attempts: enrollment.intensifications,
     })
-    if (result.outcome === 'APPROVED') approved.push({ enrollment, finalScore: result.finalScore })
-    else if (result.outcome === 'NOT_APPROVED') notApproved.push(enrollment)
-    else unrated.push(enrollment)
+    if (result.outcome === 'APPROVED') {
+      approved.push({ enrollment, finalScore: result.finalScore })
+      if (enrollment.repeatedPendingSubjectId) {
+        repeatsToAccredit.push({
+          pendingSubjectId: enrollment.repeatedPendingSubjectId,
+          finalScore: result.finalScore,
+        })
+      }
+    } else if (result.outcome === 'NOT_APPROVED') {
+      if (enrollment.repeatedPendingSubjectId) repeatsNotApproved.push(enrollment)
+      else notApproved.push(enrollment)
+    } else unrated.push(enrollment)
   }
 
   const summary = {
@@ -192,6 +219,8 @@ export async function closeCycle(
     newMpaa: notApproved.length,
     alreadyMpaa,
     approved: alreadyApproved.length + approved.length,
+    repeatsAccredited: repeatsToAccredit.length,
+    repeatsNotApproved: repeatsNotApproved.length,
     unrated: unrated.map(toUnratedSubject).sort(byClassSectionAndName),
   }
 
@@ -252,6 +281,26 @@ export async function closeCycle(
         subjectStatus: { not: SubjectStatus.APPROVED_ACCREDITED },
       },
       data: { subjectStatus: SubjectStatus.APPROVED_ACCREDITED },
+    })
+
+    // Recursados aprobados: acreditan la MPAA que recursaban, con la nota del recursado.
+    // Solo si sigue pendiente, para no pisar una acreditación anterior
+    const accreditedAt = new Date()
+    for (const { pendingSubjectId, finalScore } of repeatsToAccredit) {
+      await tx.pendingSubject.updateMany({
+        where: { id: pendingSubjectId, status: PendingSubjectStatus.PENDING },
+        data: { status: PendingSubjectStatus.ACCREDITED, finalScore, accreditedAt },
+      })
+    }
+    // Recursados no aprobados: la materia sigue como MPAA (la original), sin crear otra
+    const repeatsNotApprovedIds = repeatsNotApproved.map((e) => e.id)
+    await tx.enrollment.updateMany({
+      where: { id: { in: repeatsNotApprovedIds } },
+      data: { subjectStatus: SubjectStatus.MPAA },
+    })
+    await tx.grade.updateMany({
+      where: { enrollmentId: { in: repeatsNotApprovedIds } },
+      data: { subjectStatus: SubjectStatus.MPAA },
     })
 
     // Solo la primera ejecución marca el cierre

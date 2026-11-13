@@ -2302,6 +2302,12 @@ export async function main() {
     `👉 Ciclo 2025 terminado para probar el cierre (CRM-052): POST /api/cycle-closure/${closableYear.id}`,
   )
 
+  // Recursado (CRM-082): Mateo García tiene 5 MPAA de 2025. Geografía es de 2.º año y se puede
+  // recursar en 2° B Tarde de 2026; Historia (3.º) en 3° A y Biología (4.º) en 4° A.
+  console.log(
+    `👉 Recursado de MPAA (CRM-082): GET /api/subject-repeats/options?studentId=${ids.students[1]}`,
+  )
+
   console.log(
     '👉 Primer enrollmentId de prueba:',
     firstEnrollmentId,

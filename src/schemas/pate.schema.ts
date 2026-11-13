@@ -74,8 +74,8 @@ function checkSubjectsOnce(
 export const createPateSchema = z
   .object({
     studentId: z.guid(),
-    // Opcional hasta que se puedan registrar reuniones del EDTE (CRM-075)
-    edteMeetingId: z.guid().nullable().optional(),
+    // El PATE sale de una reunión del EDTE (CRM-075): es obligatoria
+    edteMeetingId: z.guid('Elegí la reunión del EDTE donde se trató al alumno'),
     diagnosis: requiredText('el diagnóstico'),
     supportStrategies: requiredText('las estrategias de acompañamiento'),
     schedule: z.string().trim().max(5000).nullable().optional(),
