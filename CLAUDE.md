@@ -343,7 +343,8 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - No se recursa una MPAA con una intensificación sin resultado.
 - Al editar solo cambia la sección. Se quita solo si no tiene notas, asistencia ni
   intensificaciones.
-- `createSubjectRepeat(tx, ...)` recibe la transacción para que el PATE la use al confirmarse.
+- `createSubjectRepeat(tx, input, actor, cycle?)` recibe la transacción y, opcional, el ciclo: sin
+  él usa el activo (alta manual); el PATE pasa el suyo.
 - Cierre del ciclo: si el recursado aprueba, su MPAA queda `ACCREDITED` con la nota del
   recursado (`PendingSubject.finalScore` admite decimales); si no, sigue la MPAA original y no se
   crea otra.
@@ -351,7 +352,11 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
   alumno bloqueada.
 - Asignan, cambian la sección y quitan: administración, dirección, EOE/directivos y preceptores
   (`SUBJECT_REPEAT_MANAGER_ROLES`); los docentes solo ven.
-- **Pendiente:** crear las recursadas al confirmar el PATE (CRM-078, PR #65).
+- Al confirmar un PATE (`IN_PROGRESS`), se crea la inscripción REPEAT de cada materia a recursar,
+  en el ciclo del PATE, y se guarda en `PateSubjectRepeat.repeatEnrollmentId`. Va en la misma
+  transacción: si una falla (por ejemplo, el límite de 12), no se confirma el PATE. El error dice de
+  qué materia se trata.
+- Un recursado creado por un PATE no se puede quitar a mano (409): está vinculado al PATE.
 
 ## 10. Git y Pull Requests
 
