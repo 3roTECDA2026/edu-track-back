@@ -121,6 +121,15 @@ enum PromotionOutcome {
   REFERRED_TO_EDTE // 5 o más MPAA: no promueve y se deriva al EDTE
 }
 
+// Rol con el que participa cada integrante del EDTE (E4-RF-01)
+enum EdteRole {
+  TEACHER // Docente
+  PRECEPTOR // Preceptor/a
+  COUNSELOR // Orientador/a (EOE)
+  DIRECTIVE // Directivo/a
+  OTHER // Otros referentes que designe la conducción (Disp. 40/26)
+}
+
 enum RiteStatus {
   DRAFT // RITE en Borrador
   CLOSED // RITE Cerrado
@@ -230,8 +239,15 @@ model User {
   linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
+  edteTeamMemberships          EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
   edteMeetingsCreated          EdteMeeting[]          @relation("EdteMeetingCreator") // Reuniones del EDTE que cargó
   edteMeetingsSigned           EdteMeeting[]          @relation("EdteMeetingSigner") // Reuniones del EDTE que marcó como firmadas
+
+  conflictTotpCredential       ConflictTotpCredential?
+  electronicConflictSignatures ConflictElectronicSignature[]
+  requestedTotpRecoveries      ConflictTotpRecovery[] @relation("TotpRecoveryOwner")
+  approvedTotpRecoveries       ConflictTotpRecovery[] @relation("TotpRecoveryApprover")
+  conflictTotpRecoveryAttempt  ConflictTotpRecoveryAttempt?
 
   @@index([role, status]) // Índice para búsquedas rápidas por rol y estado
 }
@@ -303,7 +319,7 @@ model ClassSection {
   enrollmentHistory  EnrollmentHistory[] // Historial de cambios de sección
   curriculumSubjects CurriculumSubject[] // Materias de la currícula asociadas al curso
   dailyAttendances   DailyAttendance[] // Asistencias diarias de la sección
-  interventions      Intervention[] // Intervenciones registradas en esta sección 
+  interventions      Intervention[] // Intervenciones registradas en esta sección
 
   @@unique([grade, division, shift, academicYearId]) // No pueden repetirse divisiones iguales en el mismo ciclo
 }
@@ -688,6 +704,31 @@ model EdteMember {
   @@unique([edteMeetingId, userId]) // Unicidad de participación por reunión
 }
 
+// Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
+// Es el plantel del equipo: existe aunque no haya reuniones. La participación en cada
+// reunión se registra aparte, en EdteMember (CRM-075).
+// Una sola fila por usuario: la baja es lógica (active = false) y un alta posterior reactiva
+// la misma fila, así un usuario nunca queda dos veces como integrante activo.
+// Integrante del Equipo de Definición de Trayectorias Educativas (E4-RF-01, CRM-071).
+// Hay un EDTE por turno (Anexo 2, inc. 22): una persona puede integrar el de cada turno.
+// La participación en cada reunión se registra aparte, en EdteMember (CRM-075).
+// Una fila por usuario y turno: la baja es lógica (active = false) y un alta posterior
+// reactiva la misma fila, así nadie queda dos veces activo en el mismo turno.
+model EdteTeamMember {
+  id        String   @id @default(uuid()) // Identificador único
+  user      User     @relation(fields: [userId], references: [id]) // Usuario integrante
+  userId    String // ID del usuario
+  shift     Shift // Turno del EDTE que integra
+  edteRole  EdteRole // Rol con el que participa en el equipo
+  active    Boolean  @default(true) // false = dado de baja (baja lógica)
+  joinedAt  DateTime @default(now()) // Fecha de alta en el equipo
+  createdAt DateTime @default(now()) // Fecha de creación del registro
+  updatedAt DateTime @updatedAt // Última modificación
+
+  @@unique([userId, shift]) // Una fila por usuario en cada turno
+  @@index([shift, active]) // Para listar los integrantes activos de un turno
+}
+
 // ============================================================================
 // PATE — Plan de Acompañamiento a la Trayectoria Educativa
 // ============================================================================
@@ -756,7 +797,7 @@ model Intervention {
   studentId            String // ID del estudiante
   author               User                  @relation("InterventionAuthor", fields: [authorId], references: [id]) // Profesional/Docente actuante
   authorId             String // ID del autor de la intervención
-  classSection         ClassSection?         @relation(fields: [classSectionId], references: [id]) // Curso/división donde ocurrió 
+  classSection         ClassSection?         @relation(fields: [classSectionId], references: [id]) // Curso/división donde ocurrió
   classSectionId       String? // ID del curso/división
   eventType            InterventionEventType // Tipo de intervención (Pedagógica, Salud, Convivencia)
   involvedActors       String? // Actores intervinientes (Ej: "EOE, Equipo Directivo, Madre")
@@ -793,23 +834,56 @@ model FortePlanReport {
 // LEGAL CONFLICTS (Registro de Conflictos y Actas Complejas / Legales)
 // ============================================================================
 
+// Códigos normalizados de situaciones de conflicto
+model ConflictCode {
+  code        String @id // Código único de la situación
+  description String // Descripción del tipo de conflicto
+
+  // Relaciones
+  conflicts LegalConflict[] // Conflictos asociados a este código
+}
+
+// Registro de conflictos de alta complejidad
 model LegalConflict {
-  id              String    @id @default(uuid()) // Identificador único
-  student         Student   @relation(fields: [studentId], references: [id]) // Estudiante involucrado
-  studentId       String // ID del estudiante
-  author          User      @relation("ConflictAuthor", fields: [authorId], references: [id]) // Redactor del acta/informe
-  authorId        String // ID del autor
-  conflictCode    String // Código del tipo de conflicto/acta (Guía de orientación ante situaciones complejas)
-  detailedReport  String // Relato minucioso de los hechos e intervenciones realizadas
-  editLocked      Boolean   @default(true) // ¿Bloqueado contra ediciones posteriores? (Inalterabilidad del acta)
-  digitalSignHash String // Hash de la firma digital de resguardo legal
-  documentUuid    String    @unique @default(uuid()) // Identificador único legal del documento
-  registeredAt    DateTime  @default(now()) // Fecha y hora de registro oficial
-  occurrenceDate  DateTime? // Fecha y hora real en que ocurrieron los hechos
+  id String @id @default(uuid()) // Identificador único
 
-  attachments LegalConflictAttachment[] // Anexos y agregados posteriores al acta
+  // Estudiante involucrado
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId String
 
-  @@index([studentId]) // Índice de resguardo por alumno
+  // Usuario que registra el conflicto
+  author   User   @relation("ConflictAuthor", fields: [authorId], references: [id])
+  authorId String
+
+  // Código normalizado del conflicto
+  conflictCode String
+  conflictType ConflictCode @relation(fields: [conflictCode], references: [code])
+
+  // Informe detallado cifrado con AES-256-GCM
+  // El cifrado se realizará en el servicio antes de guardar en PostgreSQL
+  detailedReport String
+
+  // Bloqueo de edición del acta
+  editLocked Boolean @default(true)
+
+  // Hash de firma digital
+  digitalSignHash String?
+
+  // Identificador único del documento
+  documentUuid String @unique @default(uuid())
+
+  // Fechas
+  registeredAt   DateTime  @default(now()) // Fecha de registro
+  occurrenceDate DateTime? // Fecha del suceso
+
+  // Anexos posteriores al acta
+  attachments LegalConflictAttachment[]
+
+  electronicSignature ConflictElectronicSignature?
+
+  // Índices
+  @@index([studentId])
+  @@index([conflictCode])
 }
 
 model LegalConflictAttachment {
@@ -819,7 +893,7 @@ model LegalConflictAttachment {
   authorId        String // ID del autor del anexo
   content         String // Texto del anexo / actualización de la intervención
   date            DateTime      @default(now()) // Fecha de incorporación del anexo
-  digitalSignHash String // Hash de firma digital del anexo
+  digitalSignHash String? // Hash opcional de firma digital del anexo
 }
 
 // ============================================================================
@@ -1091,6 +1165,67 @@ model PromotionDecision {
   executedAt     DateTime         @default(now()) // Cuándo se decidió
   notes          String? // Observaciones
 
+  @@unique([studentId, academicYearId]) // Evita decisiones duplicadas por alumno y ciclo
   @@index([academicYearId, outcome]) // Índice para la pantalla del motor
   @@index([studentId]) // Índice para el historial de un alumno
+}
+
+// ============================================================================
+// CRM-090 - AUTENTICADOR PARA FIRMA ELECTRÓNICA
+// ============================================================================
+
+model ConflictTotpCredential {
+  userId          String    @id
+  user            User      @relation(fields: [userId], references: [id])
+  encryptedSecret String
+  verifiedAt      DateTime?
+  lastUsedStep    BigInt?
+  failedAttempts  Int       @default(0)
+  lockedUntil     DateTime?
+}
+
+// ============================================================================
+// CRM-090 - FIRMA ELECTRÓNICA DE ACTAS
+// ============================================================================
+
+model ConflictElectronicSignature {
+  id String @id @default(uuid())
+
+  conflictId String        @unique
+  conflict   LegalConflict @relation(fields: [conflictId], references: [id])
+
+  signerId String
+  signer   User   @relation(fields: [signerId], references: [id])
+
+  documentHash String
+  signedAt     DateTime @default(now())
+
+  @@index([signerId])
+}
+
+
+// CRM-090: Solicitudes de recuperación del autenticador de firma
+model ConflictTotpRecovery {
+  id           String    @id @default(uuid())
+  userId       String
+  requestedAt  DateTime  @default(now())
+  expiresAt    DateTime
+  approvedById String?
+  approvedAt   DateTime?
+  status       String    @default("PENDING")
+  reason       String
+
+  user       User  @relation("TotpRecoveryOwner", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  approvedBy User? @relation("TotpRecoveryApprover", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, status])
+}
+
+// CRM-090: Límite de intentos de autorización de recuperación
+model ConflictTotpRecoveryAttempt {
+  userId         String    @id
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 }
