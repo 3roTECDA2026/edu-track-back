@@ -12,6 +12,7 @@ import {
 } from '@/schemas/intensification.schema'
 import * as intensificationService from '@/services/intensification.service'
 import * as attachmentService from '@/services/intensificationAttachment.service'
+import { attachmentDisposition } from '@/utils/contentDisposition'
 
 export async function listIntensifications(req: Request, res: Response) {
   const query = listIntensificationsQuerySchema.parse(req.query)
@@ -77,11 +78,9 @@ export async function downloadAttachment(req: Request, res: Response) {
   )
   res.setHeader('Content-Type', attachment.mimeType)
   res.setHeader('Content-Length', content.length)
-  // filename* con encodeURIComponent: así llegan bien los nombres con tildes y ñ
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`
-  )
+  res.setHeader('Content-Disposition', attachmentDisposition(attachment.originalName))
+  // Son datos de alumnos: que no quede copia en la caché del navegador ni de un proxy
+  res.setHeader('Cache-Control', 'private, no-store')
   // Que el navegador no "adivine" otro tipo distinto del declarado
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.send(content)

@@ -7,8 +7,10 @@ import type { FileStorage } from '@/lib/storage'
 import { HttpError } from '@/utils/httpError'
 
 import {
+  ATTACHMENT_DELETE_ROLES,
   deleteIntensificationAttachment,
   getIntensificationAttachmentFile,
+  listIntensificationAttachments,
   uploadIntensificationAttachments,
 } from './intensificationAttachment.service'
 
@@ -35,6 +37,7 @@ const fakeDb = () => {
   const created: unknown[] = []
   const updates: Array<{ where: unknown; data: Record<string, unknown> }> = []
   const audits: Array<{ action: AuditActionType }> = []
+  const listQueries: unknown[] = []
   const attachments = {
     create: async ({ data }: { data: Record<string, unknown> }) => {
       created.push(data)
@@ -44,7 +47,10 @@ const fakeDb = () => {
       where.id === stored.id && where.intensificationId === stored.intensificationId
         ? stored
         : null,
-    findMany: async () => [stored],
+    findMany: async (args: unknown) => {
+      listQueries.push(args)
+      return [stored]
+    },
     updateMany: async (args: { where: unknown; data: Record<string, unknown> }) => {
       updates.push(args)
       return { count: 1 }
@@ -65,7 +71,7 @@ const fakeDb = () => {
     $transaction: async (fn: (tx: unknown) => unknown) =>
       fn({ intensificationAttachment: attachments, auditLog }),
   } as unknown as Db
-  return { db, created, updates, audits }
+  return { db, created, updates, audits, listQueries }
 }
 
 const fakeStorage = () => {
@@ -180,5 +186,19 @@ describe('descargar y dar de baja una evidencia (CRM-060)', () => {
       isStatus(404)
     )
     assert.equal(updates.length, 0)
+  })
+})
+
+describe('listado y permisos de baja (CRM-060)', () => {
+  it('el listado pide solo las evidencias vigentes (no las dadas de baja)', async () => {
+    const { db, listQueries } = fakeDb()
+    await listIntensificationAttachments('i1', db)
+    const where = (listQueries[0] as { where: Record<string, unknown> }).where
+    assert.equal(where.intensificationId, 'i1')
+    assert.equal(where.deletedAt, null)
+  })
+
+  it('por ahora solo dirección puede dar de baja (lo usa la ruta)', () => {
+    assert.deepEqual(ATTACHMENT_DELETE_ROLES, [Role.SCHOOL_MANAGEMENT])
   })
 })

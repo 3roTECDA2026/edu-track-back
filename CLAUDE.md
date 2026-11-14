@@ -350,6 +350,11 @@ de distintos recursos y puede pisar otras.
   baja no se listan, no se descargan (404) y no cuentan en el historial.
 - El historial de intentos (`GET /pending-subjects/:id/attempts`) trae `attachmentsCount`.
 - Un intento con evidencias (aunque estén dadas de baja) no se puede quitar: 409.
+- La descarga manda `Cache-Control: private, no-store` (son datos de alumnos) y el nombre del
+  archivo en UTF-8 con una versión ASCII de respaldo (`utils/contentDisposition.ts`).
+- `Intensification.evidenceUrl` (un link en texto, anterior a CRM-060) **queda en desuso**:
+  ningún código lo lee ni lo escribe. Las evidencias van en `IntensificationAttachment`. Se puede
+  quitar del schema en otro ticket.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 

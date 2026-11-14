@@ -58,7 +58,7 @@ export function assertCanUpload(
   if (actor.role === Role.TEACHER && attempt.responsibleTeacherId !== actor.userId) {
     throw new HttpError(
       403,
-      'Solo el docente responsable o la dirección pueden adjuntar evidencias a este intento'
+      'Un docente solo puede adjuntar evidencias en los intentos de los que es responsable'
     )
   }
 }
