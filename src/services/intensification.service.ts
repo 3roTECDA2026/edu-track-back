@@ -366,6 +366,13 @@ export async function removeIntensification(id: string) {
   if (attendances > 0) {
     throw new HttpError(409, 'La asignación tiene asistencias cargadas: no se puede quitar')
   }
+  // Cuentan también las dadas de baja: siguen en la tabla como registro (FK con RESTRICT, CRM-060)
+  const attachments = await prisma.intensificationAttachment.count({
+    where: { intensificationId: id },
+  })
+  if (attachments > 0) {
+    throw new HttpError(409, 'La asignación tiene evidencias adjuntas: no se puede quitar')
+  }
   await prisma.intensification.delete({ where: { id } })
   return { deleted: true }
 }

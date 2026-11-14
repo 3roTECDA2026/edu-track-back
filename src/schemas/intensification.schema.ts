@@ -34,6 +34,12 @@ export const intensificationIdParamSchema = z.object({
   id: z.guid(),
 })
 
+// Una evidencia de un intento (CRM-060): id del intento y de la evidencia
+export const intensificationAttachmentParamsSchema = z.object({
+  id: z.guid(),
+  attachmentId: z.guid(),
+})
+
 export const listIntensificationsQuerySchema = z.object({
   scheduleId: z.guid(),
   subjectId: z.guid().optional(),
