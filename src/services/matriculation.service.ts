@@ -9,6 +9,7 @@ import {
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
 import { decideDestination, type DestinationDecisionResult } from '@/utils/matriculationDestination'
+import { resolveTargetSubjects, type CurriculumPlanSummary } from '@/utils/resolveTargetSubjects'
 
 export async function continueMatriculation(fromYearId: string, toYearId: string) {
   const [fromYear, toYear] = await Promise.all([
@@ -85,6 +86,37 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         gradeSubjectsMap.set(sub.gradeLevel, list)
       }
 
+      // Precargar planes de estudio (Curriculum) para asignación por orientación en Ciclo Superior
+      const dbCurriculums = await tx.curriculum.findMany({
+        select: {
+          id: true,
+          name: true,
+          subjects: {
+            select: {
+              subjectId: true,
+              gradeLevel: true,
+            },
+          },
+        },
+      })
+
+      const curriculumsSummary: CurriculumPlanSummary[] = dbCurriculums.map((c) => {
+        const subjectsByGrade = new Map<number, string[]>()
+        const allSubjectIds = new Set<string>()
+        for (const s of c.subjects) {
+          const list = subjectsByGrade.get(s.gradeLevel) ?? []
+          list.push(s.subjectId)
+          subjectsByGrade.set(s.gradeLevel, list)
+          allSubjectIds.add(s.subjectId)
+        }
+        return {
+          id: c.id,
+          name: c.name,
+          subjectsByGrade,
+          allSubjectIds,
+        }
+      })
+
       // 2. Precargar decisiones de promoción del ciclo origen
       const decisions = await tx.promotionDecision.findMany({
         where: { academicYearId: fromYearId },
@@ -148,8 +180,13 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         }
       }
 
-      // 4. Precargar estudiantes ya matriculados en ciclo destino (mira tanto Enrollment como EnrollmentHistory)
-      const [targetEnrollments, targetHistories] = await Promise.all([
+      // 4. Precargar inscripciones de origen para deducir orientación de cada alumno
+      // y precargar estudiantes ya matriculados en ciclo destino (Enrollment y EnrollmentHistory)
+      const [sourceEnrollments, targetEnrollments, targetHistories] = await Promise.all([
+        tx.enrollment.findMany({
+          where: { academicYearId: fromYearId },
+          select: { studentId: true, subjectId: true },
+        }),
         tx.enrollment.findMany({
           where: { academicYearId: toYearId },
           select: { studentId: true, subjectId: true },
@@ -163,6 +200,13 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         }),
       ])
 
+      const sourceStudentSubjectsMap = new Map<string, string[]>()
+      for (const e of sourceEnrollments) {
+        const list = sourceStudentSubjectsMap.get(e.studentId) ?? []
+        list.push(e.subjectId)
+        sourceStudentSubjectsMap.set(e.studentId, list)
+      }
+
       const enrolledStudentsInTarget = new Set<string>([
         ...targetEnrollments.map((e) => e.studentId),
         ...targetHistories.map((h) => h.studentId),
@@ -175,12 +219,14 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
       const details: DestinationDecisionResult[] = []
       const pendingPate: DestinationDecisionResult[] = []
       const pendingOrientation: DestinationDecisionResult[] = []
+      const missingCurriculum: DestinationDecisionResult[] = []
       const graduates: DestinationDecisionResult[] = []
 
       const summary = {
         enrolled: 0,
         pendingPate: 0,
         pendingOrientation: 0,
+        missingCurriculum: 0,
         graduates: 0,
         missingDecision: 0,
         missingSection: 0,
@@ -227,6 +273,36 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         } else if (res.status === 'graduates') {
           graduates.push(res)
         } else if (res.status === 'enrolled' && res.targetSectionId) {
+          const targetSec = targetSections.find((s) => s.id === res.targetSectionId)
+          if (!targetSec) continue
+
+          const sourceSubjects = sourceStudentSubjectsMap.get(studentId) ?? []
+          const sectionSubjects = targetSec.curriculumSubjects.map((cs) => cs.subjectId)
+          const fallbackGrade = gradeSubjectsMap.get(targetSec.grade) ?? []
+
+          // Resolver materias correspondientes respetando orientación del plan y límite de 12
+          const subjectResolution = resolveTargetSubjects({
+            targetGrade: targetSec.grade,
+            sectionSubjectIds: sectionSubjects,
+            fallbackGradeSubjects: fallbackGrade,
+            studentSourceSubjectIds: sourceSubjects,
+            curriculums: curriculumsSummary,
+          })
+
+          if (subjectResolution.missingCurriculum) {
+            // No adivinar materias: se inscribe en la sección pero se lista aparte en missingCurriculum
+            missingCurriculum.push({
+              studentId,
+              studentName: res.studentName,
+              status: 'enrolled',
+              targetSectionId: res.targetSectionId,
+              targetSectionName: res.targetSectionName,
+              reason:
+                'Inscripto en la sección sin materias: requiere asignación manual de plan de estudios',
+            })
+            summary.missingCurriculum++
+          }
+
           historyUpdates.push(studentId)
           historyToCreate.push({
             id: crypto.randomUUID(),
@@ -235,15 +311,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
             startDate: now,
           })
 
-          const targetSec = targetSections.find((s) => s.id === res.targetSectionId)
-          let subjectIds: string[] = []
-          if (targetSec && targetSec.curriculumSubjects.length > 0) {
-            subjectIds = targetSec.curriculumSubjects.map((cs) => cs.subjectId)
-          } else if (targetSec) {
-            subjectIds = gradeSubjectsMap.get(targetSec.grade) ?? []
-          }
-
-          for (const subjectId of subjectIds) {
+          for (const subjectId of subjectResolution.subjectIds) {
             const key = `${studentId}|${subjectId}`
             if (!existingTargetKeys.has(key)) {
               existingTargetKeys.add(key)
@@ -291,6 +359,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         createdEnrollments: enrollmentsToCreate.length,
         pendingPate,
         pendingOrientation,
+        missingCurriculum,
         graduates,
         details,
       }
