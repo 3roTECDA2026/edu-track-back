@@ -332,6 +332,24 @@ de distintos recursos y puede pisar otras.
   por defecto `./uploads`, ignorada por git). Cuando la escuela defina otro lugar, se agrega una clase
   que implemente `FileStorage` y su caso en `createFileStorage`, sin tocar services ni rutas.
   En la base (`InterventionAttachment`) se guarda solo la clave (`storageKey`) y los datos del archivo.
+- La validación, el guardado con nombre UUID y el borrado de archivos si falla la base están en
+  `services/attachmentStorage.ts` (`storeAttachments`, `readStoredAttachment`). Lo usan las
+  intervenciones y las evidencias de intensificación; cada service decide permisos y tabla.
+
+**Evidencias de intensificación (CRM-060, E3-RF-09):**
+- Archivos (trabajos prácticos, evaluaciones) vinculados a un intento (`Intensification`), en la
+  tabla `IntensificationAttachment`. Mismos tipos, tamaños y almacenamiento que CRM-087.
+- Endpoints: `POST /intensifications/:id/attachments` (multipart, campo `files`),
+  `GET /intensifications/:id/attachments`, `GET /intensifications/:id/attachments/:attachmentId`
+  (descarga) y `DELETE /intensifications/:id/attachments/:attachmentId`.
+- Subir: los que cargan el resultado (administración, dirección, preceptoría y docentes); el
+  docente, solo en los intentos de los que es responsable. Se puede antes o después del resultado.
+  Ver y descargar: quien ve las intensificaciones.
+- Baja: por ahora solo dirección (`ATTACHMENT_DELETE_ROLES`). Es **lógica**: se guardan
+  `deletedAt` y `deletedById`, queda una fila en `AuditLog` y el archivo se conserva. Las dadas de
+  baja no se listan, no se descargan (404) y no cuentan en el historial.
+- El historial de intentos (`GET /pending-subjects/:id/attempts`) trae `attachmentsCount`.
+- Un intento con evidencias (aunque estén dadas de baja) no se puede quitar: 409.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
