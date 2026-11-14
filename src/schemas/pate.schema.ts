@@ -122,7 +122,10 @@ export const createPateFollowUpSchema = z.object({
   progress: requiredText('los avances observados'),
   evaluation: z.enum(PateEvaluation),
   observations: z.string().trim().max(5000, 'Máximo 5000 caracteres').nullable().optional(),
-  date: z.coerce.date().optional(),
+  date: z.coerce
+    .date()
+    .max(new Date(Date.now() + 86400000), 'La fecha del seguimiento no puede ser futura')
+    .optional(),
 })
 
 export type CreatePateFollowUpInput = z.infer<typeof createPateFollowUpSchema>

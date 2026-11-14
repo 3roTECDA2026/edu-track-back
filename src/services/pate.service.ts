@@ -777,14 +777,6 @@ export async function changePateStatus(
       }
     }
 
-    const updateData: Prisma.PateUpdateInput = { status }
-    if (status === PateStatus.CLOSED) {
-      updateData.finalEvaluation = finalEvaluation
-      updateData.finalObservations = finalObservations?.trim() || null
-      updateData.closedAt = new Date()
-      updateData.closedBy = { connect: { id: actor.userId } }
-    }
-
     // Solo si no cambió de estado mientras tanto (dos pedidos a la vez)
     const { count } = await tx.pate.updateMany({
       where: { id, status: pate.status },
@@ -976,8 +968,9 @@ function toFollowUpResponse(
 }
 
 export async function listPateFollowUps(pateId: string, viewer: Viewer) {
-  // Se verifica acceso al PATE primero
-  await getPateForViewer(pateId, viewer)
+  // Se verifica acceso al PATE primero (versión curricular vs directiva)
+  const pate = await getPateForViewer(pateId, viewer)
+  const isCurricularViewer = viewer.role === Role.TEACHER || viewer.role === Role.PRECEPTOR
 
   const followUps = await prisma.pateFollowUp.findMany({
     where: { pateId },
@@ -985,7 +978,17 @@ export async function listPateFollowUps(pateId: string, viewer: Viewer) {
     orderBy: { date: 'desc' },
   })
 
-  return followUps.map(toFollowUpResponse)
+  return followUps.map((f) => {
+    const res = toFollowUpResponse(f)
+    if (isCurricularViewer) {
+      // En la versión curricular, resguardar información pedagógica sensible
+      return {
+        ...res,
+        observations: null,
+      }
+    }
+    return res
+  })
 }
 
 export async function createPateFollowUp(
@@ -997,9 +1000,10 @@ export async function createPateFollowUp(
     observations?: string | null
     date?: Date
   },
-  actor: Actor
+  actor: Actor,
+  db: DbClient = prisma
 ) {
-  const pate = await findPateOrFail(pateId)
+  const pate = await findPateOrFail(pateId, db)
 
   if (pate.status === PateStatus.DRAFT) {
     throw new HttpError(
@@ -1008,10 +1012,17 @@ export async function createPateFollowUp(
     )
   }
 
+  if (pate.status === PateStatus.CLOSED) {
+    throw new HttpError(
+      409,
+      'El PATE ya se encuentra cerrado: no se pueden registrar nuevos seguimientos'
+    )
+  }
+
   // Verificar que la reunión del EDTE exista y pertenezca al ciclo lectivo del PATE
-  const meeting = await prisma.edteMeeting.findUnique({
+  const meeting = await db.edteMeeting.findUnique({
     where: { id: input.edteMeetingId },
-    select: { id: true, academicYearId: true },
+    select: { id: true, academicYearId: true, status: true },
   })
 
   if (!meeting) {
@@ -1025,8 +1036,8 @@ export async function createPateFollowUp(
     )
   }
 
-  // Asegurar que el estudiante esté registrado o tratado en la reunión
-  const treated = await prisma.edteMeetingStudent.findUnique({
+  // Verificar si el alumno ya fue tratado en la reunión
+  const treated = await db.edteMeetingStudent.findUnique({
     where: {
       edteMeetingId_studentId: {
         edteMeetingId: input.edteMeetingId,
@@ -1037,44 +1048,62 @@ export async function createPateFollowUp(
   })
 
   if (!treated) {
-    // Si no estaba explícitamente en la lista de alumnos tratados de la reunión, lo vinculamos automáticamente
-    // al registrar el seguimiento
-    await prisma.edteMeetingStudent.create({
-      data: {
-        edteMeetingId: input.edteMeetingId,
-        studentId: pate.studentId,
-        notes: `Seguimiento de PATE registrado el ${formatSchoolDate(todayInSchoolTimeZone())}`,
-      },
-    })
+    // Si la reunión ya está firmada, no se puede modificar su acta para agregar alumnos
+    if (meeting.status === 'SIGNED') {
+      throw new HttpError(
+        409,
+        'El alumno no fue tratado en esa reunión: sumalo a la reunión antes de registrar el seguimiento'
+      )
+    }
   }
 
-  const followUp = await prisma.pateFollowUp.create({
-    data: {
-      pateId,
-      edteMeetingId: input.edteMeetingId,
-      progress: input.progress.trim(),
-      evaluation: input.evaluation,
-      observations: input.observations?.trim() || null,
-      date: input.date ?? new Date(),
-      createdById: actor.userId,
-    },
-    select: followUpSelect,
-  })
+  // Transacción atómica para dar de alta en la reunión (si hiciera falta), crear seguimiento y registrar auditoría
+  const executeInTx = async (tx: Prisma.TransactionClient) => {
+    if (!treated) {
+      await tx.edteMeetingStudent.create({
+        data: {
+          edteMeetingId: input.edteMeetingId,
+          studentId: pate.studentId,
+          notes: `Seguimiento de PATE registrado el ${formatSchoolDate(todayInSchoolTimeZone())}`,
+        },
+      })
+    }
 
-  await prisma.auditLog.create({
-    data: {
-      userId: actor.userId,
-      action: AuditActionType.CREATE,
-      affectedEntity: 'PateFollowUp',
-      entityId: followUp.id,
-      newData: {
+    const followUp = await tx.pateFollowUp.create({
+      data: {
         pateId,
         edteMeetingId: input.edteMeetingId,
+        progress: input.progress.trim(),
         evaluation: input.evaluation,
+        observations: input.observations?.trim() || null,
+        date: input.date ?? new Date(),
+        createdById: actor.userId,
       },
-      ipAddress: actor.ipAddress,
-    },
-  })
+      select: followUpSelect,
+    })
+
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: AuditActionType.CREATE,
+        affectedEntity: 'PateFollowUp',
+        entityId: followUp.id,
+        newData: {
+          pateId,
+          edteMeetingId: input.edteMeetingId,
+          evaluation: input.evaluation,
+        },
+        ipAddress: actor.ipAddress,
+      },
+    })
+
+    return followUp
+  }
+
+  const followUp =
+    'transaction' in db || '$transaction' in db
+      ? await (db as typeof prisma).$transaction(executeInTx)
+      : await executeInTx(db as Prisma.TransactionClient)
 
   return toFollowUpResponse(followUp)
 }
