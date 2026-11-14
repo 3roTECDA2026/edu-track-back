@@ -30,6 +30,7 @@ export const create = async (req: Request, res: Response): Promise<void> => {
   const conflict = await createLegalConflict({
     ...data,
     authorId: userId,
+    ipAddress: req.ip ?? 'unknown',
   })
 
   res.status(201).json({

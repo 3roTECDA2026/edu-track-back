@@ -8,46 +8,70 @@ interface CreateLegalConflictData {
   conflictCode: string
   detailedReport: string
   occurrenceDate?: Date
+  ipAddress: string
 }
 
-export const createLegalConflict = async (data: CreateLegalConflictData) => {
-  const [student, conflictCode] = await Promise.all([
-    prisma.student.findUnique({
+type ConflictDatabase = Pick<typeof prisma, '$transaction'>
+
+export const createLegalConflict = async (
+  data: CreateLegalConflictData,
+  db: ConflictDatabase = prisma
+) => {
+  return db.$transaction(async (tx) => {
+    const student = await tx.student.findUnique({
       where: { id: data.studentId },
       select: { id: true },
-    }),
-    prisma.conflictCode.findUnique({
+    })
+
+    if (!student) {
+      throw new HttpError(404, 'El alumno indicado no existe')
+    }
+
+    const conflictCode = await tx.conflictCode.findUnique({
       where: { code: data.conflictCode },
       select: { code: true },
-    }),
-  ])
+    })
 
-  if (!student) {
-    throw new HttpError(404, 'El alumno indicado no existe')
-  }
+    if (!conflictCode) {
+      throw new HttpError(400, 'El código de conflicto no es válido')
+    }
 
-  if (!conflictCode) {
-    throw new HttpError(400, 'El código de conflicto no es válido')
-  }
+    const encryptedReport = encryptConflictReport(data.detailedReport)
 
-  const encryptedReport = encryptConflictReport(data.detailedReport)
+    const conflict = await tx.legalConflict.create({
+      data: {
+        studentId: data.studentId,
+        authorId: data.authorId,
+        conflictCode: data.conflictCode,
+        detailedReport: encryptedReport,
+        digitalSignHash: null,
+        editLocked: true,
+        occurrenceDate: data.occurrenceDate,
+      },
+    })
 
-  const conflict = await prisma.legalConflict.create({
-    data: {
-      studentId: data.studentId,
-      authorId: data.authorId,
-      conflictCode: data.conflictCode,
-      detailedReport: encryptedReport,
-      digitalSignHash: null,
-      editLocked: true,
-      occurrenceDate: data.occurrenceDate,
-    },
+    // E4-RNF-03: el log guarda solo referencias, nunca el contenido del informe.
+    await tx.auditLog.create({
+      data: {
+        userId: data.authorId,
+        action: 'CREATE',
+        affectedEntity: 'LegalConflict',
+        entityId: conflict.id,
+        ipAddress: data.ipAddress,
+        newData: {
+          conflictId: conflict.id,
+          studentId: data.studentId,
+          conflictCode: data.conflictCode,
+          authorId: data.authorId,
+        },
+      },
+    })
+
+    return {
+      ...conflict,
+      detailedReport: decryptConflictReport(conflict.detailedReport),
+    }
   })
-
-  return {
-    ...conflict,
-    detailedReport: decryptConflictReport(conflict.detailedReport),
-  }
 }
 
 export const getLegalConflictById = async (id: string) => {
