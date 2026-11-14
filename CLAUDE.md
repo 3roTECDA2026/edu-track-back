@@ -278,7 +278,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 | `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
-| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
+| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId` (MPAA recursables y el contador de materias del ciclo: `subjectCount`/`maxSubjects`), alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
