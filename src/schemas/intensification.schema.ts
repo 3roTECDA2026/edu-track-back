@@ -8,7 +8,7 @@ export const MODELS_WITH_LOCATION: IntensificationModel[] = [
 ]
 
 // Modelo y ubicación: en los modelos 2 y 3 la sección es obligatoria; en el 1 y el 4 no va
-function checkPlacement(
+export function checkPlacement(
   data: { model: IntensificationModel; targetClassSectionId?: string | null },
   context: z.RefinementCtx
 ) {

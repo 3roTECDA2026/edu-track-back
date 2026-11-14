@@ -184,7 +184,7 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
     temprana) y 5 (derivados) salen de E6-RF-02; una TED como alerta, de E6-RF-03; "2 o más TED =
     rojo" es una propuesta del equipo, no de un requerimiento. Las reglas tienen tests
     (`utils/edteRisk.test.ts`).
-  - **Provisorio:** el PATE en curso (`getActivePates`) devuelve vacío hasta CRM-078.
+  - El PATE en curso (`getActivePates`) son los PATE `IN_PROGRESS` del ciclo activo (CRM-078).
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
 TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
   usa todavía en `requireRole`, así que un preceptor puede iniciar sesión pero no accede a
@@ -260,29 +260,79 @@ contraseñas bcrypt: `admin@notar.local` (`Admin1234!`), `direccion@notar.local`
 
 Base: `/api`. Recursos montados en `src/routes/index.ts`:
 
-| Ruta                   | Recurso                                                                                                                                        | Protección                                                                                    |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `/auth`                | login                                                                                                                                          | —                                                                                             |
-| `/users`               | CRUD de usuarios, `/:id/suspend`, `/:id/activate`                                                                                              | `ADMINISTRATOR`                                                                               |
-| `/students`            | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history`                                                                        | ninguna                                                                                       |
-| `/enrollments`         | inscripciones                                                                                                                                  | ninguna                                                                                       |
-| `/class-sections`      | listado de cursos/divisiones                                                                                                                   | ninguna                                                                                       |
-| `/courses`             | `/class-sections` y `/subjects` (CRUD)                                                                                                         | ninguna                                                                                       |
-| `/teacher-assignments` | asignación de materias a docentes                                                                                                              | ninguna                                                                                       |
-| `/grades`              | notas, `/roster`, `/by-student`                                                                                                                | ninguna                                                                                       |
-| `/attendance`          | asistencia, `/batch`, `/summary`, `/:id/justify`                                                                                               | ninguna                                                                                       |
-| `/edte-meetings`       | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/member-options`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
-| `/notifications`       | alertas de estudiantes                                                                                                                         | ninguna                                                                                       |
-| `/edte-dashboard`      | dashboard del EDTE: indicadores y alumnos con trayectorias complejas (`?term`, `?assessment`, `?grade`, `?classSectionId`)                     | `requireEdteAccess`: `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT`                                     |
-| `/rites`               | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign`                                                                              | directivos                                                                                    |
-| `/cycle-closure`       | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId`                                                          | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`                                                          |
-| `/pending-subjects`    | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`              | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER`                              |
-| `/matriculation`       | matriculación continuada entre ciclos lectivos: `POST /run`                                                                                    | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`                                                          |
+| Ruta | Recurso | Protección |
+| --- | --- | --- |
+| `/auth` | login | — |
+| `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
+| `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
+| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela (el docente, solo los de sus alumnos); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/enrollments` | inscripciones | ninguna |
+| `/class-sections` | listado de cursos/divisiones | ninguna |
+| `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
+| `/teacher-assignments` | asignación de materias a docentes | ninguna |
+| `/grades` | notas, `/roster`, `/by-student` | ninguna |
+| `/attendance` | asistencia, `/batch`, `/summary`, `/:id/justify` | ninguna |
+| `/edte-meetings` | reuniones del EDTE: listado (`?year`, `?period`, `?status`), `/candidates`, `/member-options`, `/:id`, alta, edición en borrador y `/:id/sign` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/notifications` | alertas de estudiantes | ninguna |
+| `/edte-dashboard` | dashboard del EDTE: indicadores y alumnos con trayectorias complejas (`?term`, `?assessment`, `?grade`, `?classSectionId`) | `requireEdteAccess`: `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT` |
+| `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
+| `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
+| `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
+| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
+| `/matriculation` | matriculación continuada entre ciclos lectivos: `POST /run` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
 Montar cada router con su prefijo propio; no usar `router.use('/', ...)`, porque mezcla rutas
 de distintos recursos y puede pisar otras.
+
+**PATE (CRM-078, E4-RF-06, RN-012 y RN-013):**
+- Uno por alumno y ciclo, para alumnos derivados al EDTE al cierre del ciclo anterior.
+- Sale de una reunión del EDTE (CRM-075): `edteMeetingId` es obligatorio, el ciclo es el de la
+  reunión y el alumno tiene que estar entre los tratados (409 si no). En `/options` la reunión es
+  opcional (sin ella se usa el ciclo activo), para poder armar el formulario antes de elegirla.
+- **Derivados al EDTE:** son los que el motor de promoción (CRM-062) decidió `REFERRED_TO_EDTE`
+  (RN-012, CRM-073). No se recuentan las MPAA: si el motor no se ejecutó para ese ciclo, no hay
+  derivados. Una sola función para todos: `getReferredStudentIds` en
+  `services/promotionDecision.service.ts` (la usan el PATE y las reuniones del EDTE). El seed
+  carga la decisión de Mateo García (derivado al cierre de 2025).
+- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED`.
+- Las materias son MPAA pendientes del alumno, de ciclos anteriores. Hasta 4 a intensificar, con
+  modelo (y sección en los modelos 2 y 3, con las mismas reglas que la asignación de CRM-056); el
+  resto, a recursar con la sección donde cursa (del año de la materia; el turno puede ser otro).
+  Una MPAA va una sola vez.
+- El modelo tiene que estar en la opción organizativa de la escuela, y cursadas + recursadas no
+  pueden pasar de 12 en el ciclo.
+- Las validaciones devuelven todos los errores juntos (409 con `details.errors`) y se repiten al
+  confirmar, con la fila del alumno bloqueada. CRM-082 crea las recursadas en ese momento.
+- **Quién ve cada PATE** (decisión del equipo; es parte del legajo pedagógico):
+  - dirección, EOE/directivos y administración: todos, completos (`view: 'FULL'`);
+  - docente: solo los de sus alumnos (da clase en la sección del alumno o donde intensifica o
+    recursa) y en versión curricular (`view: 'CURRICULAR'`: sin diagnóstico, estrategias,
+    cronograma ni notificación). Si no es de sus alumnos, `GET /:id` responde 404;
+  - preceptor: la versión curricular de todos (no hay vínculo entre preceptor y sección);
+  - integrantes activos del plantel del EDTE (CRM-071): todos, completos, sea cual sea su rol
+    (un docente integrante no queda limitado a sus alumnos).
+- El límite de 12 usa el máximo de CRM-061 (`MAX_SUBJECTS_PER_CYCLE`). No se usa
+  `assertSubjectLimit` porque corta en el primer error y el PATE devuelve todos juntos; al crear
+  las recursadas, CRM-082 sí lo usa.
+- Los modelos permitidos salen de `MODELS_BY_OPTION` de `intensification.service.ts` (PR #60),
+  la misma tabla que usa la asignación de CRM-056.
+
+**Adjuntos de intervenciones (CRM-087, E4-RF-12):**
+- Endpoints: `POST /interventions/:id/attachments` (multipart, campo `files`, hasta 10 archivos),
+  `GET /interventions/:id/attachments` (listado) y `GET /interventions/:id/attachments/:attachmentId`
+  (descarga del archivo, no JSON).
+- Tipos permitidos: jpg, png, pdf y docx, hasta 10 MB cada uno (`utils/attachmentFileType.ts`). Se
+  valida la extensión **y** los primeros bytes del archivo, no el tipo que manda el navegador.
+- Subir: quien puede editar la intervención (el autor, dentro de las 48 hs, `assertCanEdit`).
+  Ver y descargar: quien puede ver la intervención (misma regla que `GET /interventions/:id`).
+  Los archivos nunca se sirven por URL pública.
+- **Dónde se guardan:** a través de `fileStorage` (`src/lib/storage`). Es una *factory* que elige
+  la implementación con `STORAGE_DRIVER` del `.env`; hoy solo existe `local` (carpeta `UPLOADS_DIR`,
+  por defecto `./uploads`, ignorada por git). Cuando la escuela defina otro lugar, se agrega una clase
+  que implemente `FileStorage` y su caso en `createFileStorage`, sin tocar services ni rutas.
+  En la base (`InterventionAttachment`) se guarda solo la clave (`storageKey`) y los datos del archivo.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
@@ -297,9 +347,36 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Los convocados se guardan presentes o ausentes, con el rol que tenían al cargar la reunión.
 - `/candidates`: en febrero/marzo, los derivados al cierre del ciclo anterior; en agosto y
   diciembre, los alumnos con PATE en curso; en las adicionales, los dos grupos.
+- Los derivados salen de las decisiones del motor de promoción (`getReferredStudentIds`, ver PATE).
 - **Provisorio:** los convocados se validan contra el personal activo hasta que entre CRM-071
-  (plantel), y los derivados se calculan como "5 o más MPAA" hasta que entre CRM-073 (listado
-  de derivación). Están aislados en `getEligibleMembers` y `getReferredStudentIds`.
+  (plantel). Está aislado en `getEligibleMembers`.
+
+**Recursado de materias (CRM-082, E4-RF-09):**
+- Un recursado es un `Enrollment` con `courseType: REPEAT`, vinculado a la MPAA que se recursa
+  (`repeatedPendingSubjectId`). Se califica y se toma asistencia como cualquier cursada.
+- Se recursa una MPAA pendiente de un ciclo anterior, en una sección del ciclo activo y del año
+  de la materia. El turno puede ser otro que el del alumno (contraturno). No hace falta tener 5
+  o más MPAA: lo decide Gestión Escolar, y queda auditado quién lo asignó.
+- No se recursa una MPAA con una intensificación sin resultado.
+- Al editar solo cambia la sección. Si el recursado lo creó un PATE, el cambio también se guarda en
+  el PATE (`PateSubjectRepeat.classSectionId`), en la misma transacción. Se quita solo si no tiene
+  notas, asistencia ni intensificaciones.
+- `createSubjectRepeat(tx, input, actor, cycle?)` recibe la transacción y, opcional, el ciclo: sin
+  él usa el activo (alta manual); el PATE pasa el suyo.
+- Cierre del ciclo: si el recursado aprueba, su MPAA queda `ACCREDITED` con la nota del
+  recursado (`PendingSubject.finalScore` admite decimales); si no, sigue la MPAA original y no se
+  crea otra.
+- Valida el límite de 12 materias por ciclo (`assertSubjectLimit`, CRM-061) con la fila del
+  alumno bloqueada.
+- Asignan, cambian la sección y quitan: administración, dirección, EOE/directivos y preceptores
+  (`SUBJECT_REPEAT_MANAGER_ROLES`); los docentes solo ven.
+- Al confirmar un PATE (`IN_PROGRESS`), se crea la inscripción REPEAT de cada materia a recursar,
+  en el ciclo del PATE, y se guarda en `PateSubjectRepeat.repeatEnrollmentId`. Va en la misma
+  transacción: si una falla (por ejemplo, el límite de 12), no se confirma el PATE. El error dice de
+  qué materia se trata.
+- Un recursado creado por un PATE no se puede quitar a mano (409): el servicio lo controla antes de
+  borrar, y la FK `PateSubjectRepeat.repeatEnrollmentId` es `RESTRICT`. La respuesta trae `pateId`
+  (null si se asignó a mano).
 
 ## 10. Git y Pull Requests
 

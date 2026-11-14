@@ -22,7 +22,7 @@ function schoolDayAfter(day: string) {
 }
 
 // Datos del usuario que realiza la acción (para permisos y auditoría).
-interface Actor {
+export interface Actor {
   userId: string
   role: Role
   ipAddress: string
@@ -181,6 +181,24 @@ export async function getInterventionById(id: string, actor: Actor) {
   return intervention
 }
 
+// Solo el autor puede editar su intervención, y solo dentro de la ventana de 48 hs
+// (CRM-085, criterio 4). También se usa para sumar adjuntos (CRM-087).
+export function assertCanEdit(
+  intervention: { authorId: string; createdAt: Date },
+  actor: Pick<Actor, 'userId'>
+) {
+  if (intervention.authorId !== actor.userId) {
+    throw new HttpError(403, 'Solo el autor puede editar su intervención')
+  }
+  const hoursSinceCreation = (Date.now() - intervention.createdAt.getTime()) / (1000 * 60 * 60)
+  if (hoursSinceCreation > EDIT_WINDOW_HOURS) {
+    throw new HttpError(
+      409,
+      `La intervención ya no se puede editar: pasaron más de ${EDIT_WINDOW_HOURS} horas desde su registro`
+    )
+  }
+}
+
 // Editar: solo el autor y solo dentro de la ventana de 48 hs (criterio 4).
 export async function updateIntervention(id: string, input: UpdateInterventionInput, actor: Actor) {
   const existing = await prisma.intervention.findUnique({
@@ -190,16 +208,7 @@ export async function updateIntervention(id: string, input: UpdateInterventionIn
   if (!existing) {
     throw new HttpError(404, 'Intervención no encontrada')
   }
-  if (existing.authorId !== actor.userId) {
-    throw new HttpError(403, 'Solo el autor puede editar su intervención')
-  }
-  const hoursSinceCreation = (Date.now() - existing.createdAt.getTime()) / (1000 * 60 * 60)
-  if (hoursSinceCreation > EDIT_WINDOW_HOURS) {
-    throw new HttpError(
-      409,
-      `La intervención ya no se puede editar: pasaron más de ${EDIT_WINDOW_HOURS} horas desde su registro`
-    )
-  }
+  assertCanEdit(existing, actor)
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.intervention.update({

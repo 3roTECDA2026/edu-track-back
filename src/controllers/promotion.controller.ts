@@ -6,6 +6,7 @@ import { runPromotion } from '@/services/promotion.service'
 export async function run(req: Request, res: Response) {
   const { academicYearId } = runPromotionSchema.parse(req.body)
   const { userId: executedById } = getAuthUser(req)
-  const result = await runPromotion(academicYearId, executedById)
+  // La IP va a la auditoría de las derivaciones al EDTE (CRM-073)
+  const result = await runPromotion(academicYearId, executedById, req.ip ?? 'unknown')
   res.json({ success: true, decisions: result })
 }

@@ -50,3 +50,9 @@ export const listInterventionsQuerySchema = z
     path: ['from'],
   })
 export type ListInterventionsQuery = z.infer<typeof listInterventionsQuerySchema>
+
+// Descargar un adjunto: id de la intervención y del adjunto (CRM-087).
+export const interventionAttachmentParamsSchema = z.object({
+  id: z.guid(),
+  attachmentId: z.guid(),
+})

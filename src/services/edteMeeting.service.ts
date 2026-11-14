@@ -18,6 +18,7 @@ import type {
   ListEdteMeetingsQuery,
   UpdateEdteMeetingInput,
 } from '@/schemas/edteMeeting.schema'
+import { getReferredStudentIds } from '@/services/promotionDecision.service'
 import { HttpError } from '@/utils/httpError'
 import { toDate, toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
@@ -413,32 +414,13 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
   return getEdteMeeting(id)
 }
 
-// Alumnos derivados al EDTE al cierre del ciclo anterior: 5 o más MPAA pendientes (RN-012).
-// Provisorio hasta que se fusione CRM-073: entonces se reemplaza por su listado de derivación
-// (listEdteReferrals con year = el ciclo que cerró), que lee las decisiones del motor de
-// promoción en lugar de contar las MPAA.
-async function getReferredStudentIds(closedYear: number) {
-  const groups = await prisma.pendingSubject.groupBy({
-    by: ['studentId'],
-    where: {
-      status: PendingSubjectStatus.PENDING,
-      originAcademicYear: { year: { lte: closedYear } },
-      student: { status: { in: ENROLLED_STATUSES } },
-    },
-    _count: { _all: true },
-    having: { studentId: { _count: { gte: 5 } } },
-  })
-  return groups.map((group) => group.studentId)
-}
-
 // Alumnos con PATE en curso en el ciclo, para las reuniones de seguimiento (agosto y diciembre).
-// Cuando se fusione CRM-078, el PATE tiene su propio ciclo y el estado pasa a IN_PROGRESS.
+// El PATE tiene su propio ciclo y se confirma pasando a IN_PROGRESS (CRM-078).
 async function getStudentsWithActivePate(academicYearId: string) {
   const pates = await prisma.pate.findMany({
     where: {
-      // Con el enum actual, "en curso" son ACTIVE y UNDER_FOLLOW_UP
-      status: { in: [PateStatus.ACTIVE, PateStatus.UNDER_FOLLOW_UP] },
-      edteMeeting: { academicYearId },
+      status: PateStatus.IN_PROGRESS,
+      academicYearId,
       student: { status: { in: ENROLLED_STATUSES } },
     },
     select: { id: true, studentId: true, status: true },

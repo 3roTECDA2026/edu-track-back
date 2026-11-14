@@ -1,4 +1,5 @@
 import {
+  PateStatus,
   PendingSubjectStatus,
   PreliminaryAssessment,
   type Shift,
@@ -28,11 +29,13 @@ const ENROLLED_STATUSES: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.
 type SectionInfo = { id: string; grade: number; division: string; shift: Shift }
 type PateInfo = { id: string; status: string }
 
-// Alumnos con PATE en curso en el ciclo.
-// Provisorio hasta CRM-078: en develop el PATE todavía no tiene ciclo ni el estado IN_PROGRESS,
-// así que devuelve vacío. Cuando esté, consulta status IN_PROGRESS y academicYearId.
-async function getActivePates(_academicYearId: string): Promise<Map<string, PateInfo>> {
-  return new Map()
+// Alumnos con PATE en curso en el ciclo (CRM-078): confirmado (IN_PROGRESS) y del ciclo activo
+async function getActivePates(academicYearId: string): Promise<Map<string, PateInfo>> {
+  const pates = await prisma.pate.findMany({
+    where: { academicYearId, status: PateStatus.IN_PROGRESS },
+    select: { id: true, studentId: true, status: true },
+  })
+  return new Map(pates.map((pate) => [pate.studentId, { id: pate.id, status: pate.status }]))
 }
 
 export async function getEdteDashboard(query: EdteDashboardQuery) {
