@@ -1,4 +1,4 @@
-import { IntensificationModel, PateStatus } from '@prisma/client'
+import { IntensificationModel, PateEvaluation, PateStatus } from '@prisma/client'
 import { z } from 'zod'
 
 import { checkPlacement } from '@/schemas/intensification.schema'
@@ -98,10 +98,35 @@ export const updatePateSchema = z
     message: 'No hay cambios para guardar',
   })
 
-// Confirmar (pasa a en curso) o cerrar
-export const changePateStatusSchema = z.object({
-  status: z.enum([PateStatus.IN_PROGRESS, PateStatus.CLOSED]),
+// Confirmar (pasa a en curso) o cerrar con evaluación final (CRM-080)
+export const changePateStatusSchema = z
+  .object({
+    status: z.enum([PateStatus.IN_PROGRESS, PateStatus.CLOSED]),
+    finalEvaluation: z.enum(PateEvaluation).optional(),
+    finalObservations: z.string().trim().max(5000, 'Máximo 5000 caracteres').nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === PateStatus.CLOSED && !data.finalEvaluation) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Para cerrar el PATE debés indicar la evaluación final (Favorable, Parcial o Desfavorable)',
+        path: ['finalEvaluation'],
+      })
+    }
+  })
+
+// Seguimientos del PATE (E4-RF-07, CRM-080)
+export const createPateFollowUpSchema = z.object({
+  edteMeetingId: z.guid('Elegí la reunión del EDTE donde se realizó el seguimiento'),
+  progress: requiredText('los avances observados'),
+  evaluation: z.enum(PateEvaluation),
+  observations: z.string().trim().max(5000, 'Máximo 5000 caracteres').nullable().optional(),
+  date: z.coerce.date().optional(),
 })
+
+export type CreatePateFollowUpInput = z.infer<typeof createPateFollowUpSchema>
+export type ChangePateStatusInput = z.infer<typeof changePateStatusSchema>
 
 export type ListPatesQuery = z.infer<typeof listPatesQuerySchema>
 export type PateOptionsQuery = z.infer<typeof pateOptionsQuerySchema>
