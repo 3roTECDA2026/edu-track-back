@@ -109,6 +109,8 @@ export async function listPendingSubjectAttempts(
                   academicYear: { select: { year: true } },
                 },
               },
+              // Evidencias vigentes del intento (CRM-060): las dadas de baja no cuentan
+              _count: { select: { attachments: { where: { deletedAt: null } } } },
             },
           },
         },

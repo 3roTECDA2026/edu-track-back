@@ -81,6 +81,15 @@ describe('respuesta del historial de intentos', () => {
     assert.deepEqual(toAttemptsResponse([]), [])
   })
 
+  it('cuenta las evidencias del intento, y 0 si no se contaron (CRM-060)', () => {
+    const [withEvidence] = toAttemptsResponse([
+      { ...attempt({ id: 'con' }), _count: { attachments: 2 } },
+    ])
+    const [without] = toAttemptsResponse([attempt({ id: 'sin' })])
+    assert.equal(withEvidence?.attachmentsCount, 2)
+    assert.equal(without?.attachmentsCount, 0)
+  })
+
   it('el ciclo sale del calendario: febrero/marzo de 2026 es del ciclo 2025', () => {
     const [item] = toAttemptsResponse([february2026])
     assert.equal(item?.cycleYear, 2025)

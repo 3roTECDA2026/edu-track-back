@@ -19,6 +19,8 @@ export interface AttemptRecord {
   evaluationDate: Date | null
   createdAt: Date
   schedule: { startDate: Date; endDate: Date; academicYear: { year: number } } | null
+  // Evidencias vigentes del intento (CRM-060). Opcional para los intentos armados sin contarlas
+  _count?: { attachments: number }
 }
 
 // Fecha con la que se ordena: el inicio del período del calendario y, si el intento no tiene
@@ -45,5 +47,6 @@ export function toAttemptsResponse(attempts: AttemptRecord[]) {
     model: attempt.model,
     resultCode: attempt.resultCode,
     score: attempt.score,
+    attachmentsCount: attempt._count?.attachments ?? 0,
   }))
 }
