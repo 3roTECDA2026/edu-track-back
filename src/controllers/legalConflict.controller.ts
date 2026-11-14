@@ -41,7 +41,8 @@ export const create = async (req: Request, res: Response): Promise<void> => {
 
 export const getById = async (req: Request, res: Response): Promise<void> => {
   const id = idSchema.parse(req.params.id)
-  const conflict = await getLegalConflictById(id)
+  const { userId } = getAuthUser(req)
+  const conflict = await getLegalConflictById(id, { userId, ipAddress: req.ip ?? 'unknown' })
 
   if (!conflict) {
     throw new HttpError(404, 'Conflicto legal no encontrado')
@@ -55,7 +56,11 @@ export const getById = async (req: Request, res: Response): Promise<void> => {
 
 export const listByStudent = async (req: Request, res: Response): Promise<void> => {
   const studentId = idSchema.parse(req.params.studentId)
-  const conflicts = await getLegalConflictsByStudent(studentId)
+  const { userId } = getAuthUser(req)
+  const conflicts = await getLegalConflictsByStudent(studentId, {
+    userId,
+    ipAddress: req.ip ?? 'unknown',
+  })
 
   res.status(200).json({
     success: true,

@@ -74,46 +74,86 @@ export const createLegalConflict = async (
   })
 }
 
-export const getLegalConflictById = async (id: string) => {
-  const conflict = await prisma.legalConflict.findUnique({
-    where: { id },
-    include: {
-      attachments: {
-        orderBy: [{ date: 'asc' }, { id: 'asc' }],
-      },
-    },
-  })
-
-  if (!conflict) return null
-
-  const authorIds = [...new Set(conflict.attachments.map((a) => a.authorId))]
-
-  const authors = await prisma.user.findMany({
-    where: { id: { in: authorIds } },
-    select: { id: true, firstName: true, lastName: true },
-  })
-
-  const authorsById = new Map(authors.map((author) => [author.id, author]))
-
-  return {
-    ...conflict,
-    detailedReport: decryptConflictReport(conflict.detailedReport),
-    attachments: conflict.attachments.map((attachment) => ({
-      ...attachment,
-      content: decryptConflictReport(attachment.content),
-      author: authorsById.get(attachment.authorId) ?? null,
-    })),
-  }
+interface AccessContext {
+  userId: string
+  ipAddress: string
 }
 
-export const getLegalConflictsByStudent = async (studentId: string) => {
-  const conflicts = await prisma.legalConflict.findMany({
-    where: { studentId },
-    orderBy: { registeredAt: 'desc' },
-  })
+export const getLegalConflictById = async (
+  id: string,
+  access: AccessContext,
+  db: ConflictDatabase = prisma
+) => {
+  return db.$transaction(async (tx) => {
+    const conflict = await tx.legalConflict.findUnique({
+      where: { id },
+      include: {
+        attachments: {
+          orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        },
+      },
+    })
 
-  return conflicts.map((conflict) => ({
-    ...conflict,
-    detailedReport: decryptConflictReport(conflict.detailedReport),
-  }))
+    if (!conflict) return null
+
+    const authorIds = [...new Set(conflict.attachments.map((a) => a.authorId))]
+
+    const authors = await tx.user.findMany({
+      where: { id: { in: authorIds } },
+      select: { id: true, firstName: true, lastName: true },
+    })
+
+    const authorsById = new Map(authors.map((author) => [author.id, author]))
+
+    // E4-RNF-03: se registra quién vio el detalle, sin guardar su contenido.
+    await tx.auditLog.create({
+      data: {
+        userId: access.userId,
+        action: 'SENSITIVE_VIEW',
+        affectedEntity: 'LegalConflict',
+        entityId: conflict.id,
+        ipAddress: access.ipAddress,
+        newData: { operation: 'VIEW', conflictId: conflict.id },
+      },
+    })
+
+    return {
+      ...conflict,
+      detailedReport: decryptConflictReport(conflict.detailedReport),
+      attachments: conflict.attachments.map((attachment) => ({
+        ...attachment,
+        content: decryptConflictReport(attachment.content),
+        author: authorsById.get(attachment.authorId) ?? null,
+      })),
+    }
+  })
+}
+
+export const getLegalConflictsByStudent = async (
+  studentId: string,
+  access: AccessContext,
+  db: ConflictDatabase = prisma
+) => {
+  return db.$transaction(async (tx) => {
+    const conflicts = await tx.legalConflict.findMany({
+      where: { studentId },
+      orderBy: { registeredAt: 'desc' },
+    })
+
+    // Un solo log por listado, con la referencia del alumno y la cantidad de resultados.
+    await tx.auditLog.create({
+      data: {
+        userId: access.userId,
+        action: 'SENSITIVE_VIEW',
+        affectedEntity: 'LegalConflict',
+        ipAddress: access.ipAddress,
+        newData: { operation: 'LIST', studentId, total: conflicts.length },
+      },
+    })
+
+    return conflicts.map((conflict) => ({
+      ...conflict,
+      detailedReport: decryptConflictReport(conflict.detailedReport),
+    }))
+  })
 }
