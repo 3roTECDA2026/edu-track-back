@@ -85,7 +85,7 @@ intensificationRouter.get(
   canView,
   asyncHandler(intensificationController.downloadAttachment)
 )
-// Baja lógica: por ahora solo dirección (ATTACHMENT_DELETE_ROLES)
+// Baja lógica: dirección y administración (ATTACHMENT_DELETE_ROLES)
 intensificationRouter.delete(
   '/:id/attachments/:attachmentId',
   requireRole(...ATTACHMENT_DELETE_ROLES),

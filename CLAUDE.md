@@ -345,7 +345,7 @@ de distintos recursos y puede pisar otras.
 - Subir: los que cargan el resultado (administración, dirección, preceptoría y docentes); el
   docente, solo en los intentos de los que es responsable. Se puede antes o después del resultado.
   Ver y descargar: quien ve las intensificaciones.
-- Baja: por ahora solo dirección (`ATTACHMENT_DELETE_ROLES`). Es **lógica**: se guardan
+- Baja: dirección y administración (`ATTACHMENT_DELETE_ROLES`). Es **lógica**: se guardan
   `deletedAt` y `deletedById`, queda una fila en `AuditLog` y el archivo se conserva. Las dadas de
   baja no se listan, no se descargan (404) y no cuentan en el historial.
 - El historial de intentos (`GET /pending-subjects/:id/attempts`) trae `attachmentsCount`.

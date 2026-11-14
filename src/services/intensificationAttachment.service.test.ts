@@ -198,7 +198,7 @@ describe('listado y permisos de baja (CRM-060)', () => {
     assert.equal(where.deletedAt, null)
   })
 
-  it('por ahora solo dirección puede dar de baja (lo usa la ruta)', () => {
-    assert.deepEqual(ATTACHMENT_DELETE_ROLES, [Role.SCHOOL_MANAGEMENT])
+  it('solo dirección y administración pueden dar de baja (lo usa la ruta)', () => {
+    assert.deepEqual(ATTACHMENT_DELETE_ROLES, [Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR])
   })
 })

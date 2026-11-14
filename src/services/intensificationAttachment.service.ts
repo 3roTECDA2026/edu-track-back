@@ -13,9 +13,9 @@ import { HttpError } from '@/utils/httpError'
 // Evidencias de un intento de intensificación (E3-RF-09, CRM-060): trabajos prácticos,
 // evaluaciones. Los archivos se guardan con `fileStorage` (src/lib/storage); acá, permisos y registro.
 
-// Quién da de baja una evidencia. Por ahora, solo dirección (decisión del 14/11/2026).
-// Para sumar otro rol, se agrega acá: lo usan la ruta y el front.
-export const ATTACHMENT_DELETE_ROLES: Role[] = [Role.SCHOOL_MANAGEMENT]
+// Quién da de baja una evidencia: dirección y administración. Para sumar otro rol, se agrega acá
+// (lo usa la ruta) y en ATTACHMENT_DELETE_ROLES del front.
+export const ATTACHMENT_DELETE_ROLES: Role[] = [Role.SCHOOL_MANAGEMENT, Role.ADMINISTRATOR]
 
 export interface AttachmentActor {
   userId: string
