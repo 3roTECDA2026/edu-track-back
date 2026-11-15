@@ -62,8 +62,8 @@ export function resolveTargetSubjects(input: ResolveSubjectsInput): ResolveSubje
   // Se identifica qué Curriculum contiene las materias que el alumno cursó en el ciclo de origen
   if (studentSourceSubjectIds.length > 0) {
     const matchingCurriculums = curriculums.filter((curr) => {
-      // El curriculum coincide si contiene las materias del alumno de origen
-      return studentSourceSubjectIds.some((sId) => curr.allSubjectIds.has(sId))
+      // El plan de estudios de la orientación debe contener TODAS las materias cursadas por el alumno
+      return studentSourceSubjectIds.every((sId) => curr.allSubjectIds.has(sId))
     })
 
     if (matchingCurriculums.length === 1) {

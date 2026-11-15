@@ -181,10 +181,14 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
       }
 
       // 4. Precargar inscripciones de origen para deducir orientación de cada alumno
+      // (solo materias cursadas por primera vez, FIRST_TIME, para no distorsionar con recursadas)
       // y precargar estudiantes ya matriculados en ciclo destino (Enrollment y EnrollmentHistory)
       const [sourceEnrollments, targetEnrollments, targetHistories] = await Promise.all([
         tx.enrollment.findMany({
-          where: { academicYearId: fromYearId },
+          where: {
+            academicYearId: fromYearId,
+            courseType: CourseType.FIRST_TIME,
+          },
           select: { studentId: true, subjectId: true },
         }),
         tx.enrollment.findMany({
@@ -220,6 +224,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
       const pendingPate: DestinationDecisionResult[] = []
       const pendingOrientation: DestinationDecisionResult[] = []
       const missingCurriculum: DestinationDecisionResult[] = []
+      const exceedsLimit: DestinationDecisionResult[] = []
       const graduates: DestinationDecisionResult[] = []
 
       const summary = {
@@ -227,6 +232,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         pendingPate: 0,
         pendingOrientation: 0,
         missingCurriculum: 0,
+        exceedsLimit: 0,
         graduates: 0,
         missingDecision: 0,
         missingSection: 0,
@@ -301,6 +307,18 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
                 'Inscripto en la sección sin materias: requiere asignación manual de plan de estudios',
             })
             summary.missingCurriculum++
+          } else if (subjectResolution.exceedsLimit) {
+            // Si el plan supera las 12 materias, se inscribe en la sección sin materias para asignación manual
+            exceedsLimit.push({
+              studentId,
+              studentName: res.studentName,
+              status: 'enrolled',
+              targetSectionId: res.targetSectionId,
+              targetSectionName: res.targetSectionName,
+              reason:
+                'Inscripto en la sección sin materias: la cantidad de materias del plan excede el límite de 12 por ciclo',
+            })
+            summary.exceedsLimit++
           }
 
           historyUpdates.push(studentId)
@@ -333,6 +351,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         await tx.enrollmentHistory.updateMany({
           where: {
             studentId: { in: historyUpdates },
+            classSection: { academicYearId: fromYearId },
             endDate: null,
           },
           data: {
@@ -360,6 +379,7 @@ export async function continueMatriculation(fromYearId: string, toYearId: string
         pendingPate,
         pendingOrientation,
         missingCurriculum,
+        exceedsLimit,
         graduates,
         details,
       }

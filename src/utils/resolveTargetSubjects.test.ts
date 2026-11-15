@@ -114,4 +114,51 @@ describe('CRM-064: resolveTargetSubjects (Asignación de materias por orientaci�
     assert.equal(res.exceedsLimit, true)
     assert.equal(res.subjectIds.length, 0)
   })
+
+  it('resuelve correctamente la orientación cuando comparten materias comunes en 4.° año (evaluación con every)', () => {
+    // Materias comunes en 4.° (Matemática, Literatura, Inglés, etc.)
+    const common4Subjects = ['com-mat', 'com-lit', 'com-ing', 'com-bio', 'com-ef', 'com-nticx']
+    // Específica de Naturales en 4.°: Introducción a la Química
+    const natSpecific4 = 'nat-intro-quimica'
+    // Específica de Sociales en 4.°: Psicología
+    const socSpecific4 = 'soc-psicologia'
+
+    const nat5 = ['nat5-quimica', 'nat5-fisica', 'nat5-biologia']
+    const soc5 = ['soc5-sociologia', 'soc5-comunicacion', 'soc5-historia']
+
+    const sharedCurriculums: CurriculumPlanSummary[] = [
+      {
+        id: 'curr-nat',
+        name: 'Ciencias Naturales',
+        subjectsByGrade: new Map([
+          [4, [...common4Subjects, natSpecific4]],
+          [5, nat5],
+        ]),
+        allSubjectIds: new Set([...common4Subjects, natSpecific4, ...nat5]),
+      },
+      {
+        id: 'curr-soc',
+        name: 'Ciencias Sociales',
+        subjectsByGrade: new Map([
+          [4, [...common4Subjects, socSpecific4]],
+          [5, soc5],
+        ]),
+        allSubjectIds: new Set([...common4Subjects, socSpecific4, ...soc5]),
+      },
+    ]
+
+    // El alumno cursó las comunes + Introducción a la Química de Naturales
+    const res = resolveTargetSubjects({
+      targetGrade: 5,
+      sectionSubjectIds: [],
+      fallbackGradeSubjects: [...nat5, ...soc5],
+      studentSourceSubjectIds: [...common4Subjects, natSpecific4],
+      curriculums: sharedCurriculums,
+    })
+
+    // Debe coincidir únicamente con Ciencias Naturales porque Sociales no contiene 'nat-intro-quimica'
+    assert.equal(res.missingCurriculum, undefined)
+    assert.equal(res.curriculumName, 'Ciencias Naturales')
+    assert.deepEqual(res.subjectIds, nat5)
+  })
 })
