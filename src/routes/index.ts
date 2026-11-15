@@ -29,6 +29,7 @@ import { legalConflictRouter } from '@/routes/legalConflict.routes'
 import { conflictTotpRouter } from '@/routes/conflictTotp.routes'
 import { pendingSubjectRouter } from '@/routes/pendingSubject.routes'
 import { promotionRouter } from '@/routes/promotion.routes'
+import { matriculationRouter } from '@/routes/matriculation.routes'
 
 const router = Router()
 
@@ -75,5 +76,7 @@ router.use('/forte-plans', fortePlanRouter)
 router.use('/edte-referrals', edteReferralRouter)
 // Recursado de materias (CRM-082)
 router.use('/subject-repeats', subjectRepeatRouter)
+// Matriculación continuada (CRM-064)
+router.use('/matriculation', matriculationRouter)
 
 export default router
