@@ -236,24 +236,26 @@ model User {
   updatedAt                       DateTime                         @updatedAt // Fecha de última actualización
 
   // Relaciones:
-  teacherAssignments           TeacherSubjectCourse[] // Materias y cursos asignados al docente
-  registeredAttendances        DailyAttendance[]      @relation("AttendanceRegistrar")
-  registeredSubjectAttendances SubjectAttendance[]    @relation("SubjectAttendanceRegistrar") // Asistencias por materia cargadas por el usuario (CRM-059)
-  authoredInterventions        Intervention[]         @relation("InterventionAuthor") // Intervenciones registradas por el usuario
-  uploadedInterventionAttachments InterventionAttachment[] @relation("InterventionAttachmentUploader") // Adjuntos de intervenciones subidos por el usuario (CRM-087)
-  authoredConflicts            LegalConflict[]        @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
-  signedRites                  Rite[]                 @relation("SigningAuthority") // RITEs firmados por esta autoridad
-  auditLogs                    AuditLog[] // Registros de auditoría generados por el usuario
-  sentMessages                 Message[]              @relation("MessageSender") // Mensajes enviados
-  linkedStudent                Student?               @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
-  guardian                     Guardian?              @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
-  patesCreated                 Pate[]                 @relation("PateCreator") // PATE que cargó
-  edteMembers                  EdteMember[] // Participaciones en reuniones del EDTE
-  edteTeamMemberships          EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
-  fortePlansInCharge           FortePlan[]            @relation("FortePlanResponsible") // Planes Forte a su cargo
-  fortePlanReports             FortePlanReport[]      @relation("FortePlanReportAuthor") // Reportes Forte que cargó
-  edteMeetingsCreated          EdteMeeting[]          @relation("EdteMeetingCreator") // Reuniones del EDTE que cargó
-  edteMeetingsSigned           EdteMeeting[]          @relation("EdteMeetingSigner") // Reuniones del EDTE que marcó como firmadas
+  teacherAssignments                 TeacherSubjectCourse[] // Materias y cursos asignados al docente
+  registeredAttendances              DailyAttendance[]           @relation("AttendanceRegistrar")
+  registeredSubjectAttendances       SubjectAttendance[]         @relation("SubjectAttendanceRegistrar") // Asistencias por materia cargadas por el usuario (CRM-059)
+  authoredInterventions              Intervention[]              @relation("InterventionAuthor") // Intervenciones registradas por el usuario
+  uploadedInterventionAttachments    InterventionAttachment[]    @relation("InterventionAttachmentUploader") // Adjuntos de intervenciones subidos por el usuario (CRM-087)
+  uploadedIntensificationAttachments IntensificationAttachment[] @relation("IntensificationAttachmentUploader") // Evidencias de intensificación subidas por el usuario (CRM-060)
+  deletedIntensificationAttachments  IntensificationAttachment[] @relation("IntensificationAttachmentDeleter") // Evidencias de intensificación que dio de baja (CRM-060)
+  authoredConflicts                  LegalConflict[]             @relation("ConflictAuthor") // Conconflictos/Actas legales registradas
+  signedRites                        Rite[]                      @relation("SigningAuthority") // RITEs firmados por esta autoridad
+  auditLogs                          AuditLog[] // Registros de auditoría generados por el usuario
+  sentMessages                       Message[]                   @relation("MessageSender") // Mensajes enviados
+  linkedStudent                      Student?                    @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
+  guardian                           Guardian?                   @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
+  patesCreated                       Pate[]                      @relation("PateCreator") // PATE que cargó
+  edteMembers                        EdteMember[] // Participaciones en reuniones del EDTE
+  edteTeamMemberships                EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
+  fortePlansInCharge                 FortePlan[]                 @relation("FortePlanResponsible") // Planes Forte a su cargo
+  fortePlanReports                   FortePlanReport[]           @relation("FortePlanReportAuthor") // Reportes Forte que cargó
+  edteMeetingsCreated                EdteMeeting[]               @relation("EdteMeetingCreator") // Reuniones del EDTE que cargó
+  edteMeetingsSigned                 EdteMeeting[]               @relation("EdteMeetingSigner") // Reuniones del EDTE que marcó como firmadas
 
   conflictTotpCredential       ConflictTotpCredential?
   electronicConflictSignatures ConflictElectronicSignature[]
@@ -608,25 +610,26 @@ model Grade {
 // ============================================================================
 
 model Intensification {
-  id                   String                     @id @default(uuid()) // Identificador único
-  enrollment           Enrollment                 @relation(fields: [enrollmentId], references: [id]) // Cursada desaprobada (origen de la MPAA)
+  id                   String                      @id @default(uuid()) // Identificador único
+  enrollment           Enrollment                  @relation(fields: [enrollmentId], references: [id]) // Cursada desaprobada (origen de la MPAA)
   enrollmentId         String // ID de la inscripción
-  schedule             IntensificationSchedule?   @relation(fields: [scheduleId], references: [id]) // Período y ciclo del intento (E3-RF-04)
+  schedule             IntensificationSchedule?    @relation(fields: [scheduleId], references: [id]) // Período y ciclo del intento (E3-RF-04)
   scheduleId           String? // ID del período del calendario
   period               IntensificationPeriod // Período (Diciembre, Febrero/Marzo, Agosto)
   model                IntensificationModel // Modelo organizacional aplicado (E3-RF-06)
-  targetClassSection   ClassSection?              @relation(fields: [targetClassSectionId], references: [id]) // Sección donde intensifica, modelos 2 y 3 (E3-RF-07)
+  targetClassSection   ClassSection?               @relation(fields: [targetClassSectionId], references: [id]) // Sección donde intensifica, modelos 2 y 3 (E3-RF-07)
   targetClassSectionId String? // ID de esa sección
   resultCode           IntensificationResultCode? // Resultado de la intensificación (AA, CCA, CSA)
   score                Int? // Nota numérica obtenida
   pendingKnowledge     String? // Saberes/Contenidos pendientes a intensificar en este intento
   knowledgeAtClose     String? // Logros/Saberes alcanzados al cierre
-  responsibleTeacher   User?                      @relation(fields: [responsibleTeacherId], references: [id]) // Docente evaluador responsable
+  responsibleTeacher   User?                       @relation(fields: [responsibleTeacherId], references: [id]) // Docente evaluador responsable
   responsibleTeacherId String? // ID del docente
   evidenceUrl          String? // Link a planillas o evidencias de evaluación digitalizadas
   evaluationDate       DateTime? // Fecha de la evaluación/cierre
-  createdAt            DateTime                   @default(now()) // Fecha de registro
+  createdAt            DateTime                    @default(now()) // Fecha de registro
   attendances          SubjectAttendance[] // Asistencias a las clases de intensificación (CRM-059)
+  attachments          IntensificationAttachment[] // Evidencias del intento: trabajos prácticos, evaluaciones (CRM-060)
 
   @@unique([enrollmentId, scheduleId]) // Un alumno, una vez por período en cada materia (lo garantiza la base)
   @@index([enrollmentId, period]) // Índice para consulta de historial de intensificaciones
@@ -856,6 +859,28 @@ model InterventionAttachment {
   createdAt      DateTime     @default(now()) // Fecha de subida
 
   @@index([interventionId]) // Para listar los adjuntos de una intervención
+}
+
+// Evidencia adjunta a un intento de intensificación (E3-RF-09, CRM-060): trabajos prácticos,
+// evaluaciones. El archivo vive en el almacenamiento (src/lib/storage); acá, sus datos y su clave.
+// La baja es lógica (deletedAt/deletedById): queda registro de qué se borró y quién lo hizo, y el
+// archivo se conserva.
+model IntensificationAttachment {
+  id                String          @id @default(uuid()) // Identificador único
+  intensification   Intensification @relation(fields: [intensificationId], references: [id], onDelete: Restrict) // Intento al que pertenece
+  intensificationId String // ID del intento
+  storageKey        String          @unique // Ruta dentro del almacenamiento (intensifications/<id>/<uuid>.pdf)
+  originalName      String // Nombre del archivo tal como lo subió el usuario
+  mimeType          String // Tipo de archivo (image/jpeg, image/png, application/pdf, docx)
+  size              Int // Tamaño en bytes
+  uploadedBy        User            @relation("IntensificationAttachmentUploader", fields: [uploadedById], references: [id]) // Quién lo subió
+  uploadedById      String // ID de quien lo subió
+  createdAt         DateTime        @default(now()) // Fecha de subida
+  deletedAt         DateTime? // Fecha de baja (null = vigente)
+  deletedBy         User?           @relation("IntensificationAttachmentDeleter", fields: [deletedById], references: [id]) // Quién lo dio de baja
+  deletedById       String? // ID de quien lo dio de baja
+
+  @@index([intensificationId]) // Para listar las evidencias de un intento
 }
 
 // Asignación de un alumno al programa Plan Forte (E4-RF-14, CRM-089).
