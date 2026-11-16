@@ -8,8 +8,10 @@ import { asyncHandler } from '@/utils/asyncHandler'
 // Recursado de materias (CRM-082, E4-RF-09)
 export const subjectRepeatRouter = Router()
 
-// Quién asigna, edita y quita recursados (decisión del equipo, CRM-082): Gestión Escolar, que en el
-// documento de requerimientos incluye a Preceptoría
+// Quién ve, asigna, edita y quita recursados: Gestión Escolar (que en el documento de
+// requerimientos incluye a Preceptoría), EOE/Directivos y Administración. Asignar y quitar lo
+// decidió el equipo en CRM-082; ver, el criterio 5 de CRM-083. El docente no los ve: la marca R
+// de la grilla y de la ficha sale de courseType en las notas, no de este endpoint
 export const SUBJECT_REPEAT_MANAGER_ROLES: Role[] = [
   Role.ADMINISTRATOR,
   Role.SCHOOL_MANAGEMENT,
@@ -17,15 +19,11 @@ export const SUBJECT_REPEAT_MANAGER_ROLES: Role[] = [
   Role.PRECEPTOR,
 ]
 
-// Quién puede ver los recursados: el personal de la escuela
-const SUBJECT_REPEAT_VIEWER_ROLES: Role[] = [...SUBJECT_REPEAT_MANAGER_ROLES, Role.TEACHER]
-
-const canView = requireRole(...SUBJECT_REPEAT_VIEWER_ROLES)
 const canManage = requireRole(...SUBJECT_REPEAT_MANAGER_ROLES)
 
 subjectRepeatRouter.use(verifyToken)
 
-subjectRepeatRouter.get('/', canView, asyncHandler(subjectRepeatController.listSubjectRepeats))
+subjectRepeatRouter.get('/', canManage, asyncHandler(subjectRepeatController.listSubjectRepeats))
 // Antes de "/:id", para que "options" no se tome como un id
 subjectRepeatRouter.get(
   '/options',
