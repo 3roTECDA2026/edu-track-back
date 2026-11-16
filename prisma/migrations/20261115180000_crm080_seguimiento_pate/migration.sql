@@ -28,6 +28,11 @@ SET "edteMeetingId" = p."edteMeetingId"
 FROM "Pate" p
 WHERE f."pateId" = p."id" AND f."edteMeetingId" IS NULL AND p."edteMeetingId" IS NOT NULL;
 
+-- Si aún quedaran seguimientos huérfanos sin reunión ni PATE con reunión, eliminarlos
+-- antes de aplicar la restricción NOT NULL para preservar la integridad de datos
+DELETE FROM "PateFollowUp"
+WHERE "edteMeetingId" IS NULL;
+
 -- Convertir columna evaluation a Enum si tuviera valores previos
 DO $$ BEGIN
   ALTER TABLE "PateFollowUp"
@@ -54,6 +59,12 @@ CREATE INDEX IF NOT EXISTS "PateFollowUp_edteMeetingId_idx" ON "PateFollowUp"("e
 -- AddForeignKey (idempotentes)
 DO $$ BEGIN
   ALTER TABLE "Pate" ADD CONSTRAINT "Pate_closedById_fkey" FOREIGN KEY ("closedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "PateFollowUp" ADD CONSTRAINT "PateFollowUp_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
