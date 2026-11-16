@@ -55,6 +55,10 @@ function fakeDb(options: {
         calls.edteStudentsCreated.push(args)
         return { id: 'ems-created' }
       },
+      upsert: async (args: unknown) => {
+        calls.edteStudentsCreated.push(args)
+        return { id: 'ems-created' }
+      },
     },
     pateFollowUp: {
       create: async (args: any) => {

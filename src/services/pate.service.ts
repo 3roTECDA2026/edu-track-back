@@ -409,6 +409,7 @@ function toCurricularView(pate: ReturnType<typeof toPateResponse>) {
     supportStrategies: null,
     schedule: null,
     notificationUrl: null,
+    finalObservations: null,
   }
 }
 
@@ -968,9 +969,9 @@ function toFollowUpResponse(
 }
 
 export async function listPateFollowUps(pateId: string, viewer: Viewer) {
-  // Se verifica acceso al PATE primero (versión curricular vs directiva)
-  const pate = await getPateForViewer(pateId, viewer)
-  const isCurricularViewer = viewer.role === Role.TEACHER || viewer.role === Role.PRECEPTOR
+  // Se verifica acceso al PATE primero (404 si el docente no da clase a este alumno)
+  await getPateForViewer(pateId, viewer)
+  const fullAccess = await hasFullAccess(viewer)
 
   const followUps = await prisma.pateFollowUp.findMany({
     where: { pateId },
@@ -980,7 +981,7 @@ export async function listPateFollowUps(pateId: string, viewer: Viewer) {
 
   return followUps.map((f) => {
     const res = toFollowUpResponse(f)
-    if (isCurricularViewer) {
+    if (!fullAccess) {
       // En la versión curricular, resguardar información pedagógica sensible
       return {
         ...res,
@@ -1003,73 +1004,78 @@ export async function createPateFollowUp(
   actor: Actor,
   db: DbClient = prisma
 ) {
-  const pate = await findPateOrFail(pateId, db)
+  const execute = async (tx: Prisma.TransactionClient) => {
+    const pate = await findPateOrFail(pateId, tx)
 
-  if (pate.status === PateStatus.DRAFT) {
-    throw new HttpError(
-      409,
-      'El PATE todavía está en borrador: no se pueden registrar seguimientos'
-    )
-  }
-
-  if (pate.status === PateStatus.CLOSED) {
-    throw new HttpError(
-      409,
-      'El PATE ya se encuentra cerrado: no se pueden registrar nuevos seguimientos'
-    )
-  }
-
-  // Verificar que la reunión del EDTE exista y pertenezca al ciclo lectivo del PATE
-  const meeting = await db.edteMeeting.findUnique({
-    where: { id: input.edteMeetingId },
-    select: { id: true, academicYearId: true, status: true },
-  })
-
-  if (!meeting) {
-    throw new HttpError(404, 'Reunión del EDTE no encontrada')
-  }
-
-  if (meeting.academicYearId !== pate.academicYearId) {
-    throw new HttpError(
-      409,
-      'La reunión del EDTE pertenece a un ciclo lectivo distinto al del PATE'
-    )
-  }
-
-  // Verificar si el alumno ya fue tratado en la reunión
-  const treated = await db.edteMeetingStudent.findUnique({
-    where: {
-      edteMeetingId_studentId: {
-        edteMeetingId: input.edteMeetingId,
-        studentId: pate.studentId,
-      },
-    },
-    select: { id: true },
-  })
-
-  if (!treated) {
-    // Si la reunión ya está firmada, no se puede modificar su acta para agregar alumnos
-    if (meeting.status === 'SIGNED') {
+    if (pate.status === PateStatus.DRAFT) {
       throw new HttpError(
         409,
-        'El alumno no fue tratado en esa reunión: sumalo a la reunión antes de registrar el seguimiento'
+        'El PATE todavía está en borrador: no se pueden registrar seguimientos'
       )
     }
-  }
 
-  // Transacción atómica para dar de alta en la reunión (si hiciera falta), crear seguimiento y registrar auditoría
-  const executeInTx = async (tx: Prisma.TransactionClient) => {
+    if (pate.status === PateStatus.CLOSED) {
+      throw new HttpError(
+        409,
+        'El PATE ya se encuentra cerrado: no se pueden registrar nuevos seguimientos'
+      )
+    }
+
+    // Verificar que la reunión del EDTE exista y pertenezca al ciclo lectivo del PATE
+    const meeting = await tx.edteMeeting.findUnique({
+      where: { id: input.edteMeetingId },
+      select: { id: true, academicYearId: true, status: true },
+    })
+
+    if (!meeting) {
+      throw new HttpError(404, 'Reunión del EDTE no encontrada')
+    }
+
+    if (meeting.academicYearId !== pate.academicYearId) {
+      throw new HttpError(
+        409,
+        'La reunión del EDTE pertenece a un ciclo lectivo distinto al del PATE'
+      )
+    }
+
+    // Verificar si el alumno ya fue tratado en la reunión
+    const treated = await tx.edteMeetingStudent.findUnique({
+      where: {
+        edteMeetingId_studentId: {
+          edteMeetingId: input.edteMeetingId,
+          studentId: pate.studentId,
+        },
+      },
+      select: { id: true },
+    })
+
     if (!treated) {
-      await tx.edteMeetingStudent.create({
-        data: {
+      // Si la reunión ya está firmada, no se puede modificar su acta para agregar alumnos
+      if (meeting.status === 'SIGNED') {
+        throw new HttpError(
+          409,
+          'El alumno no fue tratado en esa reunión: sumalo a la reunión antes de registrar el seguimiento'
+        )
+      }
+
+      // Upsert para evitar condición de carrera (P2002) ante múltiples pedidos simultáneos
+      await tx.edteMeetingStudent.upsert({
+        where: {
+          edteMeetingId_studentId: {
+            edteMeetingId: input.edteMeetingId,
+            studentId: pate.studentId,
+          },
+        },
+        create: {
           edteMeetingId: input.edteMeetingId,
           studentId: pate.studentId,
           notes: `Seguimiento de PATE registrado el ${formatSchoolDate(todayInSchoolTimeZone())}`,
         },
+        update: {},
       })
     }
 
-    const followUp = await tx.pateFollowUp.create({
+    const createdFollowUp = await tx.pateFollowUp.create({
       data: {
         pateId,
         edteMeetingId: input.edteMeetingId,
@@ -1087,7 +1093,7 @@ export async function createPateFollowUp(
         userId: actor.userId,
         action: AuditActionType.CREATE,
         affectedEntity: 'PateFollowUp',
-        entityId: followUp.id,
+        entityId: createdFollowUp.id,
         newData: {
           pateId,
           edteMeetingId: input.edteMeetingId,
@@ -1097,13 +1103,13 @@ export async function createPateFollowUp(
       },
     })
 
-    return followUp
+    return createdFollowUp
   }
 
   const followUp =
     'transaction' in db || '$transaction' in db
-      ? await (db as typeof prisma).$transaction(executeInTx)
-      : await executeInTx(db as Prisma.TransactionClient)
+      ? await (db as typeof prisma).$transaction(execute)
+      : await execute(db as Prisma.TransactionClient)
 
   return toFollowUpResponse(followUp)
 }

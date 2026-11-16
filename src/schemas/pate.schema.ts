@@ -2,6 +2,7 @@ import { IntensificationModel, PateEvaluation, PateStatus } from '@prisma/client
 import { z } from 'zod'
 
 import { checkPlacement } from '@/schemas/intensification.schema'
+import { toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
 // PATE (E4-RF-06, CRM-078)
 
@@ -124,7 +125,10 @@ export const createPateFollowUpSchema = z.object({
   observations: z.string().trim().max(5000, 'Máximo 5000 caracteres').nullable().optional(),
   date: z.coerce
     .date()
-    .max(new Date(Date.now() + 86400000), 'La fecha del seguimiento no puede ser futura')
+    .refine(
+      (d) => toDay(d) <= todayInSchoolTimeZone(),
+      'La fecha del seguimiento no puede ser futura'
+    )
     .optional(),
 })
 

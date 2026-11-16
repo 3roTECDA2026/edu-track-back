@@ -265,7 +265,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/auth` | login | — |
 | `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
 | `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
-| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela (el docente, solo los de sus alumnos); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador, `/:id/status` (confirmar o cerrar con evaluación final) y `/:id/follow-ups` (seguimientos periódicos) | ver: personal de la escuela (el docente, solo los de sus alumnos; versión curricular sin diagnóstico ni observaciones de cierre); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/enrollments` | inscripciones | ninguna |
 | `/class-sections` | listado de cursos/divisiones | ninguna |
 | `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
@@ -296,7 +296,8 @@ de distintos recursos y puede pisar otras.
   derivados. Una sola función para todos: `getReferredStudentIds` en
   `services/promotionDecision.service.ts` (la usan el PATE y las reuniones del EDTE). El seed
   carga la decisión de Mateo García (derivado al cierre de 2025).
-- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED`.
+- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED` (cierre con evaluación final `FAVORABLE`, `PARTIAL` o `UNFAVORABLE`).
+- **Seguimientos periódicos (CRM-080, E4-RF-07):** registrados en `POST /pates/:id/follow-ups` asociados a una reunión del EDTE. La versión curricular oculta observaciones pedagógicas sensibles (`observations: null`).
 - Las materias son MPAA pendientes del alumno, de ciclos anteriores. Hasta 4 a intensificar, con
   modelo (y sección en los modelos 2 y 3, con las mismas reglas que la asignación de CRM-056); el
   resto, a recursar con la sección donde cursa (del año de la materia; el turno puede ser otro).
