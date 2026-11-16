@@ -19,17 +19,17 @@ y alertas/notificaciones de estudiantes.
 
 ## 2. Stack
 
-| Componente | Tecnología |
-| --- | --- |
-| Runtime | Node.js 22, módulos ES (`"type": "module"`) |
-| Framework | Express 4 |
-| Lenguaje | TypeScript 5 (`strict: true`, `noUncheckedIndexedAccess`) |
-| ORM | Prisma 6 (`@prisma/client` y `prisma`, misma versión) |
-| Base de datos | PostgreSQL (local en desarrollo) |
-| Validación | Zod 4 |
-| Autenticación | JWT (`jsonwebtoken`) + `bcrypt` |
-| Build | `tsup` (genera `dist/server.js`) |
-| Dev | `tsx watch` |
+| Componente    | Tecnología                                                |
+| ------------- | --------------------------------------------------------- |
+| Runtime       | Node.js 22, módulos ES (`"type": "module"`)               |
+| Framework     | Express 4                                                 |
+| Lenguaje      | TypeScript 5 (`strict: true`, `noUncheckedIndexedAccess`) |
+| ORM           | Prisma 6 (`@prisma/client` y `prisma`, misma versión)     |
+| Base de datos | PostgreSQL (local en desarrollo)                          |
+| Validación    | Zod 4                                                     |
+| Autenticación | JWT (`jsonwebtoken`) + `bcrypt`                           |
+| Build         | `tsup` (genera `dist/server.js`)                          |
+| Dev           | `tsx watch`                                               |
 
 ## 3. Comandos
 
@@ -61,11 +61,11 @@ y probar los endpoints afectados (Postman o `curl`) contra el back local.
 Se cargan desde `.env` (ignorado por git). La plantilla es `.env.example`.
 **Nunca** commitear valores reales ni pegarlos en issues, PRs o logs.
 
-| Variable | Uso |
-| --- | --- |
-| `PORT` | Puerto del servidor (por defecto 3000) |
-| `DATABASE_URL` | `postgresql://postgres:<contraseña>@localhost:5432/edutrack_db?schema=public` |
-| `JWT_SECRET` | Firma de los tokens. Si falta se usa `'clave_secreta_temporal'` (solo desarrollo) |
+| Variable       | Uso                                                                               |
+| -------------- | --------------------------------------------------------------------------------- |
+| `PORT`         | Puerto del servidor (por defecto 3000)                                            |
+| `DATABASE_URL` | `postgresql://postgres:<contraseña>@localhost:5432/edutrack_db?schema=public`     |
+| `JWT_SECRET`   | Firma de los tokens. Si falta se usa `'clave_secreta_temporal'` (solo desarrollo) |
 
 La instalación de PostgreSQL local está explicada en `instalacion .txt`.
 Si PostgreSQL está instalado con **snap**, se entra con `psql -U postgres -h /tmp`
@@ -186,7 +186,7 @@ modal de confirmación y recién ahí hace el `DELETE`. Del lado del back:
     (`utils/edteRisk.test.ts`).
   - El PATE en curso (`getActivePates`) son los PATE `IN_PROGRESS` del ciclo activo (CRM-078).
 - El rol es el **enum de Prisma `Role`**: `ADMINISTRATOR | SCHOOL_MANAGEMENT | EOE_DIRECTIVE |
-  TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
+TEACHER | PRECEPTOR | STUDENT | FAMILY`. `PRECEPTOR` solo existe en el enum: ninguna ruta lo
   usa todavía en `requireRole`, así que un preceptor puede iniciar sesión pero no accede a
   nada protegido hasta que se lo agregue donde corresponda.
   - ✅ `req.user.role === Role.TEACHER`
@@ -279,6 +279,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 | `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
 | `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId` (MPAA recursables y el contador de materias del ciclo: `subjectCount`/`maxSubjects`), alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
+| `/matriculation` | matriculación continuada entre ciclos lectivos: `POST /run` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -332,10 +333,34 @@ de distintos recursos y puede pisar otras.
   por defecto `./uploads`, ignorada por git). Cuando la escuela defina otro lugar, se agrega una clase
   que implemente `FileStorage` y su caso en `createFileStorage`, sin tocar services ni rutas.
   En la base (`InterventionAttachment`) se guarda solo la clave (`storageKey`) y los datos del archivo.
+- La validación, el guardado con nombre UUID y el borrado de archivos si falla la base están en
+  `services/attachmentStorage.ts` (`storeAttachments`, `readStoredAttachment`). Lo usan las
+  intervenciones y las evidencias de intensificación; cada service decide permisos y tabla.
+
+**Evidencias de intensificación (CRM-060, E3-RF-09):**
+- Archivos (trabajos prácticos, evaluaciones) vinculados a un intento (`Intensification`), en la
+  tabla `IntensificationAttachment`. Mismos tipos, tamaños y almacenamiento que CRM-087.
+- Endpoints: `POST /intensifications/:id/attachments` (multipart, campo `files`),
+  `GET /intensifications/:id/attachments`, `GET /intensifications/:id/attachments/:attachmentId`
+  (descarga) y `DELETE /intensifications/:id/attachments/:attachmentId`.
+- Subir: los que cargan el resultado (administración, dirección, preceptoría y docentes); el
+  docente, solo en los intentos de los que es responsable. Se puede antes o después del resultado.
+  Ver y descargar: quien ve las intensificaciones.
+- Baja: dirección y administración (`ATTACHMENT_DELETE_ROLES`). Es **lógica**: se guardan
+  `deletedAt` y `deletedById`, queda una fila en `AuditLog` y el archivo se conserva. Las dadas de
+  baja no se listan, no se descargan (404) y no cuentan en el historial.
+- El historial de intentos (`GET /pending-subjects/:id/attempts`) trae `attachmentsCount`.
+- Un intento con evidencias (aunque estén dadas de baja) no se puede quitar: 409.
+- La descarga manda `Cache-Control: private, no-store` (son datos de alumnos) y el nombre del
+  archivo en UTF-8 con una versión ASCII de respaldo (`utils/contentDisposition.ts`).
+- `Intensification.evidenceUrl` (un link en texto, anterior a CRM-060) **queda en desuso**:
+  ningún código lo lee ni lo escribe. Las evidencias van en `IntensificationAttachment`. Se puede
+  quitar del schema en otro ticket.
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
 **Reuniones del EDTE (CRM-075, E4-RF-03):**
+
 - Períodos propios (`EdteMeetingPeriod`): febrero/marzo, agosto, diciembre y adicional.
 - La reunión pertenece al ciclo en que se aplican sus decisiones: la de febrero/marzo de 2026
   analiza el cierre de 2025, pero arma los PATE de 2026. Su fecha tiene que ser de febrero o
@@ -383,7 +408,7 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
 - Nombres de ramas: `feature/CRM-XXX-descripcion-en-kebab-case`, `fix/descripcion`,
   `docs/...`, `chore/...`. Si una rama depende de otra todavía sin mergear, crearla desde esa
   rama y avisarlo en el PR.
-- Commits en español con formato *conventional commits*:
+- Commits en español con formato _conventional commits_:
   `feat(area): ...`, `fix(area): ...`, `refactor(area): ...`, `chore: ...`,
   con el ticket si aplica (`(CRM-033)`).
 - **No commitear** `dist/` ni `.env`. No incluir `package-lock.json` si la tarea no cambió

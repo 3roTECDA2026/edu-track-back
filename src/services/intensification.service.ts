@@ -355,6 +355,18 @@ export async function updatePlacement(id: string, input: UpdatePlacementInput) {
   return toIntensificationResponse(updated, sections)
 }
 
+// Un intento con evidencias no se quita (CRM-060). Cuentan también las dadas de baja: siguen en la
+// tabla como registro, y la FK es RESTRICT. Este control da un mensaje claro en lugar del P2003.
+export async function assertNoAttachments(
+  intensificationId: string,
+  db: Pick<Prisma.TransactionClient, 'intensificationAttachment'> = prisma
+) {
+  const attachments = await db.intensificationAttachment.count({ where: { intensificationId } })
+  if (attachments > 0) {
+    throw new HttpError(409, 'La asignación tiene evidencias adjuntas: no se puede quitar')
+  }
+}
+
 // Quita una asignación, mientras no tenga resultado ni asistencias cargadas (CRM-059).
 // La base también lo impide (onDelete: Restrict); este control da un mensaje claro.
 export async function removeIntensification(id: string) {
@@ -366,6 +378,7 @@ export async function removeIntensification(id: string) {
   if (attendances > 0) {
     throw new HttpError(409, 'La asignación tiene asistencias cargadas: no se puede quitar')
   }
+  await assertNoAttachments(id)
   await prisma.intensification.delete({ where: { id } })
   return { deleted: true }
 }
