@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
 import { encryptConflictReport, decryptConflictReport } from '@/utils/conflictEncryption'
+import { calculateConflictDeadline } from '@/utils/conflictDeadline'
 
 interface CreateLegalConflictData {
   studentId: string
@@ -70,6 +71,7 @@ export const createLegalConflict = async (
     return {
       ...conflict,
       detailedReport: decryptConflictReport(conflict.detailedReport),
+      ...calculateConflictDeadline(conflict.occurrenceDate, conflict.registeredAt),
     }
   })
 }
@@ -120,6 +122,7 @@ export const getLegalConflictById = async (
     return {
       ...conflict,
       detailedReport: decryptConflictReport(conflict.detailedReport),
+      ...calculateConflictDeadline(conflict.occurrenceDate, conflict.registeredAt),
       attachments: conflict.attachments.map((attachment) => ({
         ...attachment,
         content: decryptConflictReport(attachment.content),
@@ -154,6 +157,7 @@ export const getLegalConflictsByStudent = async (
     return conflicts.map((conflict) => ({
       ...conflict,
       detailedReport: decryptConflictReport(conflict.detailedReport),
+      ...calculateConflictDeadline(conflict.occurrenceDate, conflict.registeredAt),
     }))
   })
 }
