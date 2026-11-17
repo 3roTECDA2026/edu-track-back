@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import { getAuthUser } from '@/middlewares/auth.middleware'
 import {
   createInterventionSchema,
+  exportInterventionsPdfQuerySchema,
   interventionAttachmentParamsSchema,
   interventionIdParamSchema,
   listInterventionsQuerySchema,
@@ -28,6 +29,24 @@ export async function listInterventions(req: Request, res: Response) {
   const query = listInterventionsQuerySchema.parse(req.query)
   const result = await interventionService.listInterventions(query, getActor(req))
   sendSuccess(res, result, 'Intervenciones obtenidas correctamente')
+}
+
+// PDF de la línea de tiempo de un alumno, con los filtros aplicados (CRM-088).
+export async function exportInterventionsPdf(req: Request, res: Response) {
+  const query = exportInterventionsPdfQuerySchema.parse(req.query)
+  const { pdf, studentLastName } = await interventionService.generateInterventionTimelinePdf(
+    query,
+    getActor(req)
+  )
+  const fileName = `intervenciones-${studentLastName}.pdf`
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Length', pdf.length)
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+  )
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.send(pdf)
 }
 
 export async function getInterventionById(req: Request, res: Response) {

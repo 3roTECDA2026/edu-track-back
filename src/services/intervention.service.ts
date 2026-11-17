@@ -3,10 +3,12 @@ import { todayInSchoolTimeZone } from '@/utils/schoolDate'
 import { prisma } from '@/lib/prisma'
 import type {
   CreateInterventionInput,
+  ExportInterventionsPdfQuery,
   ListInterventionsQuery,
   UpdateInterventionInput,
 } from '@/schemas/intervention.schema'
 import { HttpError } from '@/utils/httpError'
+import { buildInterventionTimelinePdf } from '@/utils/interventionTimelinePdf'
 
 // Ventana durante la cual el autor puede editar su intervención
 const EDIT_WINDOW_HOURS = 48
@@ -33,6 +35,8 @@ const interventionInclude = {
   student: { select: { id: true, firstName: true, lastName: true, dni: true } },
   classSection: { select: { id: true, grade: true, division: true, shift: true } },
   author: { select: { id: true, firstName: true, lastName: true } },
+  // Cantidad de adjuntos, para mostrarla en la línea de tiempo sin pedirlos (CRM-088)
+  _count: { select: { attachments: true } },
 } satisfies Prisma.InterventionInclude
 
 // Cursos (secciones) que tiene asignados un docente.
@@ -120,8 +124,17 @@ export async function createIntervention(input: CreateInterventionInput, actor: 
   })
 }
 
-// Listar intervenciones (por alumno y/o por curso, con filtros de tipo y fechas).
-export async function listInterventions(query: ListInterventionsQuery, actor: Actor) {
+// Filtros del listado y del PDF: alumno, curso, tipo y rango de fechas. Un docente queda
+// restringido a sus cursos.
+type InterventionFilters = Pick<
+  ListInterventionsQuery,
+  'studentId' | 'classSectionId' | 'eventType' | 'from' | 'to'
+>
+
+async function buildInterventionWhere(
+  query: InterventionFilters,
+  actor: Actor
+): Promise<Prisma.InterventionWhereInput> {
   const where: Prisma.InterventionWhereInput = {}
   if (query.studentId) where.studentId = query.studentId
   if (query.classSectionId) where.classSectionId = query.classSectionId
@@ -141,6 +154,12 @@ export async function listInterventions(query: ListInterventionsQuery, actor: Ac
     }
     where.classSectionId = query.classSectionId ?? { in: sectionIds }
   }
+  return where
+}
+
+// Listar intervenciones (por alumno y/o por curso, con filtros de tipo y fechas).
+export async function listInterventions(query: ListInterventionsQuery, actor: Actor) {
+  const where = await buildInterventionWhere(query, actor)
 
   const skip = (query.page - 1) * query.limit
   const [data, total] = await prisma.$transaction([
@@ -225,4 +244,64 @@ export async function updateIntervention(id: string, input: UpdateInterventionIn
     await writeAudit(tx, actor, AuditActionType.UPDATE, id, existing, updated)
     return updated
   })
+}
+
+// Tope de intervenciones en un PDF, para no armar un documento gigante por error.
+const MAX_PDF_INTERVENTIONS = 500
+
+// PDF de la línea de tiempo de un alumno, con los filtros aplicados (CRM-088, E4-RF-13).
+// Se usa en entrevistas con las familias: quien exporta elige con los filtros qué se incluye.
+export async function generateInterventionTimelinePdf(
+  query: ExportInterventionsPdfQuery,
+  actor: Actor
+): Promise<{ pdf: Buffer; studentLastName: string }> {
+  const student = await prisma.student.findUnique({
+    where: { id: query.studentId },
+    select: { id: true, firstName: true, lastName: true, dni: true },
+  })
+  if (!student) throw new HttpError(404, 'El alumno indicado no existe')
+
+  const where = await buildInterventionWhere(query, actor)
+  const total = await prisma.intervention.count({ where })
+  if (total > MAX_PDF_INTERVENTIONS) {
+    throw new HttpError(
+      400,
+      `Hay ${total} intervenciones con estos filtros: acotá el rango de fechas (máximo ${MAX_PDF_INTERVENTIONS})`
+    )
+  }
+  const interventions = await prisma.intervention.findMany({
+    where,
+    include: interventionInclude,
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+  })
+
+  const pdf = await buildInterventionTimelinePdf({
+    student,
+    filters: { eventType: query.eventType, from: query.from, to: query.to },
+    generatedOn: todayInSchoolTimeZone(),
+    interventions: interventions.map((i) => ({
+      date: i.date,
+      eventType: i.eventType,
+      classSection: i.classSection,
+      author: i.author,
+      description: i.description,
+      interventionProposal: i.interventionProposal,
+      involvedActors: i.involvedActors,
+      attachmentsCount: i._count.attachments,
+    })),
+  })
+
+  // Exportar datos sensibles (salud, conducta) de un menor queda registrado
+  await prisma.auditLog.create({
+    data: {
+      userId: actor.userId,
+      action: AuditActionType.SENSITIVE_VIEW,
+      affectedEntity: 'InterventionTimelinePdf',
+      entityId: student.id,
+      newData: toJson({ filters: query, interventions: interventions.length }),
+      ipAddress: actor.ipAddress,
+    },
+  })
+
+  return { pdf, studentLastName: student.lastName }
 }

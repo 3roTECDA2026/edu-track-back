@@ -357,6 +357,13 @@ de distintos recursos y puede pisar otras.
   ningún código lo lee ni lo escribe. Las evidencias van en `IntensificationAttachment`. Se puede
   quitar del schema en otro ticket.
 
+**Línea de tiempo de intervenciones (CRM-088, E4-RF-13):**
+- Cada intervención del listado y del detalle trae `_count.attachments` (cantidad de adjuntos).
+- `GET /interventions/export/pdf?studentId=...&eventType=...&from=...&to=...` devuelve el PDF de la
+  línea de tiempo del alumno con esos filtros (`utils/interventionTimelinePdf.ts`, con `pdfkit`).
+  Mismas reglas de acceso que el listado (un docente solo ve sus cursos), hasta 500 intervenciones,
+  y queda registrado en `AuditLog` como `SENSITIVE_VIEW`.
+
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 
 **Reuniones del EDTE (CRM-075, E4-RF-03):**
