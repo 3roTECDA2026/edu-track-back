@@ -278,7 +278,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/rites` | RITE: lectura libre, escritura con token, `close`/`reopen`/`sign` | directivos |
 | `/cycle-closure` | cierre del ciclo y alta de MPAA: `/:academicYearId/preview` y `POST /:academicYearId` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 | `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
-| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId`, alta, `PATCH /:id` (sección) y `DELETE /:id` | ver: personal de la escuela; gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` |
+| `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId` (MPAA recursables y el contador de materias del ciclo: `subjectCount`/`maxSubjects`), alta, `PATCH /:id` (sección) y `DELETE /:id` | ver y gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` (el docente no) |
 | `/matriculation` | matriculación continuada entre ciclos lectivos: `POST /run` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
@@ -391,8 +391,9 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
   crea otra.
 - Valida el límite de 12 materias por ciclo (`assertSubjectLimit`, CRM-061) con la fila del
   alumno bloqueada.
-- Asignan, cambian la sección y quitan: administración, dirección, EOE/directivos y preceptores
-  (`SUBJECT_REPEAT_MANAGER_ROLES`); los docentes solo ven.
+- Ven, asignan, cambian la sección y quitan: administración, dirección, EOE/directivos y
+  preceptores (`SUBJECT_REPEAT_MANAGER_ROLES`, criterio 5 de CRM-083). El docente no accede a
+  `/subject-repeats` (403): la marca R de la grilla y de la ficha sale de `courseType` en las notas.
 - Al confirmar un PATE (`IN_PROGRESS`), se crea la inscripción REPEAT de cada materia a recursar,
   en el ciclo del PATE, y se guarda en `PateSubjectRepeat.repeatEnrollmentId`. Va en la misma
   transacción: si una falla (por ejemplo, el límite de 12), no se confirma el PATE. El error dice de

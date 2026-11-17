@@ -7,7 +7,7 @@ import type {
   RepeatOptionsQuery,
   UpdateSubjectRepeatInput,
 } from '@/schemas/subjectRepeat.schema'
-import { assertSubjectLimit } from '@/services/subjectEnrollmentLimit'
+import { assertSubjectLimit, MAX_SUBJECTS_PER_CYCLE } from '@/services/subjectEnrollmentLimit'
 import { HttpError } from '@/utils/httpError'
 import {
   deleteBlockReason,
@@ -227,7 +227,7 @@ export async function getRepeatOptions(query: RepeatOptionsQuery) {
   if (!student) throw new HttpError(404, 'El alumno indicado no existe')
 
   const activeCycle = await getActiveCycleOrFail(prisma)
-  const [pendings, sections, currentRepeats] = await Promise.all([
+  const [pendings, sections, currentRepeats, subjectCount] = await Promise.all([
     prisma.pendingSubject.findMany({
       where: { studentId: query.studentId, status: PendingSubjectStatus.PENDING },
       select: { ...pendingForRepeatSelect, subject: { select: { name: true, gradeLevel: true } } },
@@ -246,12 +246,19 @@ export async function getRepeatOptions(query: RepeatOptionsQuery) {
       },
       select: { id: true, subjectId: true, classSection: { select: sectionSelect } },
     }),
+    // Materias del alumno en el ciclo activo, cursadas y recursadas (E3-RF-13, CRM-061): el front
+    // muestra el contador "10/12" y bloquea el alta al llegar al máximo (CRM-083)
+    prisma.enrollment.count({
+      where: { studentId: query.studentId, academicYearId: activeCycle.id },
+    }),
   ])
 
   const repeatBySubject = new Map(currentRepeats.map((repeat) => [repeat.subjectId, repeat]))
 
   return {
     activeCycle,
+    subjectCount,
+    maxSubjects: MAX_SUBJECTS_PER_CYCLE,
     options: pendings.map((pending) => {
       const gradeLevel = gradeLevelOf(pending)
       const currentRepeat = repeatBySubject.get(pending.subjectId) ?? null
