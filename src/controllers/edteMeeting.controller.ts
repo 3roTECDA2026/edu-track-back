@@ -51,3 +51,12 @@ export async function signEdteMeeting(req: Request, res: Response) {
   const { id } = edteMeetingIdParamSchema.parse(req.params)
   res.json(await edteMeetingService.signEdteMeeting(id, getActor(req)))
 }
+
+// Acta en PDF (CRM-076): se descarga como archivo
+export async function getEdteMeetingMinutes(req: Request, res: Response) {
+  const { id } = edteMeetingIdParamSchema.parse(req.params)
+  const { fileName, content } = await edteMeetingService.getEdteMeetingMinutes(id)
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+  res.send(Buffer.from(content))
+}

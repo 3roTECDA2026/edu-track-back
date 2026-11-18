@@ -720,6 +720,7 @@ model EdteMember {
   roleInMeeting String? // Rol cumplido en la reunión (Ej: "Preceptor", "Profesor Integrante", "Director")
   present       Boolean     @default(true) // ¿Estuvo presente?
   signatureHash String? // Firma digital o hash del integrante en el acta
+  signedAt      DateTime? // Cuando firmo el acta
 
   @@unique([edteMeetingId, userId]) // Unicidad de participación por reunión
 }

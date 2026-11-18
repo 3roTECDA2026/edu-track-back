@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import {
   AuditActionType,
   EdteMeetingPeriod,
@@ -19,6 +21,7 @@ import type {
   UpdateEdteMeetingInput,
 } from '@/schemas/edteMeeting.schema'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
+import { buildEdteMinutesPdf } from '@/utils/edteMinutesPdf'
 import { HttpError } from '@/utils/httpError'
 import { toDate, toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
@@ -154,6 +157,8 @@ async function toMeetingDetail(meeting: MeetingDetail) {
       // Rol con el que participó, guardado al cargar la reunión (no cambia si cambia el usuario)
       roleInMeeting: member.roleInMeeting,
       present: member.present,
+      // Cuándo firmó el acta (CRM-076); null si todavía no firmó
+      signedAt: member.signedAt,
     })),
     students: meeting.students.map((item) => {
       const pate = meeting.pates.find((plan) => plan.studentId === item.studentId)
@@ -326,6 +331,15 @@ export async function createEdteMeeting(input: CreateEdteMeetingInput, actor: Ac
   return getEdteMeeting(id)
 }
 
+// Traba la reunión hasta que termine la transacción y confirma que siga en borrador. La usan la
+// edición y la firma: así nunca se edita una reunión mientras se firma, ni después (CRM-076)
+async function lockDraftMeeting(tx: Prisma.TransactionClient, id: string, message: string) {
+  await tx.$queryRaw`SELECT id FROM "EdteMeeting" WHERE id = ${id} FOR UPDATE`
+  const meeting = await tx.edteMeeting.findUnique({ where: { id }, select: { status: true } })
+  if (!meeting) throw new HttpError(404, 'Reunión del EDTE no encontrada')
+  if (meeting.status !== EdteMeetingStatus.DRAFT) throw new HttpError(409, message)
+}
+
 // Edición: solo en borrador. Las listas que vienen reemplazan a las anteriores
 export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInput, actor: Actor) {
   const meeting = await findMeetingOrFail(id)
@@ -338,6 +352,8 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
   assertMeetingDate(date, period, meeting.academicYear.year)
 
   await prisma.$transaction(async (tx) => {
+    await lockDraftMeeting(tx, id, 'La reunión ya está firmada: no se puede modificar')
+
     const roles = input.members
       ? await getEligibleMembers(
           tx,
@@ -362,6 +378,13 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
         }),
         ...(input.minutesUrl !== undefined && { minutesUrl: input.minutesUrl || null }),
       },
+    })
+
+    // Si el borrador cambia, las firmas que ya había dejan de valer: el acta se vuelve a firmar
+    // con los datos nuevos (CRM-076)
+    await tx.edteMember.updateMany({
+      where: { edteMeetingId: id, signedAt: { not: null } },
+      data: { signedAt: null, signatureHash: null },
     })
 
     if (input.members && roles) {
@@ -482,28 +505,44 @@ export async function getEdteMeetingCandidates(query: EdteMeetingCandidatesQuery
     )
 }
 
-// Marca la reunión como firmada: deja de poder editarse. Exige el acta cargada y que la reunión
-// ya haya ocurrido. La firma digital de cada presente es otro requerimiento (E4-RF-04).
+// Ruta del acta en PDF: se genera al descargarla, con los datos de la reunión (CRM-076)
+const minutesPath = (id: string) => `/api/edte-meetings/${id}/minutes`
+
+// Huella de la firma: confirma quién firmó y cuándo (E4-RF-04), hasta que se defina si se usa
+// firma digital con PKI
+const signatureFingerprint = (meetingId: string, userId: string, signedAt: Date) =>
+  createHash('sha256').update(`${meetingId}:${userId}:${signedAt.toISOString()}`).digest('hex')
+
+// Firma del acta de un integrante presente (E4-RF-04, CRM-076). Cuando firma el último
+// presente, la reunión queda firmada y ya no se puede editar.
 export async function signEdteMeeting(id: string, actor: Actor) {
   const meeting = await findMeetingOrFail(id)
   if (meeting.status !== EdteMeetingStatus.DRAFT) {
     throw new HttpError(409, 'La reunión ya está firmada')
   }
-  if (!meeting.minutesUrl) {
-    throw new HttpError(409, 'Para marcarla como firmada, cargá primero el enlace al acta')
-  }
   if (toDay(meeting.date) > todayInSchoolTimeZone()) {
-    throw new HttpError(409, 'La reunión todavía no ocurrió: no se puede marcar como firmada')
+    throw new HttpError(409, 'La reunión todavía no ocurrió: no se puede firmar el acta')
+  }
+  const member = meeting.members.find((item) => item.userId === actor.userId)
+  if (!member?.present) {
+    throw new HttpError(403, 'Solo los integrantes presentes en la reunión pueden firmar el acta')
+  }
+  if (member.signedAt) {
+    throw new HttpError(409, 'Ya firmaste el acta de esta reunión')
   }
 
   await prisma.$transaction(async (tx) => {
+    await lockDraftMeeting(tx, id, 'La reunión ya está firmada')
+
     const signedAt = new Date()
-    // Solo si sigue en borrador (por si dos personas la firman a la vez)
-    const { count } = await tx.edteMeeting.updateMany({
-      where: { id, status: EdteMeetingStatus.DRAFT },
-      data: { status: EdteMeetingStatus.SIGNED, signedAt, signedById: actor.userId },
+    // Solo si sigue presente y sin firmar (por si la lista cambió o firmó dos veces a la vez)
+    const { count } = await tx.edteMember.updateMany({
+      where: { edteMeetingId: id, userId: actor.userId, present: true, signedAt: null },
+      data: { signedAt, signatureHash: signatureFingerprint(id, actor.userId, signedAt) },
     })
-    if (count === 0) throw new HttpError(409, 'La reunión ya está firmada')
+    if (count === 0) {
+      throw new HttpError(409, 'No se pudo firmar: ya firmaste o cambió la lista de presentes')
+    }
 
     await tx.auditLog.create({
       data: {
@@ -511,13 +550,108 @@ export async function signEdteMeeting(id: string, actor: Actor) {
         action: AuditActionType.SIGN,
         affectedEntity: 'EdteMeeting',
         entityId: id,
-        newData: { status: EdteMeetingStatus.SIGNED, signedAt: signedAt.toISOString() },
+        newData: { signedBy: actor.userId, signedAt: signedAt.toISOString() },
+        ipAddress: actor.ipAddress,
+      },
+    })
+
+    // Si ya firmaron todos los presentes, el acta queda firmada y la reunión no se edita más.
+    // signedBy queda como quien completó las firmas.
+    const pending = await tx.edteMember.count({
+      where: { edteMeetingId: id, present: true, signedAt: null },
+    })
+    if (pending > 0) return
+
+    await tx.edteMeeting.update({
+      where: { id },
+      data: {
+        status: EdteMeetingStatus.SIGNED,
+        signedAt,
+        signedById: actor.userId,
+        minutesUrl: minutesPath(id),
+      },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: AuditActionType.SIGN,
+        affectedEntity: 'EdteMeeting',
+        entityId: id,
+        newData: {
+          status: EdteMeetingStatus.SIGNED,
+          signedAt: signedAt.toISOString(),
+          minutesUrl: minutesPath(id),
+        },
         ipAddress: actor.ipAddress,
       },
     })
   })
 
   return getEdteMeeting(id)
+}
+
+// Encabezado del acta con los datos de la institución (los mismos del RITE, CRM-042)
+function institutionLine(
+  config: {
+    institutionName: string | null
+    institutionNumber: string | null
+    district: string | null
+  } | null
+) {
+  return [
+    config?.institutionName ?? 'Institución sin configurar',
+    config?.institutionNumber && `Nº ${config.institutionNumber}`,
+    config?.district && `Distrito ${config.district}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+// Acta de la reunión en PDF, armada al momento (CRM-076). En borrador sale marcada como tal,
+// así los integrantes pueden leerla antes de firmar.
+export async function getEdteMeetingMinutes(id: string) {
+  const meeting = await findMeetingOrFail(id)
+  const [config, sections] = await Promise.all([
+    prisma.institutionalConfig.findUnique({
+      where: { singleton: true },
+      select: { institutionName: true, institutionNumber: true, district: true },
+    }),
+    currentSectionsByStudent(
+      meeting.students.map((item) => item.studentId),
+      meeting.academicYearId
+    ),
+  ])
+
+  const content = await buildEdteMinutesPdf({
+    institution: institutionLine(config),
+    year: meeting.academicYear.year,
+    date: toDay(meeting.date),
+    period: meeting.period,
+    shift: meeting.shift,
+    signed: meeting.status === EdteMeetingStatus.SIGNED,
+    signedAt: meeting.signedAt,
+    considerations: meeting.considerations,
+    members: meeting.members.map((member) => ({
+      name: fullName(member.user),
+      role: member.roleInMeeting,
+      present: member.present,
+      signedAt: member.signedAt,
+      signatureHash: member.signatureHash,
+    })),
+    students: meeting.students.map((item) => {
+      const section = sections.get(item.studentId)
+      return {
+        name: fullName(item.student),
+        dni: item.student.dni,
+        section: section ? `${section.grade}° ${section.division}` : null,
+        notes: item.notes,
+      }
+    }),
+    generatedAt: new Date(),
+  })
+
+  return { fileName: `acta-edte-${toDay(meeting.date)}.pdf`, content }
 }
 
 // Personal que se puede convocar a una reunión, para el checklist del formulario.
