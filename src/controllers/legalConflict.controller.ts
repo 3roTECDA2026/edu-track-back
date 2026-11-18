@@ -6,6 +6,7 @@ import {
   createLegalConflict,
   getLegalConflictById,
   getLegalConflictsByStudent,
+  verifyLegalConflict,
 } from '@/services/legalConflict.service'
 import { HttpError } from '@/utils/httpError'
 
@@ -51,6 +52,23 @@ export const getById = async (req: Request, res: Response): Promise<void> => {
   res.status(200).json({
     success: true,
     data: conflict,
+  })
+}
+
+// CRM-093: verifica que el acta y sus anexos no hayan sido alterados
+export const verify = async (req: Request, res: Response): Promise<void> => {
+  const id = idSchema.parse(req.params.id)
+  const { userId } = getAuthUser(req)
+  const result = await verifyLegalConflict(id, { userId, ipAddress: req.ip ?? 'unknown' })
+
+  if (!result) {
+    throw new HttpError(404, 'Conflicto legal no encontrado')
+  }
+
+  res.setHeader('Cache-Control', 'no-store')
+  res.status(200).json({
+    success: true,
+    data: result,
   })
 }
 
