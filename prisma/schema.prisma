@@ -953,7 +953,8 @@ model LegalConflict {
   // Bloqueo de edición del acta
   editLocked Boolean @default(true)
 
-  // Hash de firma digital
+  // Hash de integridad (HMAC-SHA256, CRM-093). Null en actas anteriores a CRM-093, que no se
+  // pueden completar porque el acta es inmutable (CRM-090)
   digitalSignHash String?
 
   // Identificador único del documento
@@ -980,7 +981,8 @@ model LegalConflictAttachment {
   authorId        String // ID del autor del anexo
   content         String // Texto del anexo / actualización de la intervención
   date            DateTime      @default(now()) // Fecha de incorporación del anexo
-  digitalSignHash String? // Hash opcional de firma digital del anexo
+  digitalSignHash String? // Hash de integridad del anexo (CRM-093); null en anexos anteriores
+  documentUuid    String        @unique @default(uuid()) // Identificador único del anexo (CRM-093)
 }
 
 // ============================================================================

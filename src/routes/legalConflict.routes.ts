@@ -20,6 +20,9 @@ legalConflictRouter.get('/student/:studentId', asyncHandler(legalConflictControl
 // Consultar catálogo de códigos normalizados
 legalConflictRouter.get('/codes', asyncHandler(legalConflictController.listCodes))
 
+// CRM-093: verificar la integridad del acta y sus anexos (antes de '/:id')
+legalConflictRouter.get('/:id/verify', asyncHandler(legalConflictController.verify))
+
 // Consultar un conflicto legal por ID
 legalConflictRouter.get('/:id', asyncHandler(legalConflictController.getById))
 

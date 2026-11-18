@@ -6,6 +6,7 @@ import { createAttachmentService } from '../src/services/legalConflictAttachment
 import { decryptConflictReport } from '../src/utils/conflictEncryption'
 
 process.env.CONFLICT_ENCRYPTION_KEY = randomBytes(32).toString('hex')
+process.env.CONFLICT_HASH_KEY = randomBytes(32).toString('hex')
 
 const createFixture = () => {
   const state = {
@@ -97,6 +98,8 @@ test('CRM-092: crea un anexo y registra auditoría en una transacción', async (
     attachmentId: 'anexo-1',
     authorId: 'usuario-1',
     signed: false,
+    documentUuid: result.documentUuid,
+    digitalSignHash: result.digitalSignHash,
   })
 })
 
@@ -140,12 +143,14 @@ test('CRM-092: revierte la creación si falla la auditoría', async () => {
   assert.equal(state.transactionCount, 1)
 })
 
+// CRM-093: digitalSignHash pasó a ser el hash de integridad, que tienen todos los anexos.
+// "Firmado" sigue refiriéndose a la firma electrónica, que los anexos no tienen.
 test('CRM-092: los anexos nuevos no se marcan como firmados', async () => {
   const { state, create, request } = createFixture()
 
   const result = await create(request())
 
-  assert.equal(result.digitalSignHash, null)
+  assert.match(result.digitalSignHash as string, /^[a-f0-9]{64}$/)
   assert.equal(state.attachments.length, 1)
   assert.equal(state.audits[0].newData.signed, false)
 })
