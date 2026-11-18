@@ -96,3 +96,11 @@ export const updateSchoolDaysSchema = z.object({
 })
 
 export type UpdateSchoolDaysInput = z.infer<typeof updateSchoolDaysSchema>
+
+// El front manda su propio origen: la IP de la escuela cambia y FRONT_URL queda vieja
+export const qrImageQuerySchema = z.object({
+  url: z
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), 'La URL del QR debe ser http o https')
+    .optional(),
+})
