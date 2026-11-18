@@ -9,6 +9,7 @@ import {
   updateEdteMeetingSchema,
 } from '@/schemas/edteMeeting.schema'
 import * as edteMeetingService from '@/services/edteMeeting.service'
+import { attachmentDisposition } from '@/utils/contentDisposition'
 
 // Reuniones del EDTE (CRM-075): valida con Zod y le pasa los datos al service
 
@@ -50,4 +51,21 @@ export async function updateEdteMeeting(req: Request, res: Response) {
 export async function signEdteMeeting(req: Request, res: Response) {
   const { id } = edteMeetingIdParamSchema.parse(req.params)
   res.json(await edteMeetingService.signEdteMeeting(id, getActor(req)))
+}
+
+// Acta en PDF (CRM-076): se descarga como archivo. El service controla quién la puede bajar y
+// registra quién la bajó.
+export async function getEdteMeetingMinutes(req: Request, res: Response) {
+  const { id } = edteMeetingIdParamSchema.parse(req.params)
+  // Con el rol: el service controla que sea integrante convocado o que gestione las reuniones
+  const viewer = { ...getActor(req), role: getAuthUser(req).role }
+  const { fileName, content } = await edteMeetingService.getEdteMeetingMinutes(id, viewer)
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Length', content.length)
+  res.setHeader('Content-Disposition', attachmentDisposition(fileName))
+  // Tiene datos de alumnos: que no quede copia en la caché del navegador ni de un proxy
+  res.setHeader('Cache-Control', 'private, no-store')
+  // Que el navegador no "adivine" otro tipo distinto del declarado
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.send(content)
 }

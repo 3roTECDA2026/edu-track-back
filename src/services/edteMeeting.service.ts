@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import {
   AuditActionType,
   EdteMeetingPeriod,
@@ -19,6 +21,14 @@ import type {
   UpdateEdteMeetingInput,
 } from '@/schemas/edteMeeting.schema'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
+import {
+  buildEdteMinutesPdf,
+  fromMinutesSnapshot,
+  minutesContentHash,
+  toMinutesSnapshot,
+  type MinutesContent,
+  type MinutesSnapshot,
+} from '@/utils/edteMinutesPdf'
 import { HttpError } from '@/utils/httpError'
 import { toDate, toDay, todayInSchoolTimeZone } from '@/utils/schoolDate'
 
@@ -37,6 +47,16 @@ const fullName = (person: { firstName: string; lastName: string }) =>
 interface Actor {
   userId: string
   ipAddress: string
+}
+
+// La base que usan las funciones: la de verdad, una transacción, o una falsa en los tests
+type DbClient = Prisma.TransactionClient | typeof prisma
+
+// Corre en una transacción. Si ya viene una (o una base falsa sin $transaction), la usa.
+function inTransaction<T>(db: DbClient, run: (tx: Prisma.TransactionClient) => Promise<T>) {
+  return '$transaction' in db
+    ? (db as typeof prisma).$transaction(run)
+    : run(db as Prisma.TransactionClient)
 }
 
 // Personal que puede integrar el EDTE (Res. 1650/24, Anexo 2, inc. 22).
@@ -104,10 +124,11 @@ type SectionInfo = { id: string; grade: number; division: string; shift: Shift }
 // Sección actual de cada alumno en el ciclo (inscripción abierta a una división)
 async function currentSectionsByStudent(
   studentIds: string[],
-  academicYearId: string
+  academicYearId: string,
+  db: DbClient = prisma
 ): Promise<Map<string, SectionInfo>> {
   if (studentIds.length === 0) return new Map()
-  const records = await prisma.enrollmentHistory.findMany({
+  const records = await db.enrollmentHistory.findMany({
     where: { studentId: { in: studentIds }, endDate: null, classSection: { academicYearId } },
     select: {
       studentId: true,
@@ -118,9 +139,9 @@ async function currentSectionsByStudent(
 }
 
 // Cantidad de MPAA pendientes de cada alumno
-async function pendingCountByStudent(studentIds: string[]) {
+async function pendingCountByStudent(studentIds: string[], db: DbClient = prisma) {
   if (studentIds.length === 0) return new Map<string, number>()
-  const groups = await prisma.pendingSubject.groupBy({
+  const groups = await db.pendingSubject.groupBy({
     by: ['studentId'],
     where: { studentId: { in: studentIds }, status: PendingSubjectStatus.PENDING },
     _count: { _all: true },
@@ -128,11 +149,11 @@ async function pendingCountByStudent(studentIds: string[]) {
   return new Map(groups.map((group) => [group.studentId, group._count._all]))
 }
 
-async function toMeetingDetail(meeting: MeetingDetail) {
+async function toMeetingDetail(meeting: MeetingDetail, db: DbClient = prisma) {
   const studentIds = meeting.students.map((item) => item.studentId)
   const [sections, pendingCounts] = await Promise.all([
-    currentSectionsByStudent(studentIds, meeting.academicYearId),
-    pendingCountByStudent(studentIds),
+    currentSectionsByStudent(studentIds, meeting.academicYearId, db),
+    pendingCountByStudent(studentIds, db),
   ])
 
   return {
@@ -154,6 +175,8 @@ async function toMeetingDetail(meeting: MeetingDetail) {
       // Rol con el que participó, guardado al cargar la reunión (no cambia si cambia el usuario)
       roleInMeeting: member.roleInMeeting,
       present: member.present,
+      // Cuándo firmó el acta (CRM-076); null si todavía no firmó
+      signedAt: member.signedAt,
     })),
     students: meeting.students.map((item) => {
       const pate = meeting.pates.find((plan) => plan.studentId === item.studentId)
@@ -171,8 +194,8 @@ async function toMeetingDetail(meeting: MeetingDetail) {
   }
 }
 
-async function findMeetingOrFail(id: string) {
-  const meeting = await prisma.edteMeeting.findUnique({ where: { id }, include: detailInclude })
+async function findMeetingOrFail(id: string, db: DbClient = prisma) {
+  const meeting = await db.edteMeeting.findUnique({ where: { id }, include: detailInclude })
   if (!meeting) throw new HttpError(404, 'Reunión del EDTE no encontrada')
   return meeting
 }
@@ -192,8 +215,8 @@ export async function listEdteMeetings(query: ListEdteMeetingsQuery) {
 }
 
 // Detalle: integrantes convocados, alumnos tratados y el PATE de cada uno (si lo tiene)
-export async function getEdteMeeting(id: string) {
-  return toMeetingDetail(await findMeetingOrFail(id))
+export async function getEdteMeeting(id: string, db: DbClient = prisma) {
+  return toMeetingDetail(await findMeetingOrFail(id, db), db)
 }
 
 // La fecha tiene que ser del año del ciclo; la reunión de febrero/marzo, de esos meses
@@ -326,9 +349,24 @@ export async function createEdteMeeting(input: CreateEdteMeetingInput, actor: Ac
   return getEdteMeeting(id)
 }
 
+// Traba la reunión hasta que termine la transacción y confirma que siga en borrador. La usan la
+// edición, la firma y el seguimiento del PATE: así nunca se cambia el acta mientras se firma, ni
+// después (CRM-076)
+export async function lockDraftMeeting(tx: Prisma.TransactionClient, id: string, message: string) {
+  await tx.$queryRaw`SELECT id FROM "EdteMeeting" WHERE id = ${id} FOR UPDATE`
+  const meeting = await tx.edteMeeting.findUnique({ where: { id }, select: { status: true } })
+  if (!meeting) throw new HttpError(404, 'Reunión del EDTE no encontrada')
+  if (meeting.status !== EdteMeetingStatus.DRAFT) throw new HttpError(409, message)
+}
+
 // Edición: solo en borrador. Las listas que vienen reemplazan a las anteriores
-export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInput, actor: Actor) {
-  const meeting = await findMeetingOrFail(id)
+export async function updateEdteMeeting(
+  id: string,
+  input: UpdateEdteMeetingInput,
+  actor: Actor,
+  db: DbClient = prisma
+) {
+  const meeting = await findMeetingOrFail(id, db)
   if (meeting.status !== EdteMeetingStatus.DRAFT) {
     throw new HttpError(409, 'La reunión ya está firmada: no se puede modificar')
   }
@@ -337,7 +375,9 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
   const period = input.period ?? meeting.period
   assertMeetingDate(date, period, meeting.academicYear.year)
 
-  await prisma.$transaction(async (tx) => {
+  await inTransaction(db, async (tx) => {
+    await lockDraftMeeting(tx, id, 'La reunión ya está firmada: no se puede modificar')
+
     const roles = input.members
       ? await getEligibleMembers(
           tx,
@@ -362,6 +402,13 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
         }),
         ...(input.minutesUrl !== undefined && { minutesUrl: input.minutesUrl || null }),
       },
+    })
+
+    // Si el borrador cambia, las firmas que ya había dejan de valer: el acta se vuelve a firmar
+    // con los datos nuevos (CRM-076)
+    await tx.edteMember.updateMany({
+      where: { edteMeetingId: id, signedAt: { not: null } },
+      data: { signedAt: null, signatureHash: null },
     })
 
     if (input.members && roles) {
@@ -411,7 +458,7 @@ export async function updateEdteMeeting(id: string, input: UpdateEdteMeetingInpu
     })
   })
 
-  return getEdteMeeting(id)
+  return getEdteMeeting(id, db)
 }
 
 // Alumnos con PATE en curso en el ciclo, para las reuniones de seguimiento (agosto y diciembre).
@@ -482,28 +529,127 @@ export async function getEdteMeetingCandidates(query: EdteMeetingCandidatesQuery
     )
 }
 
-// Marca la reunión como firmada: deja de poder editarse. Exige el acta cargada y que la reunión
-// ya haya ocurrido. La firma digital de cada presente es otro requerimiento (E4-RF-04).
-export async function signEdteMeeting(id: string, actor: Actor) {
-  const meeting = await findMeetingOrFail(id)
+// Ruta del acta en PDF: se genera al descargarla (CRM-076)
+const minutesPath = (id: string) => `/api/edte-meetings/${id}/minutes`
+
+// Huella de la firma: quién firmó, cuándo y qué contenido del acta firmó (E4-RF-04), hasta que se
+// defina si se usa firma digital con PKI
+const signatureFingerprint = (
+  meetingId: string,
+  userId: string,
+  signedAt: Date,
+  contentHash: string
+) =>
+  createHash('sha256')
+    .update(`${meetingId}:${userId}:${signedAt.toISOString()}:${contentHash}`)
+    .digest('hex')
+
+// Encabezado del acta con los datos de la institución (los mismos del RITE, CRM-042)
+function institutionLine(
+  config: {
+    institutionName: string | null
+    institutionNumber: string | null
+    district: string | null
+  } | null
+) {
+  return [
+    config?.institutionName ?? 'Institución sin configurar',
+    config?.institutionNumber && `Nº ${config.institutionNumber}`,
+    config?.district && `Distrito ${config.district}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+// Contenido del acta con los datos de ahora: el del borrador, el que firma cada integrante y el
+// que se guarda como copia fija al completarse las firmas (CRM-076)
+async function buildMinutesContent(meeting: MeetingDetail, db: DbClient): Promise<MinutesContent> {
+  // De a una consulta (sin Promise.all): también se usa dentro de la transacción de la firma
+  const config = await db.institutionalConfig.findUnique({
+    where: { singleton: true },
+    select: { institutionName: true, institutionNumber: true, district: true },
+  })
+  const sections = await currentSectionsByStudent(
+    meeting.students.map((item) => item.studentId),
+    meeting.academicYearId,
+    db
+  )
+
+  return {
+    institution: institutionLine(config),
+    year: meeting.academicYear.year,
+    date: toDay(meeting.date),
+    period: meeting.period,
+    shift: meeting.shift,
+    considerations: meeting.considerations,
+    signed: meeting.status === EdteMeetingStatus.SIGNED,
+    signedAt: meeting.signedAt,
+    members: meeting.members.map((member) => ({
+      userId: member.userId,
+      name: fullName(member.user),
+      role: member.roleInMeeting,
+      present: member.present,
+      signedAt: member.signedAt,
+      signatureHash: member.signatureHash,
+    })),
+    students: meeting.students.map((item) => {
+      const section = sections.get(item.studentId)
+      return {
+        studentId: item.studentId,
+        name: fullName(item.student),
+        dni: item.student.dni,
+        section: section ? `${section.grade}° ${section.division}` : null,
+        notes: item.notes,
+      }
+    }),
+  }
+}
+
+// Firma del acta de un integrante presente (E4-RF-04, CRM-076). Cuando firma el último
+// presente, la reunión queda firmada, se guarda la copia fija del acta y ya no se puede editar.
+export async function signEdteMeeting(id: string, actor: Actor, db: DbClient = prisma) {
+  const meeting = await findMeetingOrFail(id, db)
   if (meeting.status !== EdteMeetingStatus.DRAFT) {
     throw new HttpError(409, 'La reunión ya está firmada')
   }
-  if (!meeting.minutesUrl) {
-    throw new HttpError(409, 'Para marcarla como firmada, cargá primero el enlace al acta')
-  }
   if (toDay(meeting.date) > todayInSchoolTimeZone()) {
-    throw new HttpError(409, 'La reunión todavía no ocurrió: no se puede marcar como firmada')
+    throw new HttpError(409, 'La reunión todavía no ocurrió: no se puede firmar el acta')
+  }
+  // Sin presentes no hay quién firme: el acta no se podría cerrar nunca
+  if (!meeting.members.some((item) => item.present)) {
+    throw new HttpError(
+      409,
+      'La reunión no tiene integrantes presentes: no hay quién firme el acta'
+    )
+  }
+  const member = meeting.members.find((item) => item.userId === actor.userId)
+  if (!member?.present) {
+    throw new HttpError(403, 'Solo los integrantes presentes en la reunión pueden firmar el acta')
+  }
+  if (member.signedAt) {
+    throw new HttpError(409, 'Ya firmaste el acta de esta reunión')
   }
 
-  await prisma.$transaction(async (tx) => {
+  await inTransaction(db, async (tx) => {
+    await lockDraftMeeting(tx, id, 'La reunión ya está firmada')
+
+    // Con la reunión trabada, el contenido no cambia hasta terminar: es justo lo que se firma
     const signedAt = new Date()
-    // Solo si sigue en borrador (por si dos personas la firman a la vez)
-    const { count } = await tx.edteMeeting.updateMany({
-      where: { id, status: EdteMeetingStatus.DRAFT },
-      data: { status: EdteMeetingStatus.SIGNED, signedAt, signedById: actor.userId },
+    const contentHash = minutesContentHash(
+      await buildMinutesContent(await findMeetingOrFail(id, tx), tx)
+    )
+
+    // Solo si sigue presente y sin firmar (por si la lista cambió o firmó dos veces a la vez)
+    const { count } = await tx.edteMember.updateMany({
+      where: { edteMeetingId: id, userId: actor.userId, present: true, signedAt: null },
+      data: {
+        signedAt,
+        signatureHash: signatureFingerprint(id, actor.userId, signedAt, contentHash),
+      },
     })
-    if (count === 0) throw new HttpError(409, 'La reunión ya está firmada')
+    if (count === 0) {
+      throw new HttpError(409, 'No se pudo firmar: ya firmaste o cambió la lista de presentes')
+    }
 
     await tx.auditLog.create({
       data: {
@@ -511,13 +657,103 @@ export async function signEdteMeeting(id: string, actor: Actor) {
         action: AuditActionType.SIGN,
         affectedEntity: 'EdteMeeting',
         entityId: id,
-        newData: { status: EdteMeetingStatus.SIGNED, signedAt: signedAt.toISOString() },
+        newData: { signedBy: actor.userId, signedAt: signedAt.toISOString(), contentHash },
+        ipAddress: actor.ipAddress,
+      },
+    })
+
+    // Si ya firmaron todos los presentes, el acta queda firmada y la reunión no se edita más.
+    // signedBy queda como quien completó las firmas.
+    const pending = await tx.edteMember.count({
+      where: { edteMeetingId: id, present: true, signedAt: null },
+    })
+    if (pending > 0) return
+
+    // Copia fija del acta con todas las firmas (como el RITE): el acta firmada sale siempre de
+    // acá, aunque después cambien los nombres, las secciones o los datos de la institución
+    const signedMeeting = await findMeetingOrFail(id, tx)
+    const snapshot = toMinutesSnapshot({
+      ...(await buildMinutesContent(signedMeeting, tx)),
+      signed: true,
+      signedAt,
+    })
+
+    await tx.edteMeeting.update({
+      where: { id },
+      data: {
+        status: EdteMeetingStatus.SIGNED,
+        signedAt,
+        signedById: actor.userId,
+        minutesUrl: minutesPath(id),
+        minutesSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+      },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: AuditActionType.SIGN,
+        affectedEntity: 'EdteMeeting',
+        entityId: id,
+        newData: {
+          status: EdteMeetingStatus.SIGNED,
+          signedAt: signedAt.toISOString(),
+          minutesUrl: minutesPath(id),
+          contentHash,
+        },
         ipAddress: actor.ipAddress,
       },
     })
   })
 
-  return getEdteMeeting(id)
+  return getEdteMeeting(id, db)
+}
+
+// El acta tiene datos sensibles de alumnos: la bajan quienes gestionan las reuniones y los
+// integrantes convocados a esa reunión, presentes o ausentes (figuran en el acta)
+const MINUTES_MANAGER_ROLES: Role[] = [
+  Role.ADMINISTRATOR,
+  Role.SCHOOL_MANAGEMENT,
+  Role.EOE_DIRECTIVE,
+]
+
+// Acta de la reunión en PDF (CRM-076). Firmada, sale de la copia fija; en borrador, con los datos
+// de ahora y marcada como tal, así los integrantes pueden leerla antes de firmar. Las reuniones
+// firmadas antes de la CRM-076 no tienen copia: salen con los datos de ahora.
+export async function getEdteMeetingMinutes(
+  id: string,
+  viewer: Actor & { role: Role },
+  db: DbClient = prisma
+) {
+  const meeting = await findMeetingOrFail(id, db)
+  const convened = meeting.members.some((member) => member.userId === viewer.userId)
+  if (!convened && !MINUTES_MANAGER_ROLES.includes(viewer.role)) {
+    throw new HttpError(
+      403,
+      'El acta la pueden ver los integrantes convocados a la reunión y quienes gestionan las reuniones'
+    )
+  }
+
+  const content =
+    meeting.status === EdteMeetingStatus.SIGNED && meeting.minutesSnapshot
+      ? fromMinutesSnapshot(meeting.minutesSnapshot as unknown as MinutesSnapshot)
+      : await buildMinutesContent(meeting, db)
+  const file = await buildEdteMinutesPdf(content, new Date())
+
+  // E4-RNF-03: el acta tiene nombres y DNI de alumnos. Se registra quién la descargó, sin guardar
+  // su contenido.
+  await db.auditLog.create({
+    data: {
+      userId: viewer.userId,
+      action: AuditActionType.SENSITIVE_VIEW,
+      affectedEntity: 'EdteMeeting',
+      entityId: id,
+      newData: { operation: 'DOWNLOAD_MINUTES', status: meeting.status },
+      ipAddress: viewer.ipAddress,
+    },
+  })
+
+  return { fileName: `acta-edte-${toDay(meeting.date)}.pdf`, content: file }
 }
 
 // Personal que se puede convocar a una reunión, para el checklist del formulario.

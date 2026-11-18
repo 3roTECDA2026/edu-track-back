@@ -24,12 +24,14 @@ function fakeDb(options: {
   meetingYearId?: string
   meetingStatus?: 'DRAFT' | 'SIGNED'
   studentTreated?: boolean
+  signatures?: number
 }) {
   const {
     pateStatus = PateStatus.IN_PROGRESS,
     meetingYearId = 'y2026',
     meetingStatus = 'SIGNED',
     studentTreated = true,
+    signatures = 0,
   } = options
 
   const calls = {
@@ -39,6 +41,8 @@ function fakeDb(options: {
   }
 
   const tx = {
+    // La traba de la reunión (lockDraftMeeting, CRM-076)
+    $queryRaw: async () => [],
     pate: {
       findUnique: async () => basePate(pateStatus),
     },
@@ -48,6 +52,10 @@ function fakeDb(options: {
         academicYearId: meetingYearId,
         status: meetingStatus,
       }),
+    },
+    // Firmas del acta de la reunión (CRM-076)
+    edteMember: {
+      count: async () => signatures,
     },
     edteMeetingStudent: {
       findUnique: async () => (studentTreated ? { id: 'ems-1' } : null),
@@ -185,6 +193,31 @@ describe('createPateFollowUp', () => {
         return true
       }
     )
+  })
+
+  it('rechaza si el acta de la reunión en borrador ya tiene firmas (409, CRM-076)', async () => {
+    const { db, calls } = fakeDb({ meetingStatus: 'DRAFT', studentTreated: false, signatures: 1 })
+    await assert.rejects(
+      createPateFollowUp(
+        'pate-1',
+        {
+          edteMeetingId: 'meet-1',
+          progress: 'Avance',
+          evaluation: PateEvaluation.FAVORABLE,
+        },
+        actor,
+        db as any
+      ),
+      (err: unknown) => {
+        assert(err instanceof HttpError)
+        assert.equal(err.status, 409)
+        assert.match(err.message, /ya tiene firmas/)
+        return true
+      }
+    )
+    // No se sumó al alumno ni se registró el seguimiento
+    assert.equal(calls.edteStudentsCreated.length, 0)
+    assert.equal(calls.followUpsCreated.length, 0)
   })
 
   it('crea seguimiento y vincula automáticamente si la reunión está en borrador', async () => {

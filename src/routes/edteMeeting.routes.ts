@@ -16,7 +16,7 @@ const canView = requireRole(
   Role.PRECEPTOR
 )
 
-// Cargar, editar y firmar: dirección, EOE/directivos y administración
+// Cargar y editar: dirección, EOE/directivos y administración
 const canManage = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE)
 
 edteMeetingRouter.use(verifyToken)
@@ -35,6 +35,14 @@ edteMeetingRouter.get(
   asyncHandler(edteMeetingController.getEdteMeetingMemberOptions)
 )
 edteMeetingRouter.get('/:id', canView, asyncHandler(edteMeetingController.getEdteMeeting))
+// Acta en PDF: la baja cualquiera que vea la reunión, también en borrador, para
+// leerla antes de firmar
+edteMeetingRouter.get(
+  '/:id/minutes',
+  canView,
+  asyncHandler(edteMeetingController.getEdteMeetingMinutes)
+)
 edteMeetingRouter.post('/', canManage, asyncHandler(edteMeetingController.createEdteMeeting))
 edteMeetingRouter.patch('/:id', canManage, asyncHandler(edteMeetingController.updateEdteMeeting))
-edteMeetingRouter.patch('/:id/sign', canManage, asyncHandler(edteMeetingController.signEdteMeeting))
+// Firma del acta (CRM-076): firma cada integrante presente; el service controla que lo sea
+edteMeetingRouter.patch('/:id/sign', canView, asyncHandler(edteMeetingController.signEdteMeeting))

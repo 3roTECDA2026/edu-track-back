@@ -22,6 +22,7 @@ import {
   type PateSubjectToRepeat,
   type UpdatePateInput,
 } from '@/schemas/pate.schema'
+import { lockDraftMeeting } from '@/services/edteMeeting.service'
 import { getMyEdteMemberships } from '@/services/edteTeamMember.service'
 import { MODELS_BY_OPTION } from '@/services/intensification.service'
 import { getReferredStudentIds } from '@/services/promotionDecision.service'
@@ -1050,11 +1051,23 @@ export async function createPateFollowUp(
     })
 
     if (!treated) {
-      // Si la reunión ya está firmada, no se puede modificar su acta para agregar alumnos
-      if (meeting.status === 'SIGNED') {
+      // Sumar al alumno cambia el acta de la reunión: se traba como en la firma y la edición del
+      // acta (CRM-076). Si la reunión ya está firmada, no se puede agregar al alumno.
+      await lockDraftMeeting(
+        tx,
+        input.edteMeetingId,
+        'El alumno no fue tratado en esa reunión: sumalo a la reunión antes de registrar el seguimiento'
+      )
+
+      // Con firmas parciales tampoco: quienes firmaron, firmaron el acta sin este alumno. Para
+      // sumarlo hay que editar la reunión, y ahí las firmas se vuelven a hacer.
+      const signatures = await tx.edteMember.count({
+        where: { edteMeetingId: input.edteMeetingId, signedAt: { not: null } },
+      })
+      if (signatures > 0) {
         throw new HttpError(
           409,
-          'El alumno no fue tratado en esa reunión: sumalo a la reunión antes de registrar el seguimiento'
+          'El acta de esa reunión ya tiene firmas: para sumar al alumno, editá la reunión (las firmas se vuelven a hacer)'
         )
       }
 
