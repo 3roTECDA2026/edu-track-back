@@ -21,7 +21,9 @@ app.get('/health', (req, res) => {
 })
 
 // Rutas de la API
+app.use(express.static(process.cwd()))
 app.use('/api', routes)
+
 
 // Manejo de errores: siempre después de las rutas
 app.use(errorHandler)

@@ -60,3 +60,21 @@ export async function updateSchoolDays(req: Request, res: Response) {
   const input = updateSchoolDaysSchema.parse(req.body)
   return res.json(await attendanceService.updateSchoolDays(input))
 }
+export async function qrCheckIn(req: Request, res: Response) {
+  const studentId = req.params.studentId as string
+  res.json(await attendanceService.markQrAttendance(studentId))
+}
+
+export async function qrImage(req: Request, res: Response) {
+  const studentId = req.params.studentId as string
+  const frontUrl = process.env.FRONT_URL || 'http://localhost:5173'
+  const url = `${frontUrl}/attendance/qr/${studentId}`
+  const QRCode = (await import('qrcode')).default
+  const buffer = await QRCode.toBuffer(url, {
+    width: 512,
+    margin: 2,
+    color: { dark: '#1e3a8a', light: '#ffffff' },
+    errorCorrectionLevel: 'H',
+  })
+  res.type('image/png').send(buffer)
+}
