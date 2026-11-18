@@ -369,11 +369,18 @@ de distintos recursos y puede pisar otras.
   - El hash también se guarda en el `AuditLog` del alta, que no se puede modificar (CRM-095).
 - `GET /legal-conflicts/:id/verify` recalcula todo y responde `status`: `INTACT`, `ALTERED` o
   `NOT_HASHED`, el detalle del acta y de cada anexo (`reasons`: `CONTENT_CHANGED`, `UNREADABLE`,
-  `AUDIT_LOG_MISMATCH`) y `signature.status` (`MATCH`, `MISMATCH`, `UNSIGNED`) contra la firma TOTP.
-  Queda en `AuditLog` como `SENSITIVE_VIEW` (`operation: 'VERIFY'`), sin el contenido.
+  `AUDIT_LOG_MISMATCH`, `AUDIT_LOG_MISSING`) y `signature.status` (`MATCH`, `MISMATCH`,
+  `UNSIGNED`) contra la firma TOTP.
+  - Un registro con hash y sin su copia en el `AuditLog` del alta está `ALTERED`
+    (`AUDIT_LOG_MISSING`): el alta guarda las dos cosas en la misma transacción.
+  - Un contenido que no se puede descifrar está `ALTERED` (`UNREADABLE`), también en los registros
+    sin hash. `NOT_HASHED` es solo para los anteriores a CRM-093 que se pueden leer.
+  - Cada verificación queda en `AuditLog` como `SENSITIVE_VIEW` (`operation: 'VERIFY'`), sin el
+    contenido.
 - `digitalSignHash` **no** indica que el acta esté firmada: eso es `electronicSignature`.
-- Las actas y anexos anteriores a CRM-093 quedan sin hash (`NOT_HASHED`): son inmutables (triggers
-  de CRM-090) y no se les puede agregar. Las reglas de decisión están en `utils/conflictIntegrity.ts`.
+- Las actas y anexos anteriores a CRM-093 quedan sin hash (`NOT_HASHED` si se pueden leer): son
+  inmutables (triggers de CRM-090) y no se les puede agregar.
+- Las reglas de decisión están en `utils/conflictIntegrity.ts` (funciones puras, con tests).
 - No cambiar el resultado de `calculateConflictHash`: invalidaría las firmas TOTP guardadas
   (hay un test que fija su valor).
 

@@ -11,6 +11,7 @@ export type IntegrityReason =
   | 'CONTENT_CHANGED' // el hash recalculado no coincide con el guardado
   | 'UNREADABLE' // el contenido cifrado no se pudo descifrar (fue manipulado)
   | 'AUDIT_LOG_MISMATCH' // el hash guardado no coincide con la copia del AuditLog
+  | 'AUDIT_LOG_MISSING' // tiene hash, pero falta la copia en el AuditLog del alta
 
 export interface DocumentIntegrity {
   status: IntegrityStatus
@@ -19,7 +20,7 @@ export interface DocumentIntegrity {
 
 export interface IntegrityInput {
   storedHash: string | null // digitalSignHash del registro
-  auditHash: string | null // copia del hash en el AuditLog del alta (no se puede modificar)
+  auditHash: string | null // copia del hash en el AuditLog del alta; null si no está
   calculatedHash: string | null // null si el contenido no se pudo descifrar
 }
 
@@ -28,18 +29,27 @@ export function evaluateIntegrity({
   auditHash,
   calculatedHash,
 }: IntegrityInput): DocumentIntegrity {
+  const reasons: IntegrityReason[] = []
+
+  // Un contenido cifrado que no se puede descifrar fue manipulado, tenga hash o no.
+  if (calculatedHash === null) reasons.push('UNREADABLE')
+
   // Registros anteriores a CRM-093: no tienen hash y no se les puede agregar (son inmutables).
   // Si el log sí tiene uno, alguien borró el hash del registro.
   if (storedHash === null) {
-    return auditHash === null
-      ? { status: 'NOT_HASHED', reasons: [] }
-      : { status: 'ALTERED', reasons: ['AUDIT_LOG_MISMATCH'] }
+    if (auditHash !== null) reasons.push('AUDIT_LOG_MISMATCH')
+    return reasons.length > 0
+      ? { status: 'ALTERED', reasons }
+      : { status: 'NOT_HASHED', reasons: [] }
   }
 
-  const reasons: IntegrityReason[] = []
-  if (calculatedHash === null) reasons.push('UNREADABLE')
-  else if (!hashesMatch(storedHash, calculatedHash)) reasons.push('CONTENT_CHANGED')
-  if (auditHash !== null && !hashesMatch(storedHash, auditHash)) reasons.push('AUDIT_LOG_MISMATCH')
+  if (calculatedHash !== null && !hashesMatch(storedHash, calculatedHash)) {
+    reasons.push('CONTENT_CHANGED')
+  }
+  // Desde CRM-093, el alta guarda el hash en el registro y en el AuditLog en la misma
+  // transacción: un registro con hash y sin su copia en el log no salió de un alta normal.
+  if (auditHash === null) reasons.push('AUDIT_LOG_MISSING')
+  else if (!hashesMatch(storedHash, auditHash)) reasons.push('AUDIT_LOG_MISMATCH')
 
   return { status: reasons.length > 0 ? 'ALTERED' : 'INTACT', reasons }
 }

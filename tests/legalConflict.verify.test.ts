@@ -211,6 +211,88 @@ test('CRM-093: un acta anterior a CRM-093 (sin hash) da NOT_HASHED', async () =>
   assert.equal(result!.status, 'NOT_HASHED')
 })
 
+// Acta anterior a CRM-093 (sin hash ni log con hash), con el contenido que se le pase
+const legacyConflict = (detailedReport: string) => ({
+  id: 'conflicto-viejo',
+  documentUuid: 'uuid-viejo',
+  studentId: 'alumno-1',
+  authorId: 'usuario-1',
+  conflictCode: 'CON-001',
+  detailedReport,
+  digitalSignHash: null,
+  occurrenceDate: null,
+  registeredAt: new Date('2026-11-01T12:00:00Z'),
+})
+
+test('CRM-093: un acta anterior con el contenido ilegible da ALTERED (UNREADABLE)', async () => {
+  const { state, verify } = createFixture()
+  const encrypted = encryptConflictReport(REPORT)
+  // Cambia un byte del texto cifrado: el tag de AES-GCM deja de coincidir
+  state.conflicts.push(legacyConflict(encrypted.replace(/.$/, (c) => (c === '0' ? '1' : '0'))))
+
+  const result = await verify('conflicto-viejo')
+
+  assert.equal(result!.status, 'ALTERED')
+  assert.equal(result!.conflictStatus, 'ALTERED')
+  assert.deepEqual(result!.reasons, ['UNREADABLE'])
+})
+
+test('CRM-093: un anexo anterior con el contenido ilegible da ALTERED (UNREADABLE)', async () => {
+  const { state, verify } = createFixture()
+  state.conflicts.push(legacyConflict(encryptConflictReport(REPORT)))
+  state.attachments.push({
+    id: 'anexo-viejo',
+    conflictId: 'conflicto-viejo',
+    authorId: 'usuario-1',
+    content: 'v1:no-es-un-cifrado-valido',
+    date: new Date('2026-11-02T12:00:00Z'),
+    digitalSignHash: null,
+    documentUuid: 'uuid-anexo-viejo',
+  })
+
+  const result = await verify('conflicto-viejo')
+
+  assert.equal(result!.status, 'ALTERED')
+  assert.equal(result!.conflictStatus, 'NOT_HASHED')
+  assert.deepEqual(result!.attachments[0], {
+    id: 'anexo-viejo',
+    documentUuid: 'uuid-anexo-viejo',
+    status: 'ALTERED',
+    reasons: ['UNREADABLE'],
+  })
+})
+
+test('CRM-093: un acta nueva sin la copia del hash en el log da ALTERED (AUDIT_LOG_MISSING)', async () => {
+  const { state, createConflict, verify } = createFixture()
+  const conflict = await createConflict()
+
+  // Simula que falta el log del alta (por ejemplo, el acta se insertó a mano en la base)
+  state.audits = state.audits.filter(
+    (log) => !(log.affectedEntity === 'LegalConflict' && log.entityId === conflict.id)
+  )
+
+  const result = await verify(conflict.id)
+
+  assert.equal(result!.status, 'ALTERED')
+  assert.deepEqual(result!.reasons, ['AUDIT_LOG_MISSING'])
+})
+
+test('CRM-093: un anexo nuevo sin la copia del hash en el log da ALTERED (AUDIT_LOG_MISSING)', async () => {
+  const { state, createConflict, addAttachment, verify } = createFixture()
+  const conflict = await createConflict()
+  const attachment = await addAttachment(conflict.id)
+
+  state.audits = state.audits.filter(
+    (log) => !(log.affectedEntity === 'LegalConflictAttachment' && log.entityId === attachment.id)
+  )
+
+  const result = await verify(conflict.id)
+
+  assert.equal(result!.status, 'ALTERED')
+  assert.equal(result!.conflictStatus, 'INTACT')
+  assert.deepEqual(result!.attachments[0]!.reasons, ['AUDIT_LOG_MISSING'])
+})
+
 test('CRM-093: compara el contenido actual con el documentHash de la firma TOTP', async () => {
   const { state, createConflict, verify } = createFixture()
   const conflict = await createConflict()

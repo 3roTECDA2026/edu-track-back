@@ -60,11 +60,33 @@ test('CRM-093: si el log tiene hash pero el registro no, alguien lo borró', () 
   })
 })
 
-test('CRM-093: sin log del alta, se verifica solo contra el hash guardado', () => {
-  assert.equal(
-    evaluateIntegrity({ storedHash: HASH, auditHash: null, calculatedHash: HASH }).status,
-    'INTACT'
+test('CRM-093: un registro con hash al que le falta la copia en el log está alterado', () => {
+  // El alta guarda las dos cosas en la misma transacción: sin log, no salió de un alta normal
+  assert.deepEqual(evaluateIntegrity({ storedHash: HASH, auditHash: null, calculatedHash: HASH }), {
+    status: 'ALTERED',
+    reasons: ['AUDIT_LOG_MISSING'],
+  })
+})
+
+test('CRM-093: sin copia en el log y con el contenido cambiado, informa los dos motivos', () => {
+  assert.deepEqual(
+    evaluateIntegrity({ storedHash: HASH, auditHash: null, calculatedHash: OTHER }),
+    { status: 'ALTERED', reasons: ['CONTENT_CHANGED', 'AUDIT_LOG_MISSING'] }
   )
+})
+
+test('CRM-093: un registro anterior (sin hash) con contenido ilegible está alterado', () => {
+  assert.deepEqual(evaluateIntegrity({ storedHash: null, auditHash: null, calculatedHash: null }), {
+    status: 'ALTERED',
+    reasons: ['UNREADABLE'],
+  })
+})
+
+test('CRM-093: sin hash, ilegible y con hash en el log, informa los dos motivos', () => {
+  assert.deepEqual(evaluateIntegrity({ storedHash: null, auditHash: HASH, calculatedHash: null }), {
+    status: 'ALTERED',
+    reasons: ['UNREADABLE', 'AUDIT_LOG_MISMATCH'],
+  })
 })
 
 test('CRM-093: estado de la firma TOTP', () => {
