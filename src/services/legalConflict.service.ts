@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { prisma } from '@/lib/prisma'
 import { HttpError } from '@/utils/httpError'
+import { calculateConflictDeadline } from '@/utils/conflictDeadline'
 import {
   assertConflictEncryptionKey,
   decryptConflictReport,
@@ -107,6 +108,7 @@ export const createLegalConflict = async (
     return {
       ...conflict,
       detailedReport: decryptConflictReport(conflict.detailedReport),
+      ...calculateConflictDeadline(conflict.occurrenceDate, conflict.registeredAt),
     }
   })
 }
@@ -157,6 +159,7 @@ export const getLegalConflictById = async (
     return {
       ...conflict,
       detailedReport: decryptConflictReport(conflict.detailedReport),
+      ...calculateConflictDeadline(conflict.occurrenceDate, conflict.registeredAt),
       attachments: conflict.attachments.map((attachment) => ({
         ...attachment,
         content: decryptConflictReport(attachment.content),
@@ -191,6 +194,7 @@ export const getLegalConflictsByStudent = async (
     return conflicts.map((conflict) => ({
       ...conflict,
       detailedReport: decryptConflictReport(conflict.detailedReport),
+      ...calculateConflictDeadline(conflict.occurrenceDate, conflict.registeredAt),
     }))
   })
 }

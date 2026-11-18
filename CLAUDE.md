@@ -430,6 +430,17 @@ CORS: `cors()` sin restricciones (acepta cualquier origen).
   borrar, y la FK `PateSubjectRepeat.repeatEnrollmentId` es `RESTRICT`. La respuesta trae `pateId`
   (null si se asignó a mano).
 
+**Plazo de registro de un conflicto (CRM-094, E4-RF-18):**
+
+- El conflicto guarda `occurrenceDate` (fecha del suceso: la ingresa el usuario, es opcional y no puede ser futura) y
+  `registeredAt` (la pone la base al crearlo; el alta rechaza cualquier campo extra, así que no se puede enviar).
+- `POST /legal-conflicts`, `GET /legal-conflicts/:id` y `GET /legal-conflicts/student/:studentId` devuelven además
+  `withinDeadline` y `elapsedHours`. Se calculan al leer (`utils/conflictDeadline.ts`) y no se guardan: no hay
+  migración y no entran en el hash de la firma.
+- `withinDeadline` es `true` si pasaron menos de 24 hs entre el suceso y el registro (exactamente 24 hs ya es
+  fuera de plazo). `elapsedHours` son las horas enteras transcurridas.
+- Sin fecha del suceso, los dos son `null`: el plazo no se puede calcular.
+
 ## 10. Git y Pull Requests
 
 - Rama de integración del sprint: **`develop-sprintN`**. Las ramas salen de ahí y los PR van

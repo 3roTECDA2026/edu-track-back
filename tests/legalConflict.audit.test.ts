@@ -76,7 +76,7 @@ const createFixture = () => {
     },
   }
 
-  const seedConflict = () => {
+  const seedConflict = (occurrenceDate: Date | null = null) => {
     state.conflicts.push({
       id: 'conflicto-1',
       studentId: 'alumno-1',
@@ -85,7 +85,7 @@ const createFixture = () => {
       detailedReport: encryptConflictReport(REPORT),
       digitalSignHash: null,
       editLocked: true,
-      occurrenceDate: null,
+      occurrenceDate,
       registeredAt: new Date('2026-11-10T12:00:00Z'),
     })
   }
@@ -230,4 +230,47 @@ test('CRM-095: si falla el log del listado, no se entregan los conflictos', asyn
   state.auditFails = true
 
   await assert.rejects(getLegalConflictsByStudent('alumno-1', access, db), /Error de auditoría/)
+})
+
+test('CRM-094: el alta devuelve el plazo calculado con la fecha de registro del servidor', async () => {
+  const { db } = createFixture()
+
+  const result = await createLegalConflict(
+    { ...creation, occurrenceDate: new Date('2026-11-09T06:00:00Z') },
+    db
+  )
+
+  assert.equal(result.withinDeadline, false)
+  assert.equal(result.elapsedHours, 30)
+})
+
+test('CRM-094: un alta sin fecha del suceso no tiene plazo calculable', async () => {
+  const { db } = createFixture()
+
+  const result = await createLegalConflict(creation, db)
+
+  assert.equal(result.withinDeadline, null)
+  assert.equal(result.elapsedHours, null)
+})
+
+test('CRM-094: el detalle indica si el conflicto se registró dentro de las 24 horas', async () => {
+  const { db, seedConflict } = createFixture()
+
+  seedConflict(new Date('2026-11-09T06:00:00Z'))
+
+  const result = await getLegalConflictById('conflicto-1', access, db)
+
+  assert.equal(result?.withinDeadline, false)
+  assert.equal(result?.elapsedHours, 30)
+})
+
+test('CRM-094: el listado trae el plazo de cada conflicto', async () => {
+  const { db, seedConflict } = createFixture()
+
+  seedConflict(new Date('2026-11-10T10:00:00Z'))
+
+  const result = await getLegalConflictsByStudent('alumno-1', access, db)
+
+  assert.equal(result[0]?.withinDeadline, true)
+  assert.equal(result[0]?.elapsedHours, 2)
 })
