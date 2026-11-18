@@ -25,6 +25,14 @@ interventionRouter.get(
   asyncHandler(interventionController.listInterventions)
 )
 
+// PDF de la línea de tiempo de un alumno (CRM-088). Va antes de '/:id'.
+interventionRouter.get(
+  '/export/pdf',
+  verifyToken,
+  requireRole(...INTERVENTION_ROLES),
+  asyncHandler(interventionController.exportInterventionsPdf)
+)
+
 // Detalle
 interventionRouter.get(
   '/:id',

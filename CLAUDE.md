@@ -360,6 +360,16 @@ de distintos recursos y puede pisar otras.
   ningún código lo lee ni lo escribe. Las evidencias van en `IntensificationAttachment`. Se puede
   quitar del schema en otro ticket.
 
+**Línea de tiempo de intervenciones (CRM-088, E4-RF-13):**
+- Cada intervención del listado y del detalle trae `_count.attachments` (cantidad de adjuntos).
+- `GET /interventions/export/pdf?studentId=...&eventType=...&from=...&to=...` devuelve el PDF de la
+  línea de tiempo del alumno con esos filtros (`utils/interventionTimelinePdf.ts`, con `pdfkit`).
+  Mismas reglas de acceso que el listado (un docente solo ve sus cursos), hasta 500 intervenciones,
+  y queda registrado en `AuditLog` como `SENSITIVE_VIEW`.
+- Un docente solo exporta el PDF de alumnos que cursan o cursaron en alguno de sus cursos
+  (`assertCanExportStudent`); si no, 404 como si el alumno no existiera, sin datos ni auditoría.
+- El nombre del archivo va con `attachmentDisposition` (`utils/contentDisposition.ts`).
+
 **Integridad de actas de conflicto (CRM-093, E4-RF-17):**
 - Cada acta y cada anexo tiene `documentUuid` (UUID v4) y `digitalSignHash` (hash de
   integridad), calculados al guardar (`utils/conflictDocumentHash.ts`).
