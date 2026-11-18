@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import { getAuthUser } from '@/middlewares/auth.middleware'
 import {
   changePateStatusSchema,
+  createPateFollowUpSchema,
   createPateSchema,
   listPatesQuerySchema,
   pateIdParamSchema,
@@ -56,6 +57,18 @@ export async function updatePate(req: Request, res: Response) {
 
 export async function changePateStatus(req: Request, res: Response) {
   const { id } = pateIdParamSchema.parse(req.params)
-  const { status } = changePateStatusSchema.parse(req.body)
-  res.json(await pateService.changePateStatus(id, status, getActor(req)))
+  const input = changePateStatusSchema.parse(req.body)
+  res.json(await pateService.changePateStatus(id, input, getActor(req)))
+}
+
+export async function listPateFollowUps(req: Request, res: Response) {
+  const { id } = pateIdParamSchema.parse(req.params)
+  const { userId, role } = getAuthUser(req)
+  res.json(await pateService.listPateFollowUps(id, { userId, role }))
+}
+
+export async function createPateFollowUp(req: Request, res: Response) {
+  const { id } = pateIdParamSchema.parse(req.params)
+  const input = createPateFollowUpSchema.parse(req.body)
+  res.status(201).json(await pateService.createPateFollowUp(id, input, getActor(req)))
 }

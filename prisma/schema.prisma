@@ -250,6 +250,8 @@ model User {
   linkedStudent                      Student?                    @relation("StudentUser") // Perfil de estudiante asociado (si aplica)
   guardian                           Guardian?                   @relation("GuardianUser") // Perfil de tutor/guardián asociado (si aplica)
   patesCreated                       Pate[]                      @relation("PateCreator") // PATE que cargó
+  patesClosed                        Pate[]                      @relation("PateCloser") // PATE que cerró
+  pateFollowUpsCreated               PateFollowUp[]              @relation("PateFollowUpCreator") // Seguimientos de PATE que cargó
   edteMembers                        EdteMember[] // Participaciones en reuniones del EDTE
   edteTeamMemberships                EdteTeamMember[] // Sus lugares en el EDTE (uno por turno)
   fortePlansInCharge                 FortePlan[]                 @relation("FortePlanResponsible") // Planes Forte a su cargo
@@ -687,9 +689,10 @@ model EdteMeeting {
   createdAt      DateTime          @default(now()) // Fecha de registro
   updatedAt      DateTime          @default(now()) @updatedAt // Última modificación
 
-  members  EdteMember[] // Integrantes convocados (presentes y ausentes)
-  students EdteMeetingStudent[] // Alumnos tratados en la reunión
-  pates    Pate[] // Planes PATE diseñados en esta reunión
+  members       EdteMember[] // Integrantes convocados (presentes y ausentes)
+  students      EdteMeetingStudent[] // Alumnos tratados en la reunión
+  pates         Pate[] // Planes PATE diseñados en esta reunión
+  pateFollowUps PateFollowUp[] // Seguimientos de PATE realizados en esta reunión
 
   @@index([academicYearId, period]) // Para el listado filtrado por ciclo y período
 }
@@ -749,22 +752,27 @@ model EdteTeamMember {
 // intensificar y a recursar son MPAA del alumno. La reunión del EDTE es opcional hasta que se
 // puedan registrar reuniones (CRM-075); después pasa a ser obligatoria.
 model Pate {
-  id                String       @id @default(uuid()) // Identificador único
-  student           Student      @relation(fields: [studentId], references: [id]) // Estudiante asistido
+  id                String          @id @default(uuid()) // Identificador único
+  student           Student         @relation(fields: [studentId], references: [id]) // Estudiante asistido
   studentId         String // ID del estudiante
-  academicYear      AcademicYear @relation(fields: [academicYearId], references: [id]) // Ciclo en que se aplica
+  academicYear      AcademicYear    @relation(fields: [academicYearId], references: [id]) // Ciclo en que se aplica
   academicYearId    String // ID del ciclo
-  edteMeeting       EdteMeeting? @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
+  edteMeeting       EdteMeeting?    @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE de origen
   edteMeetingId     String? // ID de la reunión EDTE (opcional hasta CRM-075)
   diagnosis         String // Diagnóstico pedagógico de la trayectoria
   supportStrategies String // Estrategias de acompañamiento e intervención acordadas
   schedule          String? // Cronograma de actividades/propuestas
-  status            PateStatus   @default(DRAFT) // Borrador, en curso o cerrado
+  status            PateStatus      @default(DRAFT) // Borrador, en curso o cerrado
   notificationUrl   String? // Documento de notificación a la familia cargado
-  createdBy         User?        @relation("PateCreator", fields: [createdById], references: [id]) // Quién lo cargó
+  finalEvaluation   PateEvaluation? // Evaluación final al cerrar el PATE (Favorable, Parcial, Desfavorable)
+  finalObservations String? // Observaciones de cierre del PATE
+  closedAt          DateTime? // Fecha de cierre del PATE
+  closedBy          User?           @relation("PateCloser", fields: [closedById], references: [id]) // Quién cerró el PATE
+  closedById        String? // ID de ese usuario
+  createdBy         User?           @relation("PateCreator", fields: [createdById], references: [id]) // Quién lo cargó
   createdById       String? // ID de ese usuario (vacío en PATE anteriores a CRM-078)
-  createdAt         DateTime     @default(now()) // Fecha de elaboración
-  updatedAt         DateTime     @default(now()) @updatedAt // Última modificación
+  createdAt         DateTime        @default(now()) // Fecha de elaboración
+  updatedAt         DateTime        @default(now()) @updatedAt // Última modificación
 
   subjectsToIntensify PateSubjectIntensify[] // Materias a intensificar según el PATE
   subjectsToRepeat    PateSubjectRepeat[] // Materias que debe recursar según el PATE
@@ -805,15 +813,29 @@ model PateSubjectRepeat {
   @@unique([pateId, pendingSubjectId]) // Unicidad de materia a recursar por PATE
 }
 
+enum PateEvaluation {
+  FAVORABLE
+  PARTIAL
+  UNFAVORABLE
+}
+
 model PateFollowUp {
-  id         String   @id @default(uuid()) // Identificador único
-  pate       Pate     @relation(fields: [pateId], references: [id]) // Plan PATE
-  pateId     String // ID del PATE
-  date       DateTime @default(now()) // Fecha del registro de seguimiento
-  progress   String // Avances observados
-  evaluation String? // Valoración cuantitativa o cualitativa parcial
+  id            String         @id @default(uuid()) // Identificador único
+  pate          Pate           @relation(fields: [pateId], references: [id]) // Plan PATE
+  pateId        String // ID del PATE
+  edteMeeting   EdteMeeting    @relation(fields: [edteMeetingId], references: [id]) // Reunión del EDTE donde se trató
+  edteMeetingId String // ID de la reunión del EDTE
+  date          DateTime       @default(now()) // Fecha del registro de seguimiento
+  progress      String // Avances observados
+  evaluation    PateEvaluation // Valoración: Favorable, Parcial o Desfavorable
+  observations  String? // Observaciones complementarias
+  createdBy     User?          @relation("PateFollowUpCreator", fields: [createdById], references: [id])
+  createdById   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
 
   @@index([pateId]) // Índice de historial de seguimiento del PATE
+  @@index([edteMeetingId])
 }
 
 // ============================================================================

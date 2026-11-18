@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { createPateSchema } from './pate.schema'
+import { changePateStatusSchema, createPateFollowUpSchema, createPateSchema } from './pate.schema'
 
 const GUID = '00000000-0000-0000-0000-000000000102'
 const MEETING = '00000000-0000-0000-0000-000000005401'
@@ -24,5 +24,55 @@ describe('alta de un PATE (CRM-078)', () => {
     const { edteMeetingId: _omitted, ...withoutMeeting } = input()
     assert.throws(() => createPateSchema.parse(withoutMeeting))
     assert.throws(() => createPateSchema.parse(input({ edteMeetingId: null })))
+  })
+})
+
+describe('seguimiento del PATE (CRM-080)', () => {
+  it('valida el seguimiento con reunión, avances y evaluación', () => {
+    assert.doesNotThrow(() =>
+      createPateFollowUpSchema.parse({
+        edteMeetingId: MEETING,
+        progress: 'Se observan mejoras en la entrega de trabajos prácticos.',
+        evaluation: 'FAVORABLE',
+        observations: 'Buen acompañamiento familiar.',
+      })
+    )
+  })
+
+  it('rechaza seguimiento sin reunión o sin evaluación', () => {
+    assert.throws(() =>
+      createPateFollowUpSchema.parse({
+        progress: 'Avances sin reunión',
+        evaluation: 'FAVORABLE',
+      })
+    )
+    assert.throws(() =>
+      createPateFollowUpSchema.parse({
+        edteMeetingId: MEETING,
+        progress: 'Avances sin evaluación',
+      })
+    )
+  })
+
+  it('cerrar el PATE requiere evaluación final', () => {
+    assert.throws(() =>
+      changePateStatusSchema.parse({
+        status: 'CLOSED',
+      })
+    )
+
+    assert.doesNotThrow(() =>
+      changePateStatusSchema.parse({
+        status: 'CLOSED',
+        finalEvaluation: 'FAVORABLE',
+        finalObservations: 'Objetivos cumplidos satisfactoriamente.',
+      })
+    )
+
+    assert.doesNotThrow(() =>
+      changePateStatusSchema.parse({
+        status: 'IN_PROGRESS',
+      })
+    )
   })
 })
