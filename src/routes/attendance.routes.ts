@@ -7,6 +7,9 @@ import { asyncHandler } from '@/utils/asyncHandler'
 
 const router = Router()
 
+// Check-in por QR (sin autenticación; el token es el id del alumno)
+router.get('/qr/:studentId', asyncHandler(attendanceController.qrCheckIn))
+router.get('/qr/:studentId/image', asyncHandler(attendanceController.qrImage))
 // Ver la asistencia: personal de la escuela. Estudiantes y familias tendrán su propio acceso (etapa 7).
 const canView = requireRole(Role.ADMINISTRATOR, Role.SCHOOL_MANAGEMENT, Role.EOE_DIRECTIVE, Role.TEACHER, Role.PRECEPTOR)
 

@@ -7,11 +7,13 @@ import {
   batchAttendanceSchema,
   justificationSchema,
   paginationAttendanceSchema,
+  qrImageQuerySchema,
   schoolDaysQuerySchema,
   sectionAttendanceQuerySchema,
   updateSchoolDaysSchema,
 } from '@/schemas/attendance.schema'
 import * as attendanceService from '@/services/attendance.service'
+import { withLocalHost } from '@/utils/localNetworkUrl'
 
 // El rol decide si se puede corregir un día anterior
 export async function saveBatch(req: Request, res: Response) {
@@ -59,4 +61,23 @@ export async function getSchoolDays(req: Request, res: Response) {
 export async function updateSchoolDays(req: Request, res: Response) {
   const input = updateSchoolDaysSchema.parse(req.body)
   return res.json(await attendanceService.updateSchoolDays(input))
+}
+export async function qrCheckIn(req: Request, res: Response) {
+  const studentId = req.params.studentId as string
+  res.json(await attendanceService.markQrAttendance(studentId))
+}
+
+export async function qrImage(req: Request, res: Response) {
+  const studentId = req.params.studentId as string
+  const { url: checkInUrl } = qrImageQuerySchema.parse(req.query)
+  const frontUrl = process.env.FRONT_URL || 'http://localhost:5173'
+  const url = withLocalHost(checkInUrl ?? `${frontUrl}/attendance/qr/${studentId}`)
+  const QRCode = (await import('qrcode')).default
+  const buffer = await QRCode.toBuffer(url, {
+    width: 512,
+    margin: 2,
+    color: { dark: '#1e3a8a', light: '#ffffff' },
+    errorCorrectionLevel: 'H',
+  })
+  res.type('image/png').send(buffer)
 }

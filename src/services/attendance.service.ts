@@ -496,3 +496,42 @@ export async function updateSchoolDays(input: UpdateSchoolDaysInput) {
     select: { year: true, term1SchoolDays: true, term2SchoolDays: true, totalSchoolDays: true },
   })
 }
+// Marca asistencia PRESENTE para un alumno a partir de un escaneo de QR.
+export async function markQrAttendance(studentId: string) {
+  const today = todayInSchoolTimeZone()
+  const enrollment = await prisma.enrollmentHistory.findFirst({
+    where: { studentId, endDate: null },
+    orderBy: { startDate: 'desc' },
+    select: { classSectionId: true, classSection: { select: { academicYear: { select: { active: true } } } } },
+  })
+  if (!enrollment || !enrollment.classSection.academicYear.active) {
+    throw new HttpError(409, 'El alumno no tiene matrícula activa')
+  }
+  const registrar = await prisma.user.findFirst({
+    where: { role: Role.ADMINISTRATOR },
+    select: { id: true },
+  })
+  if (!registrar) throw new HttpError(500, 'No hay usuario registrador configurado')
+
+  const parsedDate = toDate(today)
+  const sectionId = enrollment.classSectionId
+  const existing = await prisma.dailyAttendance.findUnique({
+    where: { studentId_date_sectionId: { studentId, date: parsedDate, sectionId } },
+    select: { id: true, value: true },
+  })
+  const alreadyRegistered = !!existing && existing.value === AttendanceValue.PRESENT
+  const record = await prisma.dailyAttendance.upsert({
+    where: { studentId_date_sectionId: { studentId, date: parsedDate, sectionId } },
+    create: {
+      studentId,
+      date: parsedDate,
+      sectionId,
+      registeredById: registrar.id,
+      value: AttendanceValue.PRESENT,
+      justified: false,
+      justification: null,
+    },
+    update: { value: AttendanceValue.PRESENT, registeredById: registrar.id },
+  })
+  return { studentId, date: today, sectionId, value: record.value, alreadyRegistered }
+}

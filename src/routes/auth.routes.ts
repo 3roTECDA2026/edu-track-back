@@ -14,15 +14,17 @@ const router = express.Router();
 router.post('/login', async (req: Request, res: Response) => {
   try {
     // Capturamos 'user' (el email que viene desde el front) y 'password'
-    const { user, password } = req.body;
+    const { user, email, username, password, pass } = req.body;
+    const loginIdentifier = user || email || username;
+    const loginPassword = password || pass;
 
-    if (!user || !password) {
+    if (!loginIdentifier || !loginPassword) {
       return res.status(400).json({ message: 'Por favor, ingresá tu usuario y contraseña.' });
     }
 
     // Buscamos al usuario en la base de datos por email
     const dbUser = await prisma.user.findFirst({
-      where: { email: user },
+      where: { email: loginIdentifier },
     });
 
     if (!dbUser) {
@@ -30,7 +32,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     // Validamos la contraseña usando bcrypt
-    const isPasswordValid = await bcrypt.compare(password, dbUser.passwordHash);
+    const isPasswordValid = await bcrypt.compare(loginPassword, dbUser.passwordHash);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Credenciales inválidas.' });
     }
