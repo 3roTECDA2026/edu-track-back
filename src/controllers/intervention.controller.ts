@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import { getAuthUser } from '@/middlewares/auth.middleware'
 import {
   createInterventionSchema,
+  exportInterventionsPdfQuerySchema,
   interventionAttachmentParamsSchema,
   interventionIdParamSchema,
   listInterventionsQuerySchema,
@@ -11,6 +12,7 @@ import {
 import * as interventionService from '@/services/intervention.service'
 import * as attachmentService from '@/services/interventionAttachment.service'
 import { sendSuccess } from '@/utils/apiResponse'
+import { attachmentDisposition } from '@/utils/contentDisposition'
 
 // Arma el "actor" (quién hace la acción) a partir del token y la request.
 function getActor(req: Request) {
@@ -28,6 +30,24 @@ export async function listInterventions(req: Request, res: Response) {
   const query = listInterventionsQuerySchema.parse(req.query)
   const result = await interventionService.listInterventions(query, getActor(req))
   sendSuccess(res, result, 'Intervenciones obtenidas correctamente')
+}
+
+// PDF de la línea de tiempo de un alumno, con los filtros aplicados (CRM-088).
+export async function exportInterventionsPdf(req: Request, res: Response) {
+  const query = exportInterventionsPdfQuerySchema.parse(req.query)
+  const { pdf, studentLastName } = await interventionService.generateInterventionTimelinePdf(
+    query,
+    getActor(req)
+  )
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Length', pdf.length)
+  // attachmentDisposition (CRM-060) codifica bien apellidos como D'Angelo y suma un nombre ASCII
+  res.setHeader(
+    'Content-Disposition',
+    attachmentDisposition(`intervenciones-${studentLastName}.pdf`)
+  )
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.send(pdf)
 }
 
 export async function getInterventionById(req: Request, res: Response) {

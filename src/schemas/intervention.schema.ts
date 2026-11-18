@@ -51,6 +51,20 @@ export const listInterventionsQuerySchema = z
   })
 export type ListInterventionsQuery = z.infer<typeof listInterventionsQuerySchema>
 
+// Exportar a PDF la línea de tiempo de un alumno (CRM-088), con los mismos filtros que la pestaña.
+export const exportInterventionsPdfQuerySchema = z
+  .object({
+    studentId: z.guid(),
+    eventType: z.enum(InterventionEventType).optional(),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'La fecha "desde" no puede ser posterior a "hasta"',
+    path: ['from'],
+  })
+export type ExportInterventionsPdfQuery = z.infer<typeof exportInterventionsPdfQuerySchema>
+
 // Descargar un adjunto: id de la intervención y del adjunto (CRM-087).
 export const interventionAttachmentParamsSchema = z.object({
   id: z.guid(),
