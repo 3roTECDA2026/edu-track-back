@@ -117,7 +117,9 @@ export const createSignLegalConflict =
           throw new HttpError(403, 'Solo el autor del acta puede firmarla')
         }
 
-        if (conflict.digitalSignHash || conflict.electronicSignature) {
+        // Solo la firma TOTP indica que el acta está firmada. digitalSignHash es el hash de
+        // integridad (CRM-093) y lo tienen todas las actas desde el alta.
+        if (conflict.electronicSignature) {
           throw new HttpError(409, 'El acta ya está firmada')
         }
 

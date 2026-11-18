@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto'
+
 import { prisma } from '@/lib/prisma'
+import { calculateAttachmentHash } from '@/utils/conflictDocumentHash'
 import { HttpError } from '@/utils/httpError'
 import { encryptConflictReport, decryptConflictReport } from '@/utils/conflictEncryption'
 
@@ -23,15 +26,30 @@ export const createAttachmentService = (db: AttachmentDatabase) => {
         throw new HttpError(404, 'Conflicto legal no encontrado')
       }
 
+      // CRM-093: UUID, fecha y hash de integridad del anexo, calculados antes de guardar
+      const documentUuid = randomUUID()
+      const date = new Date()
+      const digitalSignHash = calculateAttachmentHash({
+        documentUuid,
+        conflictId: data.conflictId,
+        authorId: data.authorId,
+        content: data.content,
+        date,
+      })
+
       const attachment = await tx.legalConflictAttachment.create({
         data: {
+          documentUuid,
+          date,
           conflictId: data.conflictId,
           authorId: data.authorId,
           content: encryptConflictReport(data.content),
-          digitalSignHash: null,
+          digitalSignHash,
         },
       })
 
+      // El hash va también al AuditLog, que no se puede modificar (copia para la verificación).
+      // "signed" sigue siendo la firma electrónica (TOTP), que los anexos no tienen.
       await tx.auditLog.create({
         data: {
           userId: data.authorId,
@@ -44,6 +62,8 @@ export const createAttachmentService = (db: AttachmentDatabase) => {
             attachmentId: attachment.id,
             authorId: data.authorId,
             signed: false,
+            documentUuid,
+            digitalSignHash,
           },
         },
       })

@@ -66,6 +66,7 @@ Se cargan desde `.env` (ignorado por git). La plantilla es `.env.example`.
 | `PORT`         | Puerto del servidor (por defecto 3000)                                            |
 | `DATABASE_URL` | `postgresql://postgres:<contraseña>@localhost:5432/edutrack_db?schema=public`     |
 | `JWT_SECRET`   | Firma de los tokens. Si falta se usa `'clave_secreta_temporal'` (solo desarrollo) |
+| `CONFLICT_HASH_KEY` | Clave HMAC (64 hex) del hash de integridad de actas y anexos (CRM-093). Obligatoria para registrar y verificar actas; no cambiarla |
 
 La instalación de PostgreSQL local está explicada en `instalacion .txt`.
 Si PostgreSQL está instalado con **snap**, se entra con `psql -U postgres -h /tmp`
@@ -265,7 +266,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/auth` | login | — |
 | `/users` | CRUD de usuarios, `/:id/suspend`, `/:id/activate` | `ADMINISTRATOR` |
 | `/students` | legajo, listado paginado con filtros, `/:id/deactivate`, `/:id/history` | ninguna |
-| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador y `/:id/status` (confirmar o cerrar) | ver: personal de la escuela (el docente, solo los de sus alumnos); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
+| `/pates` | PATE: listado (`?studentId`, `?year`, `?status`), `/options`, `/:id`, alta, edición en borrador, `/:id/status` (confirmar o cerrar con evaluación final) y `/:id/follow-ups` (seguimientos periódicos) | ver: personal de la escuela (el docente, solo los de sus alumnos; versión curricular sin diagnóstico ni observaciones de cierre); gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE` |
 | `/enrollments` | inscripciones | ninguna |
 | `/class-sections` | listado de cursos/divisiones | ninguna |
 | `/courses` | `/class-sections` y `/subjects` (CRUD) | ninguna |
@@ -280,6 +281,7 @@ Base: `/api`. Recursos montados en `src/routes/index.ts`:
 | `/pending-subjects` | saberes pendientes de las MPAA e historial de intentos de intensificación: `GET /?studentId=`, `PATCH /:id` y `GET /:id/attempts`; cada MPAA trae `gradeLevel` (año de la cursada de origen o, si falta, el de la materia) | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `TEACHER` |
 | `/subject-repeats` | recursado de MPAA: listado (`?studentId`, `?year`), `/options?studentId` (MPAA recursables y el contador de materias del ciclo: `subjectCount`/`maxSubjects`), alta, `PATCH /:id` (sección) y `DELETE /:id` | ver y gestionar: `ADMINISTRATOR`, `SCHOOL_MANAGEMENT`, `EOE_DIRECTIVE`, `PRECEPTOR` (el docente no) |
 | `/matriculation` | matriculación continuada entre ciclos lectivos: `POST /run` | `ADMINISTRATOR`, `SCHOOL_MANAGEMENT` |
+| `/legal-conflicts` | actas de conflicto: `/student/:studentId`, `/codes`, `/:id`, alta, `/:id/sign` (firma TOTP), `/:id/attachments` (anexos) y `/:id/verify` (integridad) | `EOE_DIRECTIVE`, `SCHOOL_MANAGEMENT` |
 
 Las rutas nuevas deben usar `verifyToken` y, si corresponde, `requireRole`.
 Las rutas fijas deben declararse **antes** que las paramétricas (`/roster` antes de `/:id`).
@@ -296,7 +298,8 @@ de distintos recursos y puede pisar otras.
   derivados. Una sola función para todos: `getReferredStudentIds` en
   `services/promotionDecision.service.ts` (la usan el PATE y las reuniones del EDTE). El seed
   carga la decisión de Mateo García (derivado al cierre de 2025).
-- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED`.
+- Estados: `DRAFT` (se edita) → `IN_PROGRESS` (confirmado) → `CLOSED` (cierre con evaluación final `FAVORABLE`, `PARTIAL` o `UNFAVORABLE`).
+- **Seguimientos periódicos (CRM-080, E4-RF-07):** registrados en `POST /pates/:id/follow-ups` asociados a una reunión del EDTE. La versión curricular oculta observaciones pedagógicas sensibles (`observations: null`).
 - Las materias son MPAA pendientes del alumno, de ciclos anteriores. Hasta 4 a intensificar, con
   modelo (y sección en los modelos 2 y 3, con las mismas reglas que la asignación de CRM-056); el
   resto, a recursar con la sección donde cursa (del año de la materia; el turno puede ser otro).
@@ -356,6 +359,31 @@ de distintos recursos y puede pisar otras.
 - `Intensification.evidenceUrl` (un link en texto, anterior a CRM-060) **queda en desuso**:
   ningún código lo lee ni lo escribe. Las evidencias van en `IntensificationAttachment`. Se puede
   quitar del schema en otro ticket.
+
+**Integridad de actas de conflicto (CRM-093, E4-RF-17):**
+- Cada acta y cada anexo tiene `documentUuid` (UUID v4) y `digitalSignHash` (hash de
+  integridad), calculados al guardar (`utils/conflictDocumentHash.ts`).
+  - Acta: HMAC-SHA256 del mismo contenido que firma la firma TOTP (uuid, alumno, autor, código,
+    informe en texto plano, fecha del suceso y de registro). Los anexos no entran.
+  - Anexo: HMAC-SHA256 de uuid, `conflictId`, autor, contenido en texto plano y fecha.
+  - La clave es `CONFLICT_HASH_KEY`: sin ella, quien escriba en la base no puede recalcular el hash.
+  - El hash también se guarda en el `AuditLog` del alta, que no se puede modificar (CRM-095).
+- `GET /legal-conflicts/:id/verify` recalcula todo y responde `status`: `INTACT`, `ALTERED` o
+  `NOT_HASHED`, el detalle del acta y de cada anexo (`reasons`: `CONTENT_CHANGED`, `UNREADABLE`,
+  `AUDIT_LOG_MISMATCH`, `AUDIT_LOG_MISSING`) y `signature.status` (`MATCH`, `MISMATCH`,
+  `UNSIGNED`) contra la firma TOTP.
+  - Un registro con hash y sin su copia en el `AuditLog` del alta está `ALTERED`
+    (`AUDIT_LOG_MISSING`): el alta guarda las dos cosas en la misma transacción.
+  - Un contenido que no se puede descifrar está `ALTERED` (`UNREADABLE`), también en los registros
+    sin hash. `NOT_HASHED` es solo para los anteriores a CRM-093 que se pueden leer.
+  - Cada verificación queda en `AuditLog` como `SENSITIVE_VIEW` (`operation: 'VERIFY'`), sin el
+    contenido.
+- `digitalSignHash` **no** indica que el acta esté firmada: eso es `electronicSignature`.
+- Las actas y anexos anteriores a CRM-093 quedan sin hash (`NOT_HASHED` si se pueden leer): son
+  inmutables (triggers de CRM-090) y no se les puede agregar.
+- Las reglas de decisión están en `utils/conflictIntegrity.ts` (funciones puras, con tests).
+- No cambiar el resultado de `calculateConflictHash`: invalidaría las firmas TOTP guardadas
+  (hay un test que fija su valor).
 
 CORS: `cors()` sin restricciones (acepta cualquier origen).
 

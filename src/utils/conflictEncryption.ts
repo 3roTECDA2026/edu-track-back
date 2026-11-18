@@ -13,6 +13,12 @@ const getEncryptionKey = (): Buffer => {
   return Buffer.from(key, 'hex')
 }
 
+// Falla si la clave no está configurada. Sirve para distinguir un error de configuración de un
+// contenido que no se puede descifrar porque fue manipulado (CRM-093).
+export const assertConflictEncryptionKey = (): void => {
+  getEncryptionKey()
+}
+
 export const encryptConflictReport = (report: string): string => {
   const iv = randomBytes(IV_LENGTH)
 

@@ -156,6 +156,18 @@ test('rechaza firmar nuevamente un acta ya firmada', async () => {
   assert.equal(state.signatures.length, 0)
 })
 
+// CRM-093: todas las actas tienen hash de integridad desde el alta; eso no es una firma
+test('CRM-093: un acta con hash de integridad y sin firma TOTP se puede firmar', async () => {
+  const { state, sign, request } = createFixture()
+
+  state.conflict.digitalSignHash = 'a'.repeat(64)
+
+  const result = await sign(request())
+
+  assert.equal(state.signatures.length, 1)
+  assert.match(result.documentHash, /^[a-f0-9]{64}$/)
+})
+
 test('rechaza reutilizar un código TOTP', async () => {
   const { state, sign, request } = createFixture()
 

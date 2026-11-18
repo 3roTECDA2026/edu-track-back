@@ -10,6 +10,7 @@ import {
 import { encryptConflictReport } from '../src/utils/conflictEncryption'
 
 process.env.CONFLICT_ENCRYPTION_KEY = randomBytes(32).toString('hex')
+process.env.CONFLICT_HASH_KEY = randomBytes(32).toString('hex')
 
 const REPORT = 'Informe confidencial del conflicto'
 
@@ -117,12 +118,16 @@ test('CRM-095: el alta de un conflicto registra el log con solo referencias', as
   assert.equal(audit.affectedEntity, 'LegalConflict')
   assert.equal(audit.entityId, 'conflicto-1')
   assert.equal(audit.ipAddress, '127.0.0.1')
+  // CRM-093: el log también guarda el UUID y el hash de integridad (referencias, no contenido)
   assert.deepEqual(audit.newData, {
     conflictId: 'conflicto-1',
     studentId: 'alumno-1',
     conflictCode: 'CON-001',
     authorId: 'usuario-1',
+    documentUuid: result.documentUuid,
+    digitalSignHash: result.digitalSignHash,
   })
+  assert.match(audit.newData.digitalSignHash, /^[a-f0-9]{64}$/)
 })
 
 test('CRM-095: el alta no guarda el informe en el log', async () => {
