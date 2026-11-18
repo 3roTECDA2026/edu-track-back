@@ -12,6 +12,7 @@ import {
 import * as interventionService from '@/services/intervention.service'
 import * as attachmentService from '@/services/interventionAttachment.service'
 import { sendSuccess } from '@/utils/apiResponse'
+import { attachmentDisposition } from '@/utils/contentDisposition'
 
 // Arma el "actor" (quién hace la acción) a partir del token y la request.
 function getActor(req: Request) {
@@ -38,12 +39,12 @@ export async function exportInterventionsPdf(req: Request, res: Response) {
     query,
     getActor(req)
   )
-  const fileName = `intervenciones-${studentLastName}.pdf`
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Length', pdf.length)
+  // attachmentDisposition (CRM-060) codifica bien apellidos como D'Angelo y suma un nombre ASCII
   res.setHeader(
     'Content-Disposition',
-    `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+    attachmentDisposition(`intervenciones-${studentLastName}.pdf`)
   )
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.send(pdf)

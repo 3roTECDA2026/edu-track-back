@@ -246,6 +246,35 @@ export async function updateIntervention(id: string, input: UpdateInterventionIn
   })
 }
 
+// Lo que usa assertCanExportStudent de la base (se puede reemplazar por una falsa en los tests).
+export type StudentAccessDb = Pick<typeof prisma, 'teacherSubjectCourse' | 'enrollmentHistory'>
+
+// Un docente solo puede exportar el PDF de un alumno que cursa o cursó en alguno de sus cursos
+// (revisión de CRM-088). Si no, responde 404, igual que si el alumno no existiera: no confirma
+// que existe, no muestra su nombre y DNI, y no queda un acceso sensible en la auditoría.
+// Los demás roles pueden exportar el de cualquier alumno.
+export async function assertCanExportStudent(
+  studentId: string,
+  actor: Pick<Actor, 'userId' | 'role'>,
+  db: StudentAccessDb = prisma
+): Promise<void> {
+  if (actor.role !== Role.TEACHER) return
+
+  const assignments = await db.teacherSubjectCourse.findMany({
+    where: { teacherId: actor.userId },
+    select: { classSectionId: true },
+  })
+  const sectionIds = [...new Set(assignments.map((a) => a.classSectionId))]
+  const enrollment =
+    sectionIds.length > 0
+      ? await db.enrollmentHistory.findFirst({
+          where: { studentId, classSectionId: { in: sectionIds } },
+          select: { id: true },
+        })
+      : null
+  if (!enrollment) throw new HttpError(404, 'El alumno indicado no existe')
+}
+
 // Tope de intervenciones en un PDF, para no armar un documento gigante por error.
 const MAX_PDF_INTERVENTIONS = 500
 
@@ -255,6 +284,9 @@ export async function generateInterventionTimelinePdf(
   query: ExportInterventionsPdfQuery,
   actor: Actor
 ): Promise<{ pdf: Buffer; studentLastName: string }> {
+  // Antes de buscar al alumno: un docente no puede ver nombre y DNI de alumnos ajenos
+  await assertCanExportStudent(query.studentId, actor)
+
   const student = await prisma.student.findUnique({
     where: { id: query.studentId },
     select: { id: true, firstName: true, lastName: true, dni: true },
